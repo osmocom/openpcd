@@ -1,0 +1,65 @@
+AT91SAM7 firmware for RC632 based reader.
+
+0. Architecture
+
+We have a Philips CL RC632 connected via SPI to the AT91SAM7.
+The AT91SAM7 has a USB device port that is connected to a USB host.
+
+
+1. USB Protocol / Interface
+
+The AT91SAM7 has four USB endpoints, of which one is used for the control pipe,
+and three are available for the user application.
+
+Ideally, the device will provide two configurations, each with one interface
+providing three endpoints: IN, OUT, INTERRUPT.
+
+
+
+2. Interface configurations
+
+2.1 Dumb interface
+
+In this mode, the AT91SAM7 acts as a stupid interface between SPI and USB.  It
+provides access to the following primitives:
+
+- Write Register
+- Read Register
+- Write FIFO
+- Read FIFO
+- Signal Interrupt
+
+Since the FIFO of the RC632 are only 64byte deep, and the USB latency is too
+big to facilitate FIFO refill while transmit, esp. at 424/848kbps RFID bitrate,
+the AT91SAM7 has to provide bigger 'virtual' FIFO buffers to the USB host.
+
+Thus, the USB host can fill a 1024byte-sized buffer using multiple USB packets,
+and then ask the AT91SAM7 to write the first 64bytes to the FIFO.   The RC632
+will be programmed by the USB host to generate FIFO Level interrupts, to which
+the AT91SAM7 will react automatically and re-fill the RC632 FIFO until all host
+data has been sent to the RC632.
+
+For the FIFO RX path, the opposite pattern is used:  The AT91SAM7 has a 1024 byte
+sized buffer, into which data can be read from the FIFO. 
+
+
+2.2 Intelligent interface
+
+This interface will be optionally implemented at some later point.  It provides
+a 14443 protocol implementation inside the AT91SAM7.
+
+
+2. Interface configurations
+
+2.1 Dumb interface
+
+EP0	control
+EP1	bulk in
+EP2	bulk out
+EP3	interrupt
+
+3. USB Protocol
+
+3.1 dumb interface
+
+

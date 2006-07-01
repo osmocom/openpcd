@@ -1,0 +1,5 @@
+
+- connection to usb host
+- end-of-bus-reset triggers ENDBUSRES in UDP_ISRand interrupt is triggered
+- enable defualt EP, setting EPEDS in UDP_CSR[0] reg and enable irq for EP0 via UDP_IER
+- enumeration begins with control transfer
