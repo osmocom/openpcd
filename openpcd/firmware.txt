@@ -27,6 +27,8 @@ provides access to the following primitives:
 - Read Register
 - Write FIFO
 - Read FIFO
+- Write Virtual FIFO
+- Read Virtual FIFO
 - Signal Interrupt
 
 Since the FIFO of the RC632 are only 64byte deep, and the USB latency is too
@@ -58,8 +60,105 @@ EP1	bulk in
 EP2	bulk out
 EP3	interrupt
 
+
 3. USB Protocol
 
 3.1 dumb interface
 
+TBD
+
+3.2 Intelligent interface
+
+TBD
+
+
+4. Firmware code flow architecture
+
+The general idea is to make the firmware as interrupt-driven as possible.
+Synchronous waiting for I/O (SPI, USB, ...) should be avoided, and restricted
+to slow path operations  (such as USB configuration) only.
+
+Another design goal is to avoid using a dynamic memory allocator.  Dynamic
+memory allocation can be costly, leads to all sorts of fragmentation problems,
+and will lead to the question of what to do in the case of an OOM situation.
+
+Therefore, all data structures such as buffers will be pre-allocated and
+declared as static variables.
+
+4.x Data structures
+
+Any action of the PCD is host-driven.  Therefore, the UDC maintains a set
+(2..32) request context structures.  Upon completion of a USB OUT EP DMA,
+the corresponding request context is passed on to other parts of the code.
+Once the reply to that request has been processed, the context structure
+is released.
+
+The context structures are statically allocated, and a single u_int32_t
+represents a bitmask of busy context structures.  ffs() or a similar function
+is used to search for a free buffer using which the UDC RX DMA can be refilled.
+
+
+4.1 Examples
+
+4.1.1 Performing SPI Register Read
+
+[ UDC has configured RX dma for reception of usb packets ]
+- UDC issues interrupt that USB endpoint receive has completed (FIFO)
+	- UDC driver defragments multiple packets into one transfer [optional]
+	- UDC driver submits another buffer for DMA reception
+	- UDC driver parses PCD ommand header and calls rc632 API
+	- RC632 driver configures SPI DMA transceive
+	- End of UDC interrupt
+- idle loop
+- SPI DMA completion interrupt happens for TX [do nothing]
+- SPI DMA completion interrupt happens for RX
+	- callback into UDC driver using request state data 
+	- UDC driver sends IN packet/transfer back to host
+	- End of SPI DMA interrupt
+	
+4.1.2 Performing SPI register read
+
+much like register write, although the deferred completion could be skipped and
+the usb transfer approved immediately after having submitted the SPI write
+request to the RC632
+
+5.1.3 Performing FIFO read
+
+much like register read.  Only difference is size and duration of transfer
+
+5.1.4 Performing FIFO write
+
+much like register write.  Only difference is size and duration of transfer
+
+5.1.5 Performing virtual FIFO read
+
+much like a FIFO write, but make sure to enable FIFO watermark IRQ in RC632.
+
+5.1.6 Performing virtual FIFO write
+
+much like a FIFO read, but make sure to enable FIFO watermark IRQ in RC632.
+Response to USB host is only sent after the full virtual FIFO has been emptied
+into the physical FIFO.
+
+5.1.6 Reporting RC632 interrupts
+
+Upon reception of a RC632 interrupt, the primary and secondary status registers
+are read from the IRQ handler, and an USB packet on the Interrupt In enddpoint is
+created and submitted for transmission.
+
+Some special handling (filtering) of FIFO over/underrun interrupts has to be 
+implemented for transparent handling of the virtual FIFO.
+
+5.1.7 Reporting virtual FIFO interrupts
+
+The virtual FIFO itself can generate over/underrun interrupts on the USB.  They
+are signalled pretty much like real RC632 interrupts.
+
+
+6. Interrupt priorities
+
+UDC DMA			low priority, since we don't want to overflow with usb packets?
+SPI DMA			higher than UDC since it might complete while in UDC code?
+RC632_IRQ		high priority, since FIFO refill might be required
+DEBUG_UART		do we want it to use IRQ at all? if yes it should have highest prio.
 

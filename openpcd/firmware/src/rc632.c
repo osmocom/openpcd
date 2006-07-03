@@ -3,9 +3,15 @@
  *
  * */
 
+#include "pio_irq.h"
+
 static void spi_irq(void)
 {
+	u_int32_t status = pSPI->SPI_SR;
 
+	if (status & (AT91C_SPI_OVRES|AT91C_SPI_MODF)) {
+		/* FIXME: print error message to debug port */
+	}
 }
 
 static u_int8_t spi_outbuf[64+1];
@@ -65,7 +71,7 @@ u_int8_t rc632_read_fifo(u_int8_t max_len, u_int8_t *data)
 /* RC632 interrupt handling */
 
 
-void rc632_irq(void)
+static void rc632_irq(void)
 {
 	/* CL RC632 has interrupted us */
 	u_int8_t cause = rc632_read_reg(RC632_REG_INTERRUPT_RQ);
@@ -95,15 +101,22 @@ void rc632_init(void)
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI, F,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &spi_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
+	AT91F_SPI_EnableIt(pSPI, AT91C_SPI_MODF|AT91C_SPI_OVRES);
 	AT91F_SPI_CfgMode(AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED);
-	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10, 
+	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10 (4.8MHz), 
 	 * DLYBS = 0, DLYBCT = 0 */
 	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS8|AT91C_SPI_NCPHA|(10<<8));
-
 	AT91F_SPI_Reset();
+
+	/* Register rc632_irq */
+	pio_irq_register(OPENPCD_RC632_IRQ, &rc632_irq);
+	pio_irq_enable(OPENPCD_RC632_IRQ);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
 };
 
 void rc632_exit(void)
 {
-
+	pio_irq_unregister(OPENPCD_RC632_IRQ);
+	AT91F_AIC_DisableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
+	AT01F_SPI_Disable();
 }
