@@ -3,6 +3,7 @@
  *
  * */
 
+#include "fifo.h"
 #include "pio_irq.h"
 
 static void spi_irq(void)
@@ -29,12 +30,12 @@ struct rc632 {
 
 /* RC632 access primitives */
 
-void rc632_write_reg(u_int8_t addr, u_int8_t data)
+void rc632_reg_write(u_int8_t addr, u_int8_t data)
 {
 	addr = (addr << 1) & 0x7e;
 }
 
-void rc632_write_fifo(u_int8_t len, u_int8_t *data)
+void rc632_fifo_write(u_int8_t len, u_int8_t *data)
 {
 	if (len > sizeof(spi_outbuf)-1)
 		len = sizeof(spi_outbuf)-1;
@@ -47,12 +48,12 @@ void rc632_write_fifo(u_int8_t len, u_int8_t *data)
 	return len;
 }
 
-u_int8_t rc632_read_reg(u_int8_t addr)
+u_int8_t rc632_reg_read(u_int8_t addr)
 {
 	addr = (addr << 1) & 0x7e;
 }
 
-u_int8_t rc632_read_fifo(u_int8_t max_len, u_int8_t *data)
+u_int8_t rc632_fifo_read(u_int8_t max_len, u_int8_t *data)
 {
 	u_int8_t fifo_length = rc632_reg_read(RC632_REG_FIFO_LENGTH);
 	u_int8_t i;
@@ -74,10 +75,10 @@ u_int8_t rc632_read_fifo(u_int8_t max_len, u_int8_t *data)
 static void rc632_irq(void)
 {
 	/* CL RC632 has interrupted us */
-	u_int8_t cause = rc632_read_reg(RC632_REG_INTERRUPT_RQ);
+	u_int8_t cause = rc632_reg_read(RC632_REG_INTERRUPT_RQ);
 
 	/* ACK all interrupts */
-	rc632_write_reg(RC632_REG_INTERRUPT_RQ, cause);
+	rc632_reg_write(RC632_REG_INTERRUPT_RQ, cause);
 
 	if (cause & RC632_INT_LOALERT) {
 		/* FIFO is getting low, refill from virtual FIFO */

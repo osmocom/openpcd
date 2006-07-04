@@ -1,20 +1,9 @@
+/* Implementation of a virtual FIFO */
+
+#include "fifo.h"
 
 #define FIFO_SIZE	1024
 
-/* virtual FIFO */
-
-struct fifo {
-	u_int16_t size;		/* actual FIFO size, can be smaller than 'data' */
-	u_int16_t producer;	/* index of producer */
-	u_int16_t consumer;	/* index of consumer */
-	u_int16_t watermark;
-	u_int8_t irq;
-	u_int8_t irq_en;
-	u_int8_t status;
-	void (*callback)(struct fifo *fifo, u_int8_t event, void *data);
-	void *cb_data;
-	u_int8_t data[FIFO_SIZE];
-};
 
 #define FIFO_IRQ_LO	0x01
 #define FIFO_IRQ_HI	0x02
