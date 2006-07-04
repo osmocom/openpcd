@@ -1,6 +1,10 @@
 #ifndef _FIFO_H
 #define _FIFO_H
 
+#include <include/types.h>
+
+#define FIFO_SIZE	1024
+
 struct fifo {
 	u_int16_t size;		/* actual FIFO size, can be smaller than 'data' */
 	u_int16_t producer;	/* index of producer */

@@ -15,6 +15,7 @@
 #ifndef PCD_ENUMERATE_H
 #define PCD_ENUMERATE_H
 
+#include <include/AT91SAM7S64.h>
 
 #define AT91C_EP_OUT 1
 #define AT91C_EP_OUT_SIZE 0x40

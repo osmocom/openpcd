@@ -66,14 +66,14 @@ TARGET = main
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
-SRC = $(TARGET).c cdc_enumerate.c dbgu.c 
+#SRC = $(TARGET).c pcd_enumerate.c dbgu.c 
 # only needed for the "dll-Target":
 #SRC += syscalls.c
 
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
-SRCARM = interrupt_Usart.c ../compil/SrcWinARM/Cstartup_SAM7.c
+SRCARM = $(TARGET).c pcd_enumerate.c fifo.c dbgu.c rc632.c ../compil/SrcWinARM/Cstartup_SAM7.c
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -111,7 +111,7 @@ DEBUG = dwarf-2
 # List any extra directories to look for include files here.
 #     Each directory must be seperated by a space.
 #EXTRAINCDIRS = ./include
-EXTRAINCDIRS = ../compil/SrcWinARM ../..
+EXTRAINCDIRS = ../compil/SrcWinARM ../
 
 # Compiler flag to set the C Standard level.
 # c89   - "ANSI" C

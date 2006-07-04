@@ -17,16 +17,17 @@
 //* 1.4 27/Apr/05 JPP   : Unset the USART_COM and suppress displaying data
 //*--------------------------------------------------------------------------------------
 
-#include "board.h"
+//#include "board.h"
 #include "dbgu.h"
-#include "cdc_enumerate.h"
+#include "pcd_enumerate.h"
 
 #define MSG_SIZE 				1000
-
+#if 0
 #define USART_COM
 
 #if defined(__WinARM__) && !defined(UART_COM)
 #warning "make sure syscalls.c is added to the source-file list (see makefile)"
+#endif
 #endif
 
 //* external function

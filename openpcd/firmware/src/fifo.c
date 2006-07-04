@@ -2,9 +2,6 @@
 
 #include "fifo.h"
 
-#define FIFO_SIZE	1024
-
-
 #define FIFO_IRQ_LO	0x01
 #define FIFO_IRQ_HI	0x02
 #define FIFO_IRQ_OFLOW	0x04
@@ -23,14 +20,14 @@ void fifo_check_water(struct fifo *fifo)
 	int avail = fifo_available(fifo);
 
 	if (avail <= fifo->watermark)
-		irq |= FIFO_IRQ_LO;
+		fifo->irq |= FIFO_IRQ_LO;
 	else
-		irq &= FIFO_IRQ_LO;
+		fifo->irq &= FIFO_IRQ_LO;
 
 	if (fifo->size - avail >= fifo->watermark)
-		irq |= FIFO_IRQ_HI;
+		fifo->irq |= FIFO_IRQ_HI;
 	else
-		irq &= FIFO_IRQ_HI;
+		fifo->irq &= FIFO_IRQ_HI;
 }
 
 void fifo_check_raise_int(struct fifo *fifo)

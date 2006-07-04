@@ -18,8 +18,8 @@
 // 12. Apr. 2006: added modification found in the mikrocontroller.net gcc-Forum 
 //                additional line marked with /* +++ */
 
-#include "board.h"
-#include "usb_ch9.h"
+//#include "board.h"
+#include <include/usb_ch9.h>
 #include "pcd_enumerate.h"
 
 typedef unsigned char uchar;
@@ -47,7 +47,7 @@ struct usb_device_descriptor devDescriptor = {
 
 struct _desc {
 	struct usb_config_descriptor ucfg;
-	struct usb_interface_descriptor uif
+	struct usb_interface_descriptor uif;
 	    struct usb_endpoint_descriptor ep[3];
 };
 
@@ -56,11 +56,11 @@ const struct _desc cfgDescriptor = {
 		 .bLength = USB_DT_CONFIG_SIZE,
 		 .bDescriptorType = USB_DT_CONFIG,
 		 .wTotalLength = USB_DT_CONFIG_SIZE +
-		 USB_DT_INTERFACE_SIZE + 3 * USB_ENDPOINT_SIZE,
+		 USB_DT_INTERFACE_SIZE + 3 * USB_DT_ENDPOINT_SIZE,
 		 .bNumInterfaces = 1,
 		 .bConfigurationValue = 1,
 		 .iConfiguration = 0,
-		 .bmAttributs = USB_CONFIG_ATT_ONE,
+		 .bmAttributes = USB_CONFIG_ATT_ONE,
 		 .bMaxPower = 100,	/* 200mA */
 		 },
 	.uif = {
@@ -71,11 +71,11 @@ const struct _desc cfgDescriptor = {
 		.bNumEndpoints = 3,
 		.bInterfaceClass = USB_CLASS_VENDOR_SPEC,
 		.bInterfaceSubClass = 0,
-		.bInterfacePortocol = 0xff,
+		.bInterfaceProtocol = 0xff,
 		.iInterface = 0,
 		},
 	.ep[0] = {
-		  .bLength = USB_ENDPOINT_SIZE,
+		  .bLength = USB_DT_ENDPOINT_SIZE,
 		  .bDescriptorType = USB_DT_ENDPOINT,
 		  .bEndpointAddress = 0x01,
 		  .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -83,7 +83,7 @@ const struct _desc cfgDescriptor = {
 		  .bInterval = 0x10,	/* FIXME */
 		  },
 	.ep[1] = {
-		  .bLength = USB_ENDPOINT_SIZE,
+		  .bLength = USB_DT_ENDPOINT_SIZE,
 		  .bDescriptorType = USB_DT_ENDPOINT,
 		  .bEndpointAddress = 0x81,
 		  .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -91,7 +91,7 @@ const struct _desc cfgDescriptor = {
 		  .bInterval = 0x10,	/* FIXME */
 		  },
 	.ep[2] = {
-		  .bLength = USB_ENDPOINT_SIZE,
+		  .bLength = USB_DT_ENDPOINT_SIZE,
 		  .bDescriptorType = USB_DT_ENDPOINT,
 		  .bEndpointAddress = 0x82,
 		  .bmAttributes = USB_ENDPOINT_XFER_INT,
@@ -346,10 +346,10 @@ static void AT91F_CDC_Enumerate(AT91PS_CDC pCdc)
 	switch ((bRequest << 8) | bmRequestType) {
 	case STD_GET_DESCRIPTOR:
 		if (wValue == 0x100)	// Return Device Descriptor
-			AT91F_USB_SendData(pUDP, devDescriptor,
+			AT91F_USB_SendData(pUDP, &devDescriptor,
 					   MIN(sizeof(devDescriptor), wLength));
 		else if (wValue == 0x200)	// Return Configuration Descriptor
-			AT91F_USB_SendData(pUDP, cfgDescriptor,
+			AT91F_USB_SendData(pUDP, &cfgDescriptor,
 					   MIN(sizeof(cfgDescriptor), wLength));
 		else
 			AT91F_USB_SendStall(pUDP);
