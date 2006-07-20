@@ -19,7 +19,8 @@ struct fifo {
 };
 
 
-extern int fifo_init(struct fifo *fifo, u_int16_t size, void *cb_data);
+extern int fifo_init(struct fifo *fifo, u_int16_t size, 
+		     void (*callback)(struct fifo *fifo, u_int8_t event, void *data), void *cb_data);
 extern u_int16_t fifo_data_get(struct fifo *fifo, u_int16_t len, u_int8_t *data);
 extern u_int16_t fifo_data_put(struct fifo *fifo, u_int16_t len, u_int8_t *data);
 extern int fifo_available(struct fifo *fifo);

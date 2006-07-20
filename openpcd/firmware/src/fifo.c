@@ -2,6 +2,9 @@
 
 #include "fifo.h"
 
+#include <errno.h>
+#include <string.h>
+
 #define FIFO_IRQ_LO	0x01
 #define FIFO_IRQ_HI	0x02
 #define FIFO_IRQ_OFLOW	0x04
@@ -33,7 +36,7 @@ void fifo_check_water(struct fifo *fifo)
 void fifo_check_raise_int(struct fifo *fifo)
 {
 	if (fifo->irq & fifo->irq_en)
-		fifo->cb(fifo, fifo->irq, fifo->cb_data);
+		fifo->callback(fifo, fifo->irq, fifo->cb_data);
 }
 
 
@@ -42,7 +45,7 @@ u_int16_t fifo_data_put(struct fifo *fifo, u_int16_t len, u_int8_t *data)
 	u_int16_t old_producer = fifo->producer;
 
 	if (len > fifo_available(fifo)) {
-		len = fifo_available(fifo)
+		len = fifo_available(fifo);
 		fifo->irq |= FIFO_IRQ_OFLOW;
 	}
 
@@ -89,7 +92,8 @@ u_int16_t fifo_data_get(struct fifo *fifo, u_int16_t len, u_int8_t *data)
 	return len;
 }
 
-int fifo_init(struct fifo *fifo, u_int16_t size, void *cb_data)
+int fifo_init(struct fifo *fifo, u_int16_t size, 
+	      void (*cb)(struct fifo *fifo, u_int8_t event, void *data), void *cb_data)
 {
 	if (size > sizeof(fifo->data))
 		return -EINVAL;
@@ -98,7 +102,7 @@ int fifo_init(struct fifo *fifo, u_int16_t size, void *cb_data)
 	fifo->size = size;
 	fifo->producer = fifo->consumer = 0;
 	fifo->watermark = 0;
-	fifo->cb = cb;
+	fifo->callback = cb;
 	fifo->cb_data = cb_data;
 
 	return 0;

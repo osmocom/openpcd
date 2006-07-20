@@ -17,7 +17,7 @@
 //* 1.4 27/Apr/05 JPP   : Unset the USART_COM and suppress displaying data
 //*--------------------------------------------------------------------------------------
 
-//#include "board.h"
+#include <include/lib_AT91SAM7S64.h>
 #include "dbgu.h"
 #include "pcd_enumerate.h"
 

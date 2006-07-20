@@ -1,6 +1,8 @@
 #ifndef _PIO_IRQ_H
 #define _PIO_IRQ_H
 
+#include <include/AT91SAM7S64.h>
+
 typedef irq_handler_t (void)(u_int32_t pio);
 
 static irq_handler_t pio_handlers[NR_PIO];
