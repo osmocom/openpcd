@@ -25,8 +25,6 @@
 #include "pcd_enumerate.h"
 #include "dbgu.h"
 
-static char dbg_buf[256];
-
 static struct _AT91S_CDC pCDC;
 static AT91PS_CDC pCdc = &pCDC;
 
@@ -140,10 +138,7 @@ static void udp_irq(void)
 	AT91PS_UDP pUDP = pCDC.pUdp;
 	AT91_REG isr = pUDP->UDP_ISR;
 
-	sprintf(dbg_buf, "udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
-	DEBUGP(dbg_buf);
-
-	//DEBUGP("udp_irq: ");
+	DEBUGP("udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
@@ -342,8 +337,7 @@ static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, u_int32_t len
 	u_int32_t cpt = 0;
 	AT91_REG csr;
 
-	sprintf(dbg_buf, "send_data: %u bytes ", length);
-	DEBUGP(dbg_buf);
+	DEBUGP("send_data: %u bytes ", length);
 
 	do {
 		cpt = MIN(length, 8);

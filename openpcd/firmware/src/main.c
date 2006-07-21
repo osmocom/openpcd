@@ -17,8 +17,13 @@
 //* 1.4 27/Apr/05 JPP   : Unset the USART_COM and suppress displaying data
 //*--------------------------------------------------------------------------------------
 
+#include <errno.h>
+#include <string.h>
 #include <include/lib_AT91SAM7S64.h>
+#include <include/openpcd.h>
 #include "dbgu.h"
+#include "rc632.h"
+#include "led.h"
 #include "pcd_enumerate.h"
 
 #define MSG_SIZE 				1000
@@ -51,21 +56,65 @@ static void AT91F_USB_Open(void)
 	AT91F_CDC_Open(AT91C_BASE_UDP);
 }
 
-//*--------------------------------------------------------------------------------------
-//* Function Name       : main
-//* Object              :
-//*--------------------------------------------------------------------------------------
+static int usb_in(int len)
+{
+	struct openpcd_hdr *poh;
+	struct openpcd_hdr *pih;
+	u_int16_t data_len;
+
+	if (len < sizeof(*poh))
+		return -EINVAL;
+
+	//data_len = ntohs(poh->len);
+
+	memcpy(pih, poh, sizeof(*poh));
+
+	switch (poh->cmd) {
+	case OPENPCD_CMD_WRITE_REG:
+		DEBUGP("WRITE_REG ");
+		rc632_reg_write(poh->reg, poh->val);
+		break;
+	case OPENPCD_CMD_WRITE_FIFO:
+		DEBUGP("WRITE FIFO ");
+		if (len - sizeof(*poh) < data_len)
+			return -EINVAL;
+		rc632_fifo_write(data_len, poh->data);
+		break;
+	case OPENPCD_CMD_WRITE_VFIFO:
+		DEBUGP("WRITE VFIFO ");
+		break;
+	case OPENPCD_CMD_READ_REG:
+		DEBUGP("READ REG ");
+		pih->val = rc632_reg_read(poh->reg);
+		break;
+	case OPENPCD_CMD_READ_FIFO:
+		DEBUGP("READ FIFO ");
+		pih->len = rc632_fifo_read(poh->len, pih->data);
+		break;
+	case OPENPCD_CMD_READ_VFIFO:
+		DEBUGP("READ VFIFO ");
+		break;
+	case OPENPCD_CMD_SET_LED:
+		DEBUGP("SET LED ");
+		led_switch(poh->reg, poh->val);
+		break;
+	default:
+		return -EINVAL;
+	}
+}
+
 int main(void)
 {
-	char data[MSG_SIZE];
-	unsigned int length;
+	int i, state = 0;
 
-	char message[30];
 	// Init trace DBGU
 	AT91F_DBGU_Init();
 	AT91F_DBGU_Printk
-	    ("\n\r-I- Basic USB loop back\n\r 0) Set Pull-UP 1) Clear Pull UP\n\r");
+	    ("\n\r-I- OpenPCD USB loop back\n\r 0) Set Pull-UP 1) Clear Pull UP\n\r");
 
+	led_init();
+	rc632_init();
+	
 	//printf("test 0x%02x\n\r", 123);
 
 	// Enable User Reset and set its minimal assertion to 960 us
@@ -79,24 +128,17 @@ int main(void)
 	while (1) {
 		// Check enumeration
 		if (AT91F_UDP_IsConfigured()) {
-#if 0
-#ifndef USART_COM
-			// Loop
-			length = AT91F_CDC_Read(&pCDC, data, MSG_SIZE);
-			pCDC.Write(&pCDC, data, length);
-			/// mt sprintf(message,"-I- Len %d:\n\r",length);
-			siprintf(message, "-I- Len %d:\n\r", length);
-			// send char
-			AT91F_DBGU_Frame(message);
-#else
-			// Loop
-			length = pCDC.Read(&pCDC, data, MSG_SIZE);
-			data[length] = 0;
-			Trace_Toggel_LED(LED1);
-			AT91F_US_Put(data);
-			/// AT91F_DBGU_Frame(data);
-#endif
-#endif
+
 		}
+		if (state == 0) {
+			led_switch(1, 1);
+			led_switch(2, 0);
+			state = 1;
+		} else {
+			led_switch(1, 0);
+			led_switch(2, 1);
+			state = 0;
+		}
+		for (i = 0; i < 0x7fffff; i++) {}
 	}
 }

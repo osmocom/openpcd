@@ -70,7 +70,7 @@ SRC =
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
-SRCARM  = lib/lib_AT91SAM7S64.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/rc632.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
+SRCARM  = lib/lib_AT91SAM7S64.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/led.c src/rc632.c src/rc632_debug.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -134,7 +134,7 @@ AT91LIBNOWARN = yes
 CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
-CDEFS =  -D$(RUN_MODE) 
+CDEFS =  -D$(RUN_MODE) -DDEBUG -DOLIMEX
 
 # Place -I options here
 CINCS = -Ihelper -Isrc

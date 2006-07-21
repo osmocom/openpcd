@@ -19,6 +19,7 @@
 // Include Standard files
 #include "Board.h"
 #include "dbgu.h"
+#include "rc632_debug.h"
 #define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
 //*--------------------------1--------------------------------------------------
@@ -67,6 +68,22 @@ static void DBGU_irq_handler(void)
 		AT91F_DBGU_Printk("Clear Pull up\n\r");
 		// Reset Application
 		Send_reset();
+		break;
+	case '2':
+		AT91F_DBGU_Printk("Toggling LED 1\n\r");
+		led_toggle(1);
+		break;
+	case '3':
+		AT91F_DBGU_Printk("Toggling LED 2\n\r");
+		led_toggle(2);
+		break;
+	case '4':
+		AT91F_DBGU_Printk("Testing RC632 : ");
+		if (rc632_test() == 0)
+			AT91F_DBGU_Printk("SUCCESS!\n\r");
+		else
+			AT91F_DBGU_Printk("ERROR!\n\r");
+			
 		break;
 	default:
 		AT91F_DBGU_Printk("\n\r");
@@ -184,3 +201,23 @@ void AT91F_DBGU_scanf(char *type, unsigned int *val)
 }				//* End
 
 #endif
+
+#ifdef DEBUG
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+static char dbg_buf[256];
+void debugp(const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vsnprintf(dbg_buf, sizeof(dbg_buf)-1, format, ap);
+	va_end(ap);
+
+	dbg_buf[sizeof(dbg_buf)-1] = '\0';				\
+	AT91F_DBGU_Printk(dbg_buf);					\
+}
+#endif
+
+

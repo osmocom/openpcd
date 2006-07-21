@@ -15,11 +15,9 @@
 #ifndef dbgu_h
 #define dbgu_h
 
-#include <stdio.h>
-
 #define AT91C_DBGU_BAUD 115200
 
-#define DEBUGP(x)	AT91F_DBGU_Printk(x)
+//#define DEBUGP(x)	AT91F_DBGU_Printk(x)
 
 //* ----------------------- External Function Prototype -----------------------
 
@@ -29,6 +27,13 @@ void AT91F_DBGU_Frame(	char *buffer);
 int AT91F_DBGU_Get( char *val);
 #ifndef __WinARM__
 void AT91F_DBGU_scanf(char * type,unsigned int * val);
+#endif
+
+#ifdef DEBUG
+extern void debugp(const char *format, ...);
+#define DEBUGP(x, args ...) debugp(x, ## args)
+#else
+#define	DEBUGP(x, args ...)
 #endif
 
 #endif /* dbgu_h */
