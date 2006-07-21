@@ -19,6 +19,8 @@
 
 #define AT91C_DBGU_BAUD 115200
 
+#define DEBUGP(x)	AT91F_DBGU_Printk(x)
+
 //* ----------------------- External Function Prototype -----------------------
 
 void AT91F_DBGU_Init(void);

@@ -36,8 +36,6 @@ extern void Usart_init(void);
 extern void AT91F_US_Put(char *buffer);	// \arg pointer to a string ending by \0
 extern void Trace_Toggel_LED(unsigned int led);
 
-struct _AT91S_CDC pCDC;
-
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_USB_Open
 //* \brief This function Open the USB device
@@ -59,7 +57,7 @@ void AT91F_USB_Open(void)
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, AT91C_PIO_PA16);
 
 	// CDC Open by structure initialization
-	AT91F_CDC_Open(&pCDC, AT91C_BASE_UDP);
+	AT91F_CDC_Open(AT91C_BASE_UDP);
 }
 
 //*--------------------------------------------------------------------------------------
@@ -71,19 +69,11 @@ int main(void)
 	char data[MSG_SIZE];
 	unsigned int length;
 
-#ifndef USART_COM
 	char message[30];
 	// Init trace DBGU
 	AT91F_DBGU_Init();
 	AT91F_DBGU_Printk
 	    ("\n\r-I- Basic USB loop back\n\r 0) Set Pull-UP 1) Clear Pull UP\n\r");
-#else
-	// Set Usart in interrupt
-	AT91F_DBGU_Init();
-	Usart_init();
-	AT91F_DBGU_Printk("\n\r-I- Basic USART USB\n\r");
-
-#endif
 
 	// Enable User Reset and set its minimal assertion to 960 us
 	AT91C_BASE_RSTC->RSTC_RMR =
@@ -91,13 +81,15 @@ int main(void)
 
 	// Init USB device
 	AT91F_USB_Open();
+
 	// Init USB device
 	while (1) {
 		// Check enumeration
-		if (pCDC.IsConfigured(&pCDC)) {
+		if (AT91F_UDP_IsConfigured()) {
+#if 0
 #ifndef USART_COM
 			// Loop
-			length = pCDC.Read(&pCDC, data, MSG_SIZE);
+			length = AT91F_CDC_Read(&pCDC, data, MSG_SIZE);
 			pCDC.Write(&pCDC, data, length);
 			/// mt sprintf(message,"-I- Len %d:\n\r",length);
 			siprintf(message, "-I- Len %d:\n\r", length);
@@ -110,6 +102,7 @@ int main(void)
 			Trace_Toggel_LED(LED1);
 			AT91F_US_Put(data);
 			/// AT91F_DBGU_Frame(data);
+#endif
 #endif
 		}
 	}

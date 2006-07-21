@@ -20,11 +20,13 @@
 
 //#include "board.h"
 #include <include/usb_ch9.h>
+#include <include/types.h>
+#include <include/lib_AT91SAM7S64.h>
 #include "pcd_enumerate.h"
+#include "dbgu.h"
 
-typedef unsigned char uchar;
-typedef unsigned short ushort;
-typedef unsigned int uint;
+static struct _AT91S_CDC pCDC;
+static AT91PS_CDC pCdc = &pCDC;
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -122,26 +124,64 @@ const struct _desc cfgDescriptor = {
 #define STD_SET_INTERFACE             0x0B01
 #define STD_SYNCH_FRAME               0x0C82
 
-/// mt uint currentReceiveBank = AT91C_UDP_RX_DATA_BK0;
+/// mt u_int32_t currentReceiveBank = AT91C_UDP_RX_DATA_BK0;
 
-static uchar AT91F_UDP_IsConfigured(AT91PS_CDC pCdc);
-static uint AT91F_UDP_Read(AT91PS_CDC pCdc, char *pData, uint length);
-static uint AT91F_UDP_Write(AT91PS_CDC pCdc, const char *pData, uint length);
-static void AT91F_CDC_Enumerate(AT91PS_CDC pCdc);
+static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length);
+static u_int32_t AT91F_UDP_Write(const char *pData, u_int32_t length);
+static void AT91F_CDC_Enumerate(void);
+
+static void udp_irq(void)
+{
+	AT91PS_UDP pUDP = pCDC.pUdp;
+	AT91_REG isr = pUDP->UDP_ISR;
+
+	DEBUGP("udp_irq: ");
+
+	if (isr & AT91C_UDP_ENDBUSRES) {
+		DEBUGP("ENDBUSRES ");
+		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
+		// reset all endpoints
+		pUDP->UDP_RSTEP = (unsigned int)-1;
+		pUDP->UDP_RSTEP = 0;
+		// Enable the function
+		pUDP->UDP_FADDR = AT91C_UDP_FEN;
+		// Configure endpoint 0
+		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
+		pCDC.currentConfiguration = 0;	/* +++ */
+	}
+
+	if (isr & AT91C_UDP_EPINT0) {
+		DEBUGP("EP0INT ");
+		pUDP->UDP_ICR = AT91C_UDP_EPINT0;
+		AT91F_CDC_Enumerate();
+	}
+	if (isr & AT91C_UDP_EPINT1) {
+		DEBUGP("EP1INT ");
+	}
+	if (isr & AT91C_UDP_EPINT2) {
+		DEBUGP("EP2INT ");
+	}
+	DEBUGP("\n");
+}
 
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_CDC_Open
 //* \brief
 //*----------------------------------------------------------------------------
-AT91PS_CDC AT91F_CDC_Open(AT91PS_CDC pCdc, AT91PS_UDP pUdp)
+AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 {
 	pCdc->pUdp = pUdp;
 	pCdc->currentConfiguration = 0;
 	pCdc->currentConnection = 0;
 	pCdc->currentRcvBank = AT91C_UDP_RX_DATA_BK0;
-	pCdc->IsConfigured = AT91F_UDP_IsConfigured;
-	pCdc->Write = AT91F_UDP_Write;
-	pCdc->Read = AT91F_UDP_Read;
+
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP, AT91C_AIC_PRIOR_LOWEST, 
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &udp_irq);
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_UDP);
+
+	/* End-of-Bus-Reset is always enabled */
+	pCdc->pUdp->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|AT91C_UDP_EPINT2);
+
 	return pCdc;
 }
 
@@ -149,8 +189,9 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_CDC pCdc, AT91PS_UDP pUdp)
 //* \fn    AT91F_UDP_IsConfigured
 //* \brief Test if the device is configured and handle enumeration
 //*----------------------------------------------------------------------------
-static uchar AT91F_UDP_IsConfigured(AT91PS_CDC pCdc)
+u_int8_t AT91F_UDP_IsConfigured(void)
 {
+#if 0
 	AT91PS_UDP pUDP = pCdc->pUdp;
 	AT91_REG isr = pUDP->UDP_ISR;
 
@@ -168,6 +209,7 @@ static uchar AT91F_UDP_IsConfigured(AT91PS_CDC pCdc)
 		pUDP->UDP_ICR = AT91C_UDP_EPINT0;
 		AT91F_CDC_Enumerate(pCdc);
 	}
+#endif
 	return pCdc->currentConfiguration;
 }
 
@@ -175,14 +217,14 @@ static uchar AT91F_UDP_IsConfigured(AT91PS_CDC pCdc)
 //* \fn    AT91F_UDP_Read
 //* \brief Read available data from Endpoint OUT
 //*----------------------------------------------------------------------------
-static uint AT91F_UDP_Read(AT91PS_CDC pCdc, char *pData, uint length)
+static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length)
 {
 	AT91PS_UDP pUdp = pCdc->pUdp;
-	uint packetSize, nbBytesRcv = 0, currentReceiveBank =
+	u_int32_t packetSize, nbBytesRcv = 0, currentReceiveBank =
 	    pCdc->currentRcvBank;
 
 	while (length) {
-		if (!AT91F_UDP_IsConfigured(pCdc))
+		if (!AT91F_UDP_IsConfigured())
 			break;
 		if (pUdp->UDP_CSR[AT91C_EP_OUT] & currentReceiveBank) {
 			packetSize =
@@ -210,10 +252,10 @@ static uint AT91F_UDP_Read(AT91PS_CDC pCdc, char *pData, uint length)
 //* \fn    AT91F_CDC_Write
 //* \brief Send through endpoint 2
 //*----------------------------------------------------------------------------
-static uint AT91F_UDP_Write(AT91PS_CDC pCdc, const char *pData, uint length)
+static u_int32_t AT91F_UDP_Write(const char *pData, u_int32_t length)
 {
 	AT91PS_UDP pUdp = pCdc->pUdp;
-	uint cpt = 0;
+	u_int32_t cpt = 0;
 
 	// Send the first packet
 	cpt = MIN(length, AT91C_EP_IN_SIZE);
@@ -230,7 +272,7 @@ static uint AT91F_UDP_Write(AT91PS_CDC pCdc, const char *pData, uint length)
 			pUdp->UDP_FDR[AT91C_EP_IN] = *pData++;
 		// Wait for the the first bank to be sent
 		while (!(pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP))
-			if (!AT91F_UDP_IsConfigured(pCdc))
+			if (!AT91F_UDP_IsConfigured())
 				return length;
 		pUdp->UDP_CSR[AT91C_EP_IN] &= ~(AT91C_UDP_TXCOMP);
 		while (pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP) ;
@@ -238,7 +280,7 @@ static uint AT91F_UDP_Write(AT91PS_CDC pCdc, const char *pData, uint length)
 	}
 	// Wait for the end of transfer
 	while (!(pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP))
-		if (!AT91F_UDP_IsConfigured(pCdc))
+		if (!AT91F_UDP_IsConfigured())
 			return length;
 	pUdp->UDP_CSR[AT91C_EP_IN] &= ~(AT91C_UDP_TXCOMP);
 	while (pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP) ;
@@ -253,9 +295,9 @@ static uint AT91F_UDP_Write(AT91PS_CDC pCdc, const char *pData, uint length)
 unsigned int csrTab[100];
 unsigned char csrIdx = 0;
 
-static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, uint length)
+static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, u_int32_t length)
 {
-	uint cpt = 0;
+	u_int32_t cpt = 0;
 	AT91_REG csr;
 
 	do {
@@ -317,11 +359,11 @@ void AT91F_USB_SendStall(AT91PS_UDP pUdp)
 //* \fn    AT91F_CDC_Enumerate
 //* \brief This function is a callback invoked when a SETUP packet is received
 //*----------------------------------------------------------------------------
-static void AT91F_CDC_Enumerate(AT91PS_CDC pCdc)
+static void AT91F_CDC_Enumerate(void)
 {
 	AT91PS_UDP pUDP = pCdc->pUdp;
-	uchar bmRequestType, bRequest;
-	ushort wValue, wIndex, wLength, wStatus;
+	u_int8_t bmRequestType, bRequest;
+	u_int16_t wValue, wIndex, wLength, wStatus;
 
 	if (!(pUDP->UDP_CSR[0] & AT91C_UDP_RXSETUP))
 		return;
@@ -346,10 +388,10 @@ static void AT91F_CDC_Enumerate(AT91PS_CDC pCdc)
 	switch ((bRequest << 8) | bmRequestType) {
 	case STD_GET_DESCRIPTOR:
 		if (wValue == 0x100)	// Return Device Descriptor
-			AT91F_USB_SendData(pUDP, &devDescriptor,
+			AT91F_USB_SendData(pUDP, (const char *) &devDescriptor,
 					   MIN(sizeof(devDescriptor), wLength));
 		else if (wValue == 0x200)	// Return Configuration Descriptor
-			AT91F_USB_SendData(pUDP, &cfgDescriptor,
+			AT91F_USB_SendData(pUDP, (const char *) &cfgDescriptor,
 					   MIN(sizeof(cfgDescriptor), wLength));
 		else
 			AT91F_USB_SendStall(pUDP);

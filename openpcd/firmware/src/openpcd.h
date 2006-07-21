@@ -12,6 +12,8 @@
 #define req_buf_payload(x)	(x->data[x->hdr_len])
 #define req_buf_hdr(x)		(x->data[0])
 
+#include <include/types.h>
+
 struct req_buf {
 	u_int16_t hdr_len;
 	u_int16_t tot_len;
