@@ -25,6 +25,8 @@
 #include "pcd_enumerate.h"
 #include "dbgu.h"
 
+static char dbg_buf[256];
+
 static struct _AT91S_CDC pCDC;
 static AT91PS_CDC pCdc = &pCDC;
 
@@ -50,7 +52,7 @@ struct usb_device_descriptor devDescriptor = {
 struct _desc {
 	struct usb_config_descriptor ucfg;
 	struct usb_interface_descriptor uif;
-	    struct usb_endpoint_descriptor ep[3];
+	struct usb_endpoint_descriptor ep[3];
 };
 
 const struct _desc cfgDescriptor = {
@@ -76,30 +78,30 @@ const struct _desc cfgDescriptor = {
 		.bInterfaceProtocol = 0xff,
 		.iInterface = 0,
 		},
-	.ep[0] = {
-		  .bLength = USB_DT_ENDPOINT_SIZE,
-		  .bDescriptorType = USB_DT_ENDPOINT,
-		  .bEndpointAddress = 0x01,
-		  .bmAttributes = USB_ENDPOINT_XFER_BULK,
-		  .wMaxPacketSize = 64,
-		  .bInterval = 0x10,	/* FIXME */
+	.ep= {
+		{
+			  .bLength = USB_DT_ENDPOINT_SIZE,
+			  .bDescriptorType = USB_DT_ENDPOINT,
+			  .bEndpointAddress = 0x01,
+			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
+			  .wMaxPacketSize = 64,
+			  .bInterval = 0x10,	/* FIXME */
+		  }, {
+			  .bLength = USB_DT_ENDPOINT_SIZE,
+			  .bDescriptorType = USB_DT_ENDPOINT,
+			  .bEndpointAddress = 0x81,
+			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
+			  .wMaxPacketSize = 64,
+			  .bInterval = 0x10,	/* FIXME */
+		  }, {
+			  .bLength = USB_DT_ENDPOINT_SIZE,
+			  .bDescriptorType = USB_DT_ENDPOINT,
+			  .bEndpointAddress = 0x82,
+			  .bmAttributes = USB_ENDPOINT_XFER_INT,
+			  .wMaxPacketSize = 64,
+			  .bInterval = 0x10,	/* FIXME */
 		  },
-	.ep[1] = {
-		  .bLength = USB_DT_ENDPOINT_SIZE,
-		  .bDescriptorType = USB_DT_ENDPOINT,
-		  .bEndpointAddress = 0x81,
-		  .bmAttributes = USB_ENDPOINT_XFER_BULK,
-		  .wMaxPacketSize = 64,
-		  .bInterval = 0x10,	/* FIXME */
-		  },
-	.ep[2] = {
-		  .bLength = USB_DT_ENDPOINT_SIZE,
-		  .bDescriptorType = USB_DT_ENDPOINT,
-		  .bEndpointAddress = 0x82,
-		  .bmAttributes = USB_ENDPOINT_XFER_INT,
-		  .wMaxPacketSize = 64,
-		  .bInterval = 0x10,	/* FIXME */
-		  },
+	},
 };
 
 /* USB standard request code */
@@ -130,16 +132,25 @@ static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length);
 static u_int32_t AT91F_UDP_Write(const char *pData, u_int32_t length);
 static void AT91F_CDC_Enumerate(void);
 
+static char rcv_data[64];
+
 static void udp_irq(void)
 {
+	u_int32_t csr;
 	AT91PS_UDP pUDP = pCDC.pUdp;
 	AT91_REG isr = pUDP->UDP_ISR;
 
-	DEBUGP("udp_irq: ");
+	sprintf(dbg_buf, "udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
+	DEBUGP(dbg_buf);
+
+	//DEBUGP("udp_irq: ");
+
+	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
 	if (isr & AT91C_UDP_ENDBUSRES) {
 		DEBUGP("ENDBUSRES ");
 		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
+		pUDP->UDP_IER = AT91C_UDP_EPINT0;
 		// reset all endpoints
 		pUDP->UDP_RSTEP = (unsigned int)-1;
 		pUDP->UDP_RSTEP = 0;
@@ -151,17 +162,65 @@ static void udp_irq(void)
 	}
 
 	if (isr & AT91C_UDP_EPINT0) {
-		DEBUGP("EP0INT ");
 		pUDP->UDP_ICR = AT91C_UDP_EPINT0;
+		DEBUGP("EP0INT(Control) ");
 		AT91F_CDC_Enumerate();
+		DEBUGP("Enumerate finish\n");
 	}
 	if (isr & AT91C_UDP_EPINT1) {
-		DEBUGP("EP1INT ");
+		u_int32_t cur_rcv_bank = pCDC.currentRcvBank;
+		pUDP->UDP_ICR = AT91C_UDP_EPINT1;
+		csr = pUDP->UDP_CSR[1];
+		DEBUGP("EP1INT(Out) ");
+
+		if (csr & cur_rcv_bank) {
+			u_int32_t pkt_recv = 0;
+			u_int32_t pkt_size = csr >> 16;
+			while (pkt_size--)
+				rcv_data[pkt_recv++] = pUDP->UDP_FDR[1];
+			pUDP->UDP_CSR[2] &= ~cur_rcv_bank;
+			if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
+				cur_rcv_bank = AT91C_UDP_RX_DATA_BK1;
+			else
+				cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
+		}
+
+		rcv_data[63] = '\0';
+		DEBUGP(rcv_data);
 	}
 	if (isr & AT91C_UDP_EPINT2) {
-		DEBUGP("EP2INT ");
+		csr = pUDP->UDP_CSR[2];
+		pUDP->UDP_ICR = AT91C_UDP_EPINT2;
+		DEBUGP("EP2INT(In) ");
 	}
-	DEBUGP("\n");
+	if (isr & AT91C_UDP_EPINT3) {
+		csr = pUDP->UDP_CSR[3];
+		pUDP->UDP_ICR = AT91C_UDP_EPINT3;
+		DEBUGP("EP3INT(Interrupt) ");
+	}
+
+	if (isr & AT91C_UDP_RXSUSP) {
+		pUDP->UDP_ICR = AT91C_UDP_RXSUSP;
+		DEBUGP("RXSUSP ");
+	}
+	if (isr & AT91C_UDP_RXRSM) {
+		pUDP->UDP_ICR = AT91C_UDP_RXRSM;
+		DEBUGP("RXRSM ");
+	}
+	if (isr & AT91C_UDP_EXTRSM) {
+		pUDP->UDP_ICR = AT91C_UDP_EXTRSM;
+		DEBUGP("EXTRSM ");
+	}
+	if (isr & AT91C_UDP_SOFINT) {
+		pUDP->UDP_ICR = AT91C_UDP_SOFINT;
+		DEBUGP("SOFINT ");
+	}
+	if (isr & AT91C_UDP_WAKEUP) {
+		pUDP->UDP_ICR = AT91C_UDP_WAKEUP;
+		DEBUGP("WAKEUP ");
+	}
+
+	DEBUGP("END\r\n");
 }
 
 //*----------------------------------------------------------------------------
@@ -176,11 +235,13 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 	pCdc->currentRcvBank = AT91C_UDP_RX_DATA_BK0;
 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP, AT91C_AIC_PRIOR_LOWEST, 
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &udp_irq);
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, udp_irq);
+			      //AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE, udp_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
 	/* End-of-Bus-Reset is always enabled */
-	pCdc->pUdp->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|AT91C_UDP_EPINT2);
+	pCdc->pUdp->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
+			       AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
 
 	return pCdc;
 }
@@ -191,25 +252,6 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 //*----------------------------------------------------------------------------
 u_int8_t AT91F_UDP_IsConfigured(void)
 {
-#if 0
-	AT91PS_UDP pUDP = pCdc->pUdp;
-	AT91_REG isr = pUDP->UDP_ISR;
-
-	if (isr & AT91C_UDP_ENDBUSRES) {
-		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
-		// reset all endpoints
-		pUDP->UDP_RSTEP = (unsigned int)-1;
-		pUDP->UDP_RSTEP = 0;
-		// Enable the function
-		pUDP->UDP_FADDR = AT91C_UDP_FEN;
-		// Configure endpoint 0
-		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
-		pCdc->currentConfiguration = 0;	/* +++ */
-	} else if (isr & AT91C_UDP_EPINT0) {
-		pUDP->UDP_ICR = AT91C_UDP_EPINT0;
-		AT91F_CDC_Enumerate(pCdc);
-	}
-#endif
 	return pCdc->currentConfiguration;
 }
 
@@ -300,6 +342,9 @@ static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, u_int32_t len
 	u_int32_t cpt = 0;
 	AT91_REG csr;
 
+	sprintf(dbg_buf, "send_data: %u bytes ", length);
+	DEBUGP(dbg_buf);
+
 	do {
 		cpt = MIN(length, 8);
 		length -= cpt;
@@ -319,6 +364,7 @@ static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, u_int32_t len
 			// Data IN stage has been stopped by a status OUT
 			if (csr & AT91C_UDP_RX_DATA_BK0) {
 				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
+				DEBUGP("stopped by status out ");
 				return;
 			}
 		} while (!(csr & AT91C_UDP_TXCOMP));
@@ -365,8 +411,10 @@ static void AT91F_CDC_Enumerate(void)
 	u_int8_t bmRequestType, bRequest;
 	u_int16_t wValue, wIndex, wLength, wStatus;
 
-	if (!(pUDP->UDP_CSR[0] & AT91C_UDP_RXSETUP))
+	if (!(pUDP->UDP_CSR[0] & AT91C_UDP_RXSETUP)) {
+		DEBUGP("no setup packet ");
 		return;
+	}
 
 	bmRequestType = pUDP->UDP_FDR[0];
 	bRequest = pUDP->UDP_FDR[0];
@@ -387,6 +435,7 @@ static void AT91F_CDC_Enumerate(void)
 	// Handle supported standard device request Cf Table 9-3 in USB specification Rev 1.1
 	switch ((bRequest << 8) | bmRequestType) {
 	case STD_GET_DESCRIPTOR:
+		DEBUGP("GET_DESCRIPTOR ");
 		if (wValue == 0x100)	// Return Device Descriptor
 			AT91F_USB_SendData(pUDP, (const char *) &devDescriptor,
 					   MIN(sizeof(devDescriptor), wLength));
@@ -397,13 +446,19 @@ static void AT91F_CDC_Enumerate(void)
 			AT91F_USB_SendStall(pUDP);
 		break;
 	case STD_SET_ADDRESS:
+		DEBUGP("SET_ADDRESS ");
 		AT91F_USB_SendZlp(pUDP);
 		pUDP->UDP_FADDR = (AT91C_UDP_FEN | wValue);
 		pUDP->UDP_GLBSTATE = (wValue) ? AT91C_UDP_FADDEN : 0;
 		break;
 	case STD_SET_CONFIGURATION:
+		DEBUGP("SET_CONFIG ");
+		if (wValue)
+			DEBUGP("VALUE!=0 ");
 		pCdc->currentConfiguration = wValue;
+		DEBUGP("SET_CONFIG_BEFORE_ZLP ");
 		AT91F_USB_SendZlp(pUDP);
+		DEBUGP("SET_CONFIG_AFTER_ZLP ");
 		pUDP->UDP_GLBSTATE =
 		    (wValue) ? AT91C_UDP_CONFG : AT91C_UDP_FADDEN;
 		pUDP->UDP_CSR[1] =
@@ -412,21 +467,28 @@ static void AT91F_CDC_Enumerate(void)
 		pUDP->UDP_CSR[2] =
 		    (wValue) ? (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_BULK_IN) : 0;
 		pUDP->UDP_CSR[3] =
-		    (wValue) ? (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_ISO_IN) : 0;
+		    (wValue) ? (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_INT_IN) : 0;
+		pUDP->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
+				  AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
+		DEBUGP("SET_CONFIG_END ");
 		break;
 	case STD_GET_CONFIGURATION:
+		DEBUGP("GET_CONFIG ");
 		AT91F_USB_SendData(pUDP, (char *)&(pCdc->currentConfiguration),
 				   sizeof(pCdc->currentConfiguration));
 		break;
 	case STD_GET_STATUS_ZERO:
+		DEBUGP("GET_STATUS_ZERO ");
 		wStatus = 0;
 		AT91F_USB_SendData(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_INTERFACE:
+		DEBUGP("GET_STATUS_INTERFACE ");
 		wStatus = 0;
 		AT91F_USB_SendData(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_ENDPOINT:
+		DEBUGP("GET_STATUS_ENDPOINT ");
 		wStatus = 0;
 		wIndex &= 0x0F;
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex <= 3)) {
@@ -444,12 +506,16 @@ static void AT91F_CDC_Enumerate(void)
 			AT91F_USB_SendStall(pUDP);
 		break;
 	case STD_SET_FEATURE_ZERO:
+		DEBUGP("SET_FEATURE_ZERO ");
 		AT91F_USB_SendStall(pUDP);
 		break;
 	case STD_SET_FEATURE_INTERFACE:
+		DEBUGP("SET_FEATURE_INTERFACE ");
 		AT91F_USB_SendZlp(pUDP);
 		break;
 	case STD_SET_FEATURE_ENDPOINT:
+		DEBUGP("SET_FEATURE_ENDPOINT ");
+		AT91F_USB_SendZlp(pUDP);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
 			pUDP->UDP_CSR[wIndex] = 0;
@@ -458,12 +524,15 @@ static void AT91F_CDC_Enumerate(void)
 			AT91F_USB_SendStall(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ZERO:
+		DEBUGP("CLEAR_FEATURE_ZERO ");
 		AT91F_USB_SendStall(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_INTERFACE:
+		DEBUGP("CLEAR_FEATURE_INTERFACE ");
 		AT91F_USB_SendZlp(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ENDPOINT:
+		DEBUGP("CLEAR_FEATURE_ENDPOINT ");
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
 			if (wIndex == 1)
@@ -476,12 +545,14 @@ static void AT91F_CDC_Enumerate(void)
 				     AT91C_UDP_EPTYPE_BULK_IN);
 			else if (wIndex == 3)
 				pUDP->UDP_CSR[3] =
-				    (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_ISO_IN);
+				    (AT91C_UDP_EPEDS |
+				     AT91C_UDP_EPTYPE_INT_IN);
 			AT91F_USB_SendZlp(pUDP);
 		} else
 			AT91F_USB_SendStall(pUDP);
 		break;
 	default:
+		DEBUGP("DEFAULT ");
 		AT91F_USB_SendStall(pUDP);
 		break;
 	}

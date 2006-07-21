@@ -13,6 +13,7 @@
 
 static AT91PS_SPI pSPI = AT91C_BASE_SPI;
 
+/* SPI irq handler */
 static void spi_irq(void)
 {
 	u_int32_t status = pSPI->SPI_SR;
@@ -63,9 +64,7 @@ struct rc632 {
 	struct fifo fifo;
 };
 #define RC632_F_FIFO_TX		0x0001
-
 static struct rc632 rc632;
-
 
 /* RC632 access primitives */
 
@@ -165,9 +164,18 @@ static void rc632_irq(void)
 	DEBUGP("\n");
 }
 
+void rc632_power(u_int8_t up)
+{
+	if (up)
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
+	else
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
+}
+
 void rc632_reset(void)
 {
-	/* FIXME */
+	rc632_power(0);
+	rc632_power(1);
 }
 
 void rc632_init(void)
@@ -195,7 +203,8 @@ void rc632_init(void)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
-	/* FIXME: get RC632 out of reset */
+
+	rc632_reset();
 };
 
 void rc632_exit(void)

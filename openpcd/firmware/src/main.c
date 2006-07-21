@@ -30,17 +30,8 @@
 #endif
 #endif
 
-//* external function
-
-extern void Usart_init(void);
-extern void AT91F_US_Put(char *buffer);	// \arg pointer to a string ending by \0
-extern void Trace_Toggel_LED(unsigned int led);
-
 //*----------------------------------------------------------------------------
-//* \fn    AT91F_USB_Open
-//* \brief This function Open the USB device
-//*----------------------------------------------------------------------------
-void AT91F_USB_Open(void)
+static void AT91F_USB_Open(void)
 {
 	// Set the PLL USB Divider
 	AT91C_BASE_CKGR->CKGR_PLLR |= AT91C_CKGR_USBDIV_1;
@@ -74,6 +65,8 @@ int main(void)
 	AT91F_DBGU_Init();
 	AT91F_DBGU_Printk
 	    ("\n\r-I- Basic USB loop back\n\r 0) Set Pull-UP 1) Clear Pull UP\n\r");
+
+	//printf("test 0x%02x\n\r", 123);
 
 	// Enable User Reset and set its minimal assertion to 960 us
 	AT91C_BASE_RSTC->RSTC_RMR =
