@@ -26,5 +26,7 @@ int rc632_test(void)
 
 	return 0;
 }
-
+#else
+int rc632_test(void)
+{}
 #endif

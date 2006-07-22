@@ -23,6 +23,7 @@
 #include <include/types.h>
 #include <include/lib_AT91SAM7S64.h>
 #include "pcd_enumerate.h"
+#include "openpcd.h"
 #include "dbgu.h"
 
 static struct _AT91S_CDC pCDC;
@@ -103,6 +104,7 @@ const struct _desc cfgDescriptor = {
 };
 
 /* USB standard request code */
+
 #define STD_GET_STATUS_ZERO           0x0080
 #define STD_GET_STATUS_INTERFACE      0x0081
 #define STD_GET_STATUS_ENDPOINT       0x0082
@@ -127,7 +129,6 @@ const struct _desc cfgDescriptor = {
 /// mt u_int32_t currentReceiveBank = AT91C_UDP_RX_DATA_BK0;
 
 static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length);
-static u_int32_t AT91F_UDP_Write(const char *pData, u_int32_t length);
 static void AT91F_CDC_Enumerate(void);
 
 static char rcv_data[64];
@@ -157,40 +158,56 @@ static void udp_irq(void)
 	}
 
 	if (isr & AT91C_UDP_EPINT0) {
-		pUDP->UDP_ICR = AT91C_UDP_EPINT0;
 		DEBUGP("EP0INT(Control) ");
 		AT91F_CDC_Enumerate();
-		DEBUGP("Enumerate finish\n");
 	}
 	if (isr & AT91C_UDP_EPINT1) {
 		u_int32_t cur_rcv_bank = pCDC.currentRcvBank;
-		pUDP->UDP_ICR = AT91C_UDP_EPINT1;
 		csr = pUDP->UDP_CSR[1];
-		DEBUGP("EP1INT(Out) ");
+		DEBUGP("EP1INT(Out, CSR=0x%08x) ", csr);
+		if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK1)
+			DEBUGP("cur_bank=1 ");
+		else if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
+			DEBUGP("cur_bank=0 ");
+		else
+			DEBUGP("cur_bank INVALID ");
+
+		if (csr & AT91C_UDP_RX_DATA_BK1)
+			DEBUGP("BANK1 ");
+		if (csr & AT91C_UDP_RX_DATA_BK0)
+			DEBUGP("BANK0 ");
 
 		if (csr & cur_rcv_bank) {
-			u_int32_t pkt_recv = 0;
-			u_int32_t pkt_size = csr >> 16;
-			while (pkt_size--)
-				rcv_data[pkt_recv++] = pUDP->UDP_FDR[1];
-			pUDP->UDP_CSR[2] &= ~cur_rcv_bank;
-			if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
-				cur_rcv_bank = AT91C_UDP_RX_DATA_BK1;
-			else
-				cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
-		}
+			u_int16_t pkt_recv = 0;
+			u_int16_t pkt_size = csr >> 16;
+			struct req_ctx *rctx = req_ctx_find_get();
 
-		rcv_data[63] = '\0';
-		DEBUGP(rcv_data);
+			if (rctx) {
+				rctx->rx.tot_len = pkt_size;
+				while (pkt_size--)
+					rctx->rx.data[pkt_recv++] = pUDP->UDP_FDR[1];
+				pUDP->UDP_CSR[1] &= ~cur_rcv_bank;
+				if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
+					cur_rcv_bank = AT91C_UDP_RX_DATA_BK1;
+				else
+					cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
+#if 0
+				rctx->rx.data[MAX_REQSIZE+MAX_HDRSIZE-1] = '\0';
+				DEBUGP(rctx->rx.data);
+#endif
+				pCDC.currentRcvBank = cur_rcv_bank;
+			} else
+				DEBUGP("NO RCTX AVAIL! ");
+		}
 	}
 	if (isr & AT91C_UDP_EPINT2) {
 		csr = pUDP->UDP_CSR[2];
-		pUDP->UDP_ICR = AT91C_UDP_EPINT2;
+		//pUDP->UDP_ICR = AT91C_UDP_EPINT2;
 		DEBUGP("EP2INT(In) ");
 	}
 	if (isr & AT91C_UDP_EPINT3) {
 		csr = pUDP->UDP_CSR[3];
-		pUDP->UDP_ICR = AT91C_UDP_EPINT3;
+		//pUDP->UDP_ICR = AT91C_UDP_EPINT3;
 		DEBUGP("EP3INT(Interrupt) ");
 	}
 
@@ -235,8 +252,7 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
 	/* End-of-Bus-Reset is always enabled */
-	pCdc->pUdp->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
-			       AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
+	//pCdc->pUdp->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1| AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
 
 	return pCdc;
 }
@@ -289,38 +305,44 @@ static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length)
 //* \fn    AT91F_CDC_Write
 //* \brief Send through endpoint 2
 //*----------------------------------------------------------------------------
-static u_int32_t AT91F_UDP_Write(const char *pData, u_int32_t length)
+u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 {
 	AT91PS_UDP pUdp = pCdc->pUdp;
 	u_int32_t cpt = 0;
+	u_int8_t ep;
+
+	if (irq)
+		ep = 3;
+	else
+		ep = 2;
 
 	// Send the first packet
-	cpt = MIN(length, AT91C_EP_IN_SIZE);
+	cpt = MIN(length, 64);
 	length -= cpt;
 	while (cpt--)
-		pUdp->UDP_FDR[AT91C_EP_IN] = *pData++;
-	pUdp->UDP_CSR[AT91C_EP_IN] |= AT91C_UDP_TXPKTRDY;
+		pUdp->UDP_FDR[ep] = *pData++;
+	pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
 
 	while (length) {
 		// Fill the second bank
-		cpt = MIN(length, AT91C_EP_IN_SIZE);
+		cpt = MIN(length, 64);
 		length -= cpt;
 		while (cpt--)
-			pUdp->UDP_FDR[AT91C_EP_IN] = *pData++;
+			pUdp->UDP_FDR[ep] = *pData++;
 		// Wait for the the first bank to be sent
-		while (!(pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP))
+		while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
 			if (!AT91F_UDP_IsConfigured())
 				return length;
-		pUdp->UDP_CSR[AT91C_EP_IN] &= ~(AT91C_UDP_TXCOMP);
-		while (pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP) ;
-		pUdp->UDP_CSR[AT91C_EP_IN] |= AT91C_UDP_TXPKTRDY;
+		pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
+		while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
+		pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
 	}
 	// Wait for the end of transfer
-	while (!(pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP))
+	while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
 		if (!AT91F_UDP_IsConfigured())
 			return length;
-	pUdp->UDP_CSR[AT91C_EP_IN] &= ~(AT91C_UDP_TXCOMP);
-	while (pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP) ;
+	pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
+	while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
 
 	return length;
 }
@@ -450,9 +472,7 @@ static void AT91F_CDC_Enumerate(void)
 		if (wValue)
 			DEBUGP("VALUE!=0 ");
 		pCdc->currentConfiguration = wValue;
-		DEBUGP("SET_CONFIG_BEFORE_ZLP ");
 		AT91F_USB_SendZlp(pUDP);
-		DEBUGP("SET_CONFIG_AFTER_ZLP ");
 		pUDP->UDP_GLBSTATE =
 		    (wValue) ? AT91C_UDP_CONFG : AT91C_UDP_FADDEN;
 		pUDP->UDP_CSR[1] =
@@ -464,7 +484,6 @@ static void AT91F_CDC_Enumerate(void)
 		    (wValue) ? (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_INT_IN) : 0;
 		pUDP->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
 				  AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
-		DEBUGP("SET_CONFIG_END ");
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGP("GET_CONFIG ");
@@ -545,8 +564,12 @@ static void AT91F_CDC_Enumerate(void)
 		} else
 			AT91F_USB_SendStall(pUDP);
 		break;
+	case STD_SET_INTERFACE:
+		DEBUGP("SET INTERFACE ");
+		AT91F_USB_SendStall(pUDP);
+		break;
 	default:
-		DEBUGP("DEFAULT ");
+		DEBUGP("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
 		AT91F_USB_SendStall(pUDP);
 		break;
 	}

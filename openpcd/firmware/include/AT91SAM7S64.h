@@ -1332,7 +1332,7 @@ typedef struct _AT91S_UDP {
 #define AT91C_UDP_FEN         ((unsigned int) 0x1 <<  8) // (UDP) Function Enable
 // -------- UDP_IER : (UDP Offset: 0x10) USB Interrupt Enable Register -------- 
 #define AT91C_UDP_EPINT0      ((unsigned int) 0x1 <<  0) // (UDP) Endpoint 0 Interrupt
-#define AT91C_UDP_EPINT1      ((unsigned int) 0x1 <<  1) // (UDP) Endpoint 0 Interrupt
+#define AT91C_UDP_EPINT1      ((unsigned int) 0x1 <<  1) // (UDP) Endpoint 1 Interrupt
 #define AT91C_UDP_EPINT2      ((unsigned int) 0x1 <<  2) // (UDP) Endpoint 2 Interrupt
 #define AT91C_UDP_EPINT3      ((unsigned int) 0x1 <<  3) // (UDP) Endpoint 3 Interrupt
 #define AT91C_UDP_RXSUSP      ((unsigned int) 0x1 <<  8) // (UDP) USB Suspend Interrupt

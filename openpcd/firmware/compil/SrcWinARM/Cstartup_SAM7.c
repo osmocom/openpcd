@@ -51,15 +51,21 @@ AT91F_LowLevelInit (void)
   while (!(pPMC->PMC_SR & AT91C_PMC_MOSCS));
   // 2 Checking the Main Oscillator Frequency (Optional)
   // 3 Setting PLL and divider:
-  // - div by 5 Fin = 3,6864 =(18,432 / 5)
-  // - Mul 25+1: Fout =   95,8464 =(3,6864 *26)
+  // - div by 24 Fin = 0,7680 =(18,432 / 24)
+  // - Mul 125: Fout =   96,0000 =(0,7680 *125)
   // for 96 MHz the erroe is 0.16%
   // Field out NOT USED = 0
   // PLLCOUNT pll startup time estimate at : 0.844 ms
   // PLLCOUNT 28 = 0.000844 /(1/32768)
+#if 0
   pPMC->PMC_PLLR = ((AT91C_CKGR_DIV & 0x05) |
 		    (AT91C_CKGR_PLLCOUNT & (28 << 8)) |
 		    (AT91C_CKGR_MUL & (25 << 16)));
+#else
+  pPMC->PMC_PLLR = ((AT91C_CKGR_DIV & 24) |
+		    (AT91C_CKGR_PLLCOUNT & (28 << 8)) |
+		    (AT91C_CKGR_MUL & (125 << 16)));
+#endif
 
   // Wait the startup time
   while (!(pPMC->PMC_SR & AT91C_PMC_LOCK));

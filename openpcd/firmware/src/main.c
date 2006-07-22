@@ -25,6 +25,7 @@
 #include "rc632.h"
 #include "led.h"
 #include "pcd_enumerate.h"
+#include "openpcd.h"
 
 #define MSG_SIZE 				1000
 #if 0
@@ -48,19 +49,21 @@ static void AT91F_USB_Open(void)
 
 	// Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the corresponding PIO
 	// Set in PIO mode and Configure in Output
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PIO_PA16);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PIO_UDP_PUP);
 	// Clear for set the Pul up resistor
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, AT91C_PIO_PA16);
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, AT91C_PIO_UDP_PUP);
 
 	// CDC Open by structure initialization
 	AT91F_CDC_Open(AT91C_BASE_UDP);
 }
 
-static int usb_in(int len)
+static int usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh;
-	struct openpcd_hdr *pih;
-	u_int16_t data_len;
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	u_int16_t len = rctx->rx.tot_len;
+
+	DEBUGP("usb_in ");
 
 	if (len < sizeof(*poh))
 		return -EINVAL;
@@ -71,48 +74,53 @@ static int usb_in(int len)
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_WRITE_REG:
-		DEBUGP("WRITE_REG ");
+		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
 		rc632_reg_write(poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_WRITE_FIFO:
-		DEBUGP("WRITE FIFO ");
-		if (len - sizeof(*poh) < data_len)
+		DEBUGP("WRITE FIFO(len=%u) ", poh->len);
+		if (len - sizeof(*poh) < poh->len)
 			return -EINVAL;
-		rc632_fifo_write(data_len, poh->data);
+		rc632_fifo_write(poh->len, poh->data);
 		break;
 	case OPENPCD_CMD_WRITE_VFIFO:
 		DEBUGP("WRITE VFIFO ");
 		break;
 	case OPENPCD_CMD_READ_REG:
-		DEBUGP("READ REG ");
+		DEBUGP("READ REG(0x%02x) ", poh->reg);
 		pih->val = rc632_reg_read(poh->reg);
 		break;
 	case OPENPCD_CMD_READ_FIFO:
-		DEBUGP("READ FIFO ");
+		DEBUGP("READ FIFO(len=%u) ", poh->len);
 		pih->len = rc632_fifo_read(poh->len, pih->data);
 		break;
 	case OPENPCD_CMD_READ_VFIFO:
 		DEBUGP("READ VFIFO ");
 		break;
 	case OPENPCD_CMD_SET_LED:
-		DEBUGP("SET LED ");
+		DEBUGP("SET LED(%u,%u) ", poh->reg, poh->val);
 		led_switch(poh->reg, poh->val);
 		break;
 	default:
 		return -EINVAL;
 	}
+	AT91F_UDP_Write(0, &rctx->tx.data[0], rctx->tx.tot_len);
 }
+
+//#define DEBUG_TOGGLE_LED
 
 int main(void)
 {
-	int i, state = 0;
-
-	// Init trace DBGU
-	AT91F_DBGU_Init();
-	AT91F_DBGU_Printk
-	    ("\n\r-I- OpenPCD USB loop back\n\r 0) Set Pull-UP 1) Clear Pull UP\n\r");
+	int i;
 
 	led_init();
+	// Init trace DBGU
+	AT91F_DBGU_Init();
+#if 1
+	AT91F_DBGU_Printk
+	    ("\n\r-I- OpenPCD test mode\n\r 0) Set Pull-up 1) Clear Pull-up "
+	     "2) Toggle LED1 3) Toggle LED2 4) Test RC632\n\r");
+
 	rc632_init();
 	
 	//printf("test 0x%02x\n\r", 123);
@@ -124,21 +132,41 @@ int main(void)
 	// Init USB device
 	AT91F_USB_Open();
 
+#ifdef DEBUG_CLOCK_PA6
+	AT91F_PMC_EnablePCK(AT91C_BASE_PMC, 0, AT91C_PMC_CSS_PLL_CLK);
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, AT91C_PA6_PCK0);
+#endif
+
+#ifdef DEBUG_LOOP_LED
+	while (1) {
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_LED1);
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_LED1);
+	}
+
+#endif
+
+#endif
+	led_switch(1, 1);
+
 	// Init USB device
 	while (1) {
-		// Check enumeration
-		if (AT91F_UDP_IsConfigured()) {
+		struct req_ctx *rctx;
 
+#ifdef DEBUG_TOGGLE_LED
+		/* toggle LEDs */
+		led_toggle(1);
+		led_toggle(2);
+#endif
+
+		for (rctx = req_ctx_find_busy(); rctx; 
+		     rctx = req_ctx_find_busy()) {
+		     	DEBUGP("found used ctx %u: len=%u\r\n", 
+				req_ctx_num(rctx), rctx->rx.tot_len);
+			usb_in(rctx);
+			req_ctx_put(rctx);
 		}
-		if (state == 0) {
-			led_switch(1, 1);
-			led_switch(2, 0);
-			state = 1;
-		} else {
-			led_switch(1, 0);
-			led_switch(2, 1);
-			state = 0;
-		}
+
+		/* busy-wait for led toggle */
 		for (i = 0; i < 0x7fffff; i++) {}
 	}
 }

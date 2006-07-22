@@ -1,5 +1,5 @@
-#ifndef _OPENPCD_H
-#define _OPENPCD_H
+#ifndef _OPENPCD_PROTO_H
+#define _OPENPCD_PROTO_H
 
 #include <include/types.h>
 #include <include/AT91SAM7S64.h>
@@ -10,6 +10,7 @@ struct openpcd_hdr {
 	u_int8_t reg;		/* register */
 	u_int8_t val;		/* value (in case of write *) */
 	u_int16_t len;
+	u_int16_t res;
 	u_int8_t data[0];
 } __attribute__ ((packed));
 

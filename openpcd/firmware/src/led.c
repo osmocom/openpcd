@@ -43,13 +43,10 @@ int led_toggle(int led)
 	if (on == -1)
 		return -1;
 
-	if (on) {
-		DEBUGP("led%d on, switching off\r\n", led);
+	if (on)
 		led_switch(led, 0);
-	} else {
-		DEBUGP("led%d off, switching on\r\n", led);
+	else
 		led_switch(led, 1);
-	}
 }
 
 void led_init(void)

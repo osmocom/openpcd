@@ -37,6 +37,7 @@ typedef struct _AT91S_CDC
 
 AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp);
 u_int8_t AT91F_UDP_IsConfigured(void);
+u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length);
 
 #endif // CDC_ENUMERATE_H
 

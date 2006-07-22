@@ -499,8 +499,8 @@ static inline int AT91F_PIO_IsInputSet(
 //* \brief Set to 1 output PIO
 //*----------------------------------------------------------------------------
 static inline void AT91F_PIO_SetOutput(
-	AT91PS_PIO pPio,   // \arg  pointer to a PIO controller
-	unsigned int flag) // \arg  output to be set
+	const AT91PS_PIO pPio,   // \arg  pointer to a PIO controller
+	const unsigned int flag) // \arg  output to be set
 {
 	pPio->PIO_SODR = flag;
 }

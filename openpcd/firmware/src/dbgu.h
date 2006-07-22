@@ -33,7 +33,7 @@ void AT91F_DBGU_scanf(char * type,unsigned int * val);
 extern void debugp(const char *format, ...);
 #define DEBUGP(x, args ...) debugp(x, ## args)
 #else
-#define	DEBUGP(x, args ...)
+#define	DEBUGP(x, args ...) do {} while(0)
 #endif
 
 #endif /* dbgu_h */
