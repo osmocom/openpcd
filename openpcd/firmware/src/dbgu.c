@@ -87,12 +87,12 @@ static void DBGU_irq_handler(void)
 			
 		break;
 	case '5':
-		DEBUGP("Reading RC632 Reg RxWait: 0x%02x\n\r",
+		DEBUGPCR("Reading RC632 Reg RxWait: 0x%02xr",
 			  rc632_reg_read(RC632_REG_RX_WAIT));
 
 		break;
 	case '6':
-		DEBUGP("Writing RC632 Reg RxWait: 0x%02x\n\r",
+		DEBUGPCR("Writing RC632 Reg RxWait: 0x%02x",
 			  rc632_reg_write(RC632_REG_RX_WAIT, 0x55));
 		break;
 	case '7':

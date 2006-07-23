@@ -42,7 +42,7 @@ void req_ctx_put(struct req_ctx *ctx)
 {
 	int offset = req_ctx_num(ctx);
 	if (offset > NUM_REQ_CTX)
-		DEBUGP("Error in offset calculation req_ctx_put\n");
+		DEBUGPCR("Error in offset calculation req_ctx_put");
 
 	req_ctx_busy &= ~(1 << offset);
 }

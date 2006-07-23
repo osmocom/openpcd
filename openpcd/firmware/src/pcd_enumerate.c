@@ -311,6 +311,8 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 	u_int32_t cpt = 0;
 	u_int8_t ep;
 
+	DEBUGPCRF("enter\n");
+
 	if (irq)
 		ep = 3;
 	else
@@ -321,29 +323,38 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 	length -= cpt;
 	while (cpt--)
 		pUdp->UDP_FDR[ep] = *pData++;
+	DEBUGPCRF("sending first packet");
 	pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
 
 	while (length) {
+		DEBUGPCRF("sending further packet");
 		// Fill the second bank
 		cpt = MIN(length, 64);
 		length -= cpt;
 		while (cpt--)
 			pUdp->UDP_FDR[ep] = *pData++;
+		DEBUGPCRF("waiting for end of further packet");
 		// Wait for the the first bank to be sent
 		while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
-			if (!AT91F_UDP_IsConfigured())
+			if (!AT91F_UDP_IsConfigured()) {
+				DEBUGPCRF("return(!configured)");
 				return length;
+			}
 		pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
 		while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
 		pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
 	}
 	// Wait for the end of transfer
+	DEBUGPCRF("waiting for end of transfer");
 	while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
-		if (!AT91F_UDP_IsConfigured())
+		if (!AT91F_UDP_IsConfigured()) {
+			DEBUGPCRF("return(!configured)");
 			return length;
+		}
 	pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
 	while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
 
+	DEBUGPCRF("return(normal, len=%u)\n", length);
 	return length;
 }
 

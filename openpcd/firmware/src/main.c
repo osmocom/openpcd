@@ -104,7 +104,9 @@ static int usb_in(struct req_ctx *rctx)
 	default:
 		return -EINVAL;
 	}
-	//AT91F_UDP_Write(0, &rctx->tx.data[0], rctx->tx.tot_len);
+	DEBUGPCRF("calling UDP_Write");
+	AT91F_UDP_Write(0, &rctx->tx.data[0], rctx->tx.tot_len);
+	DEBUGPCRF("usb_in: returning to main");
 }
 
 #define DEBUG_TOGGLE_LED
@@ -123,8 +125,6 @@ int main(void)
 
 	rc632_init();
 	
-	//printf("test 0x%02x\n\r", 123);
-
 	// Enable User Reset and set its minimal assertion to 960 us
 	AT91C_BASE_RSTC->RSTC_RMR =
 	    AT91C_RSTC_URSTEN | (0x4 << 8) | (unsigned int)(0xA5 << 24);
@@ -160,7 +160,7 @@ int main(void)
 
 		for (rctx = req_ctx_find_busy(); rctx; 
 		     rctx = req_ctx_find_busy()) {
-		     	DEBUGP("found used ctx %u: len=%u\r\n", 
+		     	DEBUGPCRF("found used ctx %u: len=%u", 
 				req_ctx_num(rctx), rctx->rx.tot_len);
 			usb_in(rctx);
 			req_ctx_put(rctx);

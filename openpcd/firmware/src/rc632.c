@@ -38,7 +38,7 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	u_int16_t rx_len_max = 0;
 	u_int16_t rx_cnt = 0;
 
-	DEBUGP("%s enter(tx_len=%u)\r\n", __FUNCTION__, tx_len);
+	DEBUGPCRF("enter(tx_len=%u)", tx_len);
 
 	if (rx_len) {
 		rx_len_max = *rx_len;
@@ -68,7 +68,7 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 			break;
 	}
 	AT91F_SPI_Disable(pSPI);
-	DEBUGP("%s leave(%02x %02x)\r\n", __FUNCTION__, rx_data[0], rx_data[1]);
+	DEBUGPCRF("leave(%02x %02x)", rx_data[0], rx_data[1]);
 	return 0;
 }
 
@@ -210,34 +210,25 @@ void rc632_init(void)
 {
 	//fifo_init(&rc632.fifo, 256, NULL, &rc632);
 
-	DEBUGP("rc632_pmc\r\n");
+	DEBUGPCRF("entering");
 	AT91F_SPI_CfgPMC();
 
-	DEBUGP("rc632_pio\r\n");
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA,
 				AT91C_PA11_NPCS0|AT91C_PA12_MISO|
 				AT91C_PA13_MOSI |AT91C_PA14_SPCK, 0);
 
-	DEBUGP("rc632_en_spi\r\n");
 	//AT91F_SPI_Enable(pSPI);
 
-	DEBUGP("rc632_cfg_it_spi\r\n");
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI, AT91C_AIC_PRIOR_HIGHEST,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &spi_irq);
-	DEBUGP("rc632_en_it_spi\r\n");
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
-
-	DEBUGP("rc632_spi_en_it\r\n");
-	//AT91F_SPI_EnableIt(pSPI, AT91C_SPI_MODF|AT91C_SPI_OVRES|AT91C_SPI_RDRF|AT91C_SPI_TDRE);
-	DEBUGP("rc632_spi_cfg_mode\r\n");
+	AT91F_SPI_EnableIt(pSPI, AT91C_SPI_MODF|AT91C_SPI_OVRES|AT91C_SPI_RDRF|AT91C_SPI_TDRE);
 	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED);
 	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10 (4.8MHz), 
 	 * DLYBS = 0, DLYBCT = 0 */
-	DEBUGP("rc632_spi_cfg_cs\r\n");
 	//AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
 	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(0xff<<8));
 
-	//DEBUGP("rc632_spi_reset\r\n");
 	//AT91F_SPI_Reset(pSPI);
 
 	/* Register rc632_irq */
@@ -247,7 +238,6 @@ void rc632_init(void)
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
 
-	DEBUGP("rc632_reset\r\n");
 	rc632_reset();
 };
 
