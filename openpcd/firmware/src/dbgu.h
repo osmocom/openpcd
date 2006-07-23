@@ -32,10 +32,11 @@ void AT91F_DBGU_scanf(char * type,unsigned int * val);
 #ifdef DEBUG
 extern void debugp(const char *format, ...);
 #define DEBUGP(x, args ...) debugp(x, ## args)
-#define DEBUGPCR(x, args ...) DEBUGP(x "\r\n", ## args)
-#define DEBUGPCRF(x, args ...) DEBUGPCR("%s(%d): " x, __FUNCTION__, __LINE__, ## args)
 #else
 #define	DEBUGP(x, args ...) do {} while(0)
 #endif
+
+#define DEBUGPCR(x, args ...) DEBUGP(x "\r\n", ## args)
+#define DEBUGPCRF(x, args ...) DEBUGPCR("%s(%d): " x, __FUNCTION__, __LINE__, ## args)
 
 #endif /* dbgu_h */
