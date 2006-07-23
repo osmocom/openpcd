@@ -39,6 +39,9 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	u_int16_t rx_len_max = 0;
 	u_int16_t rx_cnt = 0;
 
+	/* disable RC632 interrupt because it wants to do SPI transactions */
+	AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_RC632_IRQ);
+
 	DEBUGPCRF("enter(tx_len=%u)", tx_len);
 
 	if (rx_len) {
@@ -50,26 +53,28 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	while (1) { 
 		u_int32_t sr = pSPI->SPI_SR;
 		u_int8_t tmp;
-		//DEBUGP("loop:SPI_SR 0x%08x\r\n", sr);
 		if (sr & AT91C_SPI_RDRF) {
 			tmp = pSPI->SPI_RDR;
 			rx_cnt++;
-			//DEBUGP("<= RDRF, reading byte 0x%02x\r\n", tmp);
 			if (rx_len && *rx_len < rx_len_max)
 				rx_data[(*rx_len)++] = tmp;
 		}
 	 	if (sr & AT91C_SPI_TDRE) {
-			if (tx_len > tx_cur) {
-				tmp = tx_data[tx_cur++];
-				//DEBUGP("=> TDRE, sending byte 0x%02x\r\n", tmp);
-				pSPI->SPI_TDR = tmp;
-			}
+			if (tx_len > tx_cur)
+				pSPI->SPI_TDR = tx_data[tx_cur++];
 		}
 		if (tx_cur >= tx_len && rx_cnt >= tx_len)
 			break;
 	}
 	AT91F_SPI_Disable(pSPI);
-	DEBUGPCRF("leave(%02x %02x)", rx_data[0], rx_data[1]);
+	if (rx_data)
+		DEBUGPCRF("leave(%02x %02x)", rx_data[0], rx_data[1]);
+	else
+		DEBUGPCRF("leave()");
+
+	/* Re-enable RC632 interrupts */
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, OPENPCD_RC632_IRQ);
+
 	return 0;
 }
 
@@ -96,7 +101,6 @@ void rc632_reg_write(u_int8_t addr, u_int8_t data)
 	spi_outbuf[0] = addr;
 	spi_outbuf[1] = data;
 
-	/* transceive */
 	//spi_transceive(spi_outbuf, 2, NULL, NULL);
 	spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
 }
@@ -109,7 +113,6 @@ int rc632_fifo_write(u_int8_t len, u_int8_t *data)
 	spi_outbuf[0] = FIFO_ADDR;
 	memcpy(&spi_outbuf[1], data, len);
 
-	/* transceive (len+1) */
 	spi_transceive(spi_outbuf, len+1, NULL, NULL);
 
 	return len;
@@ -124,7 +127,6 @@ u_int8_t rc632_reg_read(u_int8_t addr)
 	spi_outbuf[0] = addr | 0x80;
 	spi_outbuf[1] = 0x00;
 
-	/* transceive */
 	spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
 
 	return spi_inbuf[1];
@@ -145,11 +147,28 @@ u_int8_t rc632_fifo_read(u_int8_t max_len, u_int8_t *data)
 	spi_outbuf[0] |= 0x80;
 	spi_outbuf[fifo_length] = 0x00;
 
-	/* transceive */
 	spi_transceive(spi_outbuf, fifo_length+1, spi_inbuf, &rx_len);
 	memcpy(data, spi_inbuf+1, rx_len-1);
 
 	return rx_len-1;
+}
+
+u_int8_t rc632_set_bits(u_int8_t reg, u_int8_t bits)
+{
+	u_int8_t val = rc632_reg_read(reg);
+	val |= bits;
+	rc632_reg_write(reg, val);
+
+	return val;
+}
+
+u_int8_t rc632_clear_bits(u_int8_t reg, u_int8_t bits)
+{
+	u_int8_t val = rc632_reg_read(reg);
+	val &= bits;
+	rc632_reg_write(reg, val);
+
+	return val;
 }
 
 /* RC632 interrupt handling */
@@ -317,7 +336,7 @@ int rc632_test(void)
 
 	return 0;
 }
-#else
+#else /* DEBUG */
 int rc632_test(void) {}
 int rc632_dump(void) {}
-#endif
+#endif /* DEBUG */
