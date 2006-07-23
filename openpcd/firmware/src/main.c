@@ -71,6 +71,7 @@ static int usb_in(struct req_ctx *rctx)
 	//data_len = ntohs(poh->len);
 
 	memcpy(pih, poh, sizeof(*poh));
+	rctx->tx.tot_len = sizeof(*poh);
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_WRITE_REG:
