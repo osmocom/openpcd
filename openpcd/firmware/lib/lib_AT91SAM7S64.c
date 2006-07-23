@@ -17,8 +17,8 @@
 //* Generated           : AT91 SW Application Group  08/30/2005 (15:52:59)
 //*
 
-#include <include/AT91SAM7S64.h>
-#include <include/lib_AT91SAM7S64.h>
+#include <include/AT91SAM7.h>
+#include <include/lib_AT91SAM7.h>
 
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_AIC_ConfigureIt
