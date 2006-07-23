@@ -7,6 +7,7 @@
 
 #include <include/lib_AT91SAM7.h>
 #include <include/cl_rc632.h>
+#include <include/openpcd.h>
 #include "openpcd.h"
 #include "fifo.h"
 #include "dbgu.h"
@@ -152,7 +153,7 @@ u_int8_t rc632_fifo_read(u_int8_t max_len, u_int8_t *data)
 }
 
 /* RC632 interrupt handling */
-
+static struct openpcd_hdr irq_opcdh;
 
 static void rc632_irq(void)
 {
@@ -165,7 +166,7 @@ static void rc632_irq(void)
 
 	if (cause & RC632_INT_LOALERT) {
 		/* FIFO is getting low, refill from virtual FIFO */
-		DEBUGP("FIFO low alert ");
+		DEBUGP("FIFO_low ");
 		#if 0
 		if (!fifo_available(&rc632.fifo))
 			return;
@@ -174,14 +175,22 @@ static void rc632_irq(void)
 	}
 	if (cause & RC632_INT_HIALERT) {
 		/* FIFO is getting full, empty into virtual FIFO */
-		DEBUGP("FIFO high alert ");
+		DEBUGP("FIFO_high ");
 		/* FIXME */
 	}
-	if (cause & RC632_INT_TIMER) {
-		/* Timer has expired, signal it to host */
-		DEBUGP("Timer alert ");
-		/* FIXME */
-	}
+	/* All interrupts below can be reported directly to the host */
+	if (cause & RC632_INT_TIMER)
+		DEBUGP("Timer ");
+	if (cause & RC632_INT_IDLE)
+		DEBUGP("Idle ");
+	if (cause & RC632_INT_RX)
+		DEBUGP("RxComplete ");
+	if (cause & RC632_INT_TX)
+		DEBUGP("TxComplete ");
+	
+	irq_opcdh.val = cause;
+	
+	AT91F_UDP_Write(1, &irq_opcdh, sizeof(irq_opcdh));
 	DEBUGP("\n");
 }
 
@@ -219,7 +228,8 @@ void rc632_init(void)
 
 	//AT91F_SPI_Enable(pSPI);
 
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI, AT91C_AIC_PRIOR_HIGHEST,
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI,
+			      OPENPCD_IRQ_PRIO_SPI,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &spi_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 	AT91F_SPI_EnableIt(pSPI, AT91C_SPI_MODF|AT91C_SPI_OVRES);
@@ -232,11 +242,18 @@ void rc632_init(void)
 	//AT91F_SPI_Reset(pSPI);
 
 	/* Register rc632_irq */
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_IRQ1, AT91C_AIC_PRIOR_LOWEST,
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, OPENPCD_RC632_IRQ,
+			      OPENPCD_IRQ_PRIO_RC632,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &rc632_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
+
+	/* initialize static part of openpcd_hdr for USB IRQ reporting */
+	irq_opcdh.cmd = OPENPCD_CMD_IRQ;
+	irq_opcdh.flags = 0x00;
+	irq_opcdh.reg = 0x07;
+	irq_opcdh.len = 0x00;
 
 	rc632_reset();
 };

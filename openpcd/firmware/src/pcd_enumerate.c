@@ -246,9 +246,9 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 	pCdc->currentConnection = 0;
 	pCdc->currentRcvBank = AT91C_UDP_RX_DATA_BK0;
 
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP, AT91C_AIC_PRIOR_LOWEST, 
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
+			      OPENPCD_IRQ_PRIO_UDP,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, udp_irq);
-			      //AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE, udp_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
 	/* End-of-Bus-Reset is always enabled */

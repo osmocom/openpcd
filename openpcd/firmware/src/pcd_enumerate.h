@@ -31,6 +31,7 @@ typedef struct _AT91S_CDC
 	unsigned char currentConfiguration;
 	unsigned char currentConnection;
 	unsigned int  currentRcvBank;
+	void *ep_ctx[4];
 } AT91S_CDC, *AT91PS_CDC;
 
 //* external function description
