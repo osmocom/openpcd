@@ -86,6 +86,7 @@ static int usb_in(struct req_ctx *rctx)
 		break;
 	case OPENPCD_CMD_WRITE_VFIFO:
 		DEBUGP("WRITE VFIFO ");
+		DEBUGP("NOT IMPLEMENTED YET ");
 		break;
 	case OPENPCD_CMD_READ_REG:
 		DEBUGP("READ REG(0x%02x) ", poh->reg);
@@ -94,9 +95,11 @@ static int usb_in(struct req_ctx *rctx)
 	case OPENPCD_CMD_READ_FIFO:
 		DEBUGP("READ FIFO(len=%u) ", poh->len);
 		pih->len = rc632_fifo_read(poh->len, pih->data);
+		rctx->tx.tot_len += pih->len;
 		break;
 	case OPENPCD_CMD_READ_VFIFO:
 		DEBUGP("READ VFIFO ");
+		DEBUGP("NOT IMPLEMENTED YET ");
 		break;
 	case OPENPCD_CMD_SET_LED:
 		DEBUGP("SET LED(%u,%u) ", poh->reg, poh->val);
