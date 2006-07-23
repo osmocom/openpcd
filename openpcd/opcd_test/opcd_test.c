@@ -37,22 +37,25 @@ hexdump(const void *data, unsigned int len)
 {
 	static char string[65535];
 	unsigned char *d = (unsigned char *) data;
-	unsigned int i, left;
+	unsigned int i, left, ofs;
 
 	string[0] = '\0';
-	left = sizeof(string);
+	ofs = snprintf(string, sizeof(string)-1, "(%u): ", len);
+	
+	left = sizeof(string) - ofs;
 	for (i = 0; len--; i += 3) {
 		if (i >= sizeof(string) -4)
 			break;
-		snprintf(string+i, 4, " %02x", *d++);
+		snprintf(string+ofs+i, 4, " %02x", *d++);
 	}
+	string[sizeof(string)-1] = '\0';
 	return string;
 }
 
 #define OPCD_VENDOR_ID	0x2342
 #define OPCD_PRODUCT_ID	0x0001
 #define OPCD_OUT_EP	0x01
-#define OPCD_IN_EP	0x81
+#define OPCD_IN_EP	0x82
 
 static struct usb_dev_handle *hdl;
 static struct usb_device *find_opcd_device(void)
@@ -82,13 +85,15 @@ static int opcd_recv_reply(void)
 
 	memset(buf, 0, sizeof(buf));
 
-	ret = usb_bulk_read(hdl, OPCD_IN_EP, buf, sizeof(buf), 0);
+	ret = usb_bulk_read(hdl, OPCD_IN_EP, buf, sizeof(buf), 1000);
 
-	for (i = 0; i < ret; i ++)
-		if (buf[i] == 0x03)
-			buf[i] = 0x00;
+	if (ret < 0) {
+		fprintf(stderr, "bulk_read returns %d(%s)\n", ret,
+			usb_strerror());
+		return ret;
+	}
 
-	printf("RX: %s\n", buf, hexdump(buf, ret));
+	printf("RX: %s\n", hexdump(buf, ret));
 
 	return ret;
 }
@@ -113,11 +118,14 @@ static int opcd_send_command(u_int8_t cmd, u_int8_t reg, u_int8_t val, u_int16_t
 	
 	cur = sizeof(*ohdr) + len;
 
-	printf("TX: %s\n", buf,  hexdump(buf, cur));
+	printf("TX: %s\n", hexdump(buf, cur));
 
 	ret = usb_bulk_write(hdl, OPCD_OUT_EP, buf, cur, 0);
-	if (ret < 0)
+	if (ret < 0) {
+		fprintf(stderr, "bulk_write returns %d(%s)\n", ret,
+			usb_strerror());
 		return ret;
+	}
 
 	/* this usleep is required in order to make the process work.
 	 * apparently some race condition in the bootloader if we feed
@@ -126,6 +134,37 @@ static int opcd_send_command(u_int8_t cmd, u_int8_t reg, u_int8_t val, u_int16_t
 
 	//return ezx_blob_recv_reply();
 }
+static int get_number(const char *optarg, unsigned int min,
+		      unsigned int max, unsigned int *num)
+{
+	char *endptr;
+	unsigned long nbr = strtoul(optarg, &endptr, 0);
+	//fprintf(stderr, "trying to read `%s' as number\n", optarg);
+
+	if (nbr == 0 && optarg == endptr)
+		return -EINVAL;
+
+	if (nbr < min || nbr > max)
+		return -ERANGE;
+
+	*num = nbr;
+	return 0;
+}
+
+static void print_welcome(void)
+{
+	printf("opcd_test - OpenPCD Test and Debug Program\n"
+	       "(C) 2006 by Harald Welte <laforge@gnumonks.org>\n\n");
+}
+static void print_help(void)
+{
+	printf( "\t-l\t--led-set\tled {0,1}\n"
+		"\t-w\t--reg-write\treg value\n"
+		"\t-r\t--reg-read\treg\n"
+
+		"\t-s\t--set-bits\treg\tmask\n"
+		"\t-c\t--clear-bits\treg\tmask\n");
+}
 
 static struct option opts[] = {
 	{ "led-set", 1, 0, 'l' },
@@ -133,29 +172,17 @@ static struct option opts[] = {
 	{ "reg-read", 1, 0, 'r' },
 	{ "fifo-write", 1, 0, 'W' },
 	{ "fifo-read", 1, 0, 'R' },
+	{ "set-bits", 1, 0, 's' },
+	{ "clear-bits", 1, 0, 'c' },
+	{ "help", 0, 0, 'h'},
 };	
-
-static int get_number(const char *optarg, unsigned int min,
-		      unsigned int max, unsigned int *num)
-{
-	char *endptr;
-	unsigned long nbr = strtoul(optarg, &endptr, 10);
-
-	if (nbr == 0 && optarg == endptr)
-		return -EINVAL;
-
-	if (nbr <= min || nbr >= max)
-		return -ERANGE;
-
-	*num = nbr;
-	return 0;
-}
-
 
 int main(int argc, char **argv)
 {
 	struct usb_device *dev;
 	int c;
+
+	print_welcome();
 
 	usb_init();
 	if (!usb_find_busses())
@@ -183,7 +210,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "l:r:w:R:W:", opts,
+		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?", opts,
 				&option_index);
 
 		if (c == -1)
@@ -196,26 +223,32 @@ int main(int argc, char **argv)
 				exit(2);
 			if (get_number(argv[optind], 0, 1, &j) < 0)
 				exit(2);
+			printf("setting LED %d to %s\n", i, j ? "on" : "off");
 			opcd_send_command(OPENPCD_CMD_SET_LED, i, j, 0, NULL);
 			opcd_recv_reply();
 			break;
 		case 'r':
-			if (get_number(optarg, 0x00, 0x3f, &i) < 0)
+			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
 				exit(2);
+			printf("reading register 0x%02x: ");
 			opcd_send_command(OPENPCD_CMD_READ_REG, i, 0, 0, NULL);
 			opcd_recv_reply();
 			break;
 		case 'w':
-			if (get_number(optarg, 0x00, 0x3f, &i) < 0)
+			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0) {
+				fprintf(stderr, "can't read register\n");
 				exit(2);
-			if (get_number(argv[optind], 0x00, 0xff, &j) < 0)
+			}
+			if (get_number(argv[optind], 0x00, 0xff, &j) < 0) {
+				fprintf(stderr, "can't read value\n");
 				exit(2);
+			}
 			fprintf(stdout, "setting register 0x%02x to 0x%02x\n", i, j);
 			opcd_send_command(OPENPCD_CMD_WRITE_REG, i, j, 0, NULL);
 			opcd_recv_reply();
 			break;
 		case 'R':
-			if (get_number(optarg, 0x00, 0x3f, &i) < 0)
+			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
 				exit(2);
 			opcd_send_command(OPENPCD_CMD_READ_FIFO, 0, i, 0, NULL);
 			opcd_recv_reply();
@@ -223,29 +256,34 @@ int main(int argc, char **argv)
 		case 'W':
 			fprintf(stderr, "FIFO write not implemented yet\n");
 			break;
+		case 's':
+			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
+				exit(2);
+			if (get_number(argv[optind], 0x00, 0xff, &j) < 0)
+				exit(2);
+			opcd_send_command(OPENPCD_CMD_REG_BITS_SET, i, j, 0, NULL);
+			opcd_recv_reply();
+			break;
+		case 'c':
+			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
+				exit(2);
+			if (get_number(argv[optind], 0x00, 0xff, &j) < 0)
+				exit(2);
+			opcd_send_command(OPENPCD_CMD_REG_BITS_CLEAR, i, j, 0, NULL);
+			opcd_recv_reply();
+			break;
+		case 'h':
+		case '?':
+			print_help();
+			exit(0);
+			break;
 		default:
 			fprintf(stderr, "unknown key `%c'\n", c);
+			print_help();
+			exit(2);
 			break;
 		}
 	}
-
-#if 0
-	//opcd_send_command(OPENPCD_CMD_SET_LED, 2, 1, 0, NULL);
-
-	opcd_send_command(OPENPCD_CMD_WRITE_REG, 0x1b, 0x11, 0, NULL);
-	opcd_recv_reply();
-
-	opcd_send_command(OPENPCD_CMD_READ_REG, 0x1b, 0x00, 0, NULL);
-	opcd_recv_reply();
-
-	opcd_send_command(OPENPCD_CMD_WRITE_REG, 0x1b, 0x33, 0, NULL);
-	opcd_recv_reply();
-
-	opcd_send_command(OPENPCD_CMD_READ_REG, 0x1b, 0x00, 0, NULL);
-	opcd_recv_reply();
-
-	opcd_send_command(OPENPCD_CMD_WRITE_REG, 0x15, 0x33, 0, NULL);
-#endif
 
 	exit(0);
 }
