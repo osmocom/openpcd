@@ -21,6 +21,7 @@
 #include <include/types.h>
 #include <include/usb_ch9.h>
 #include <include/lib_AT91SAM7.h>
+#include <include/openpcd.h>
 
 #include "pcd_enumerate.h"
 #include "openpcd.h"
@@ -39,8 +40,8 @@ struct usb_device_descriptor devDescriptor = {
 	.bDeviceSubClass = 0xff,
 	.bDeviceProtocol = 0xff,
 	.bMaxPacketSize0 = 0x08,
-	.idVendor = 0x2342,
-	.idProduct = 0x0001,
+	.idVendor = OPENPCD_VENDOR_ID,
+	.idProduct = OPENPCD_PRODUCT_ID,
 	.bcdDevice = 0x0000,
 	.iManufacturer = 0x00,
 	.iProduct = 0x00,
@@ -81,21 +82,21 @@ const struct _desc cfgDescriptor = {
 		{
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
-			  .bEndpointAddress = 0x01,
+			  .bEndpointAddress = OPENPCD_OUT_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
 			  .wMaxPacketSize = 64,
 			  .bInterval = 0x10,	/* FIXME */
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
-			  .bEndpointAddress = 0x82,
+			  .bEndpointAddress = OPENPCD_IN_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
 			  .wMaxPacketSize = 64,
 			  .bInterval = 0x10,	/* FIXME */
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
-			  .bEndpointAddress = 0x83,
+			  .bEndpointAddress = OPENPCD_IRQ_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_INT,
 			  .wMaxPacketSize = 64,
 			  .bInterval = 0x10,	/* FIXME */

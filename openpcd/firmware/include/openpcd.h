@@ -29,4 +29,10 @@ struct openpcd_hdr {
 
 #define OPENPCD_CMD_IRQ			0x40	/* IRQ reported by RC632 */
 
+#define OPENPCD_VENDOR_ID	0x2342
+#define OPENPCD_PRODUCT_ID	0x0001
+#define OPENPCD_OUT_EP		0x01
+#define OPENPCD_IN_EP		0x82
+#define OPENPCD_IRQ_EP		0x83
+
 #endif

@@ -79,8 +79,8 @@ static int usb_in(struct req_ctx *rctx)
 		pih->val = rc632_reg_read(poh->reg);
 		break;
 	case OPENPCD_CMD_READ_FIFO:
-		DEBUGP("READ FIFO(len=%u) ", poh->len);
-		pih->len = rc632_fifo_read(poh->len, pih->data);
+		DEBUGP("READ FIFO(len=%u) ", poh->val);
+		pih->len = rc632_fifo_read(poh->val, pih->data);
 		rctx->tx.tot_len += pih->len;
 		break;
 	case OPENPCD_CMD_WRITE_REG:
