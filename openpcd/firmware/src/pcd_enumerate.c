@@ -18,10 +18,10 @@
 // 12. Apr. 2006: added modification found in the mikrocontroller.net gcc-Forum 
 //                additional line marked with /* +++ */
 
-//#include "board.h"
-#include <include/usb_ch9.h>
 #include <include/types.h>
+#include <include/usb_ch9.h>
 #include <include/lib_AT91SAM7.h>
+
 #include "pcd_enumerate.h"
 #include "openpcd.h"
 #include "dbgu.h"
@@ -88,14 +88,14 @@ const struct _desc cfgDescriptor = {
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
-			  .bEndpointAddress = 0x81,
+			  .bEndpointAddress = 0x82,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
 			  .wMaxPacketSize = 64,
 			  .bInterval = 0x10,	/* FIXME */
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
-			  .bEndpointAddress = 0x82,
+			  .bEndpointAddress = 0x83,
 			  .bmAttributes = USB_ENDPOINT_XFER_INT,
 			  .wMaxPacketSize = 64,
 			  .bInterval = 0x10,	/* FIXME */
@@ -252,7 +252,6 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
 	/* End-of-Bus-Reset is always enabled */
-	//pCdc->pUdp->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1| AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
 
 	return pCdc;
 }
@@ -303,7 +302,7 @@ static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length)
 
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_CDC_Write
-//* \brief Send through endpoint 2
+//* \brief Send through endpoint 2/3
 //*----------------------------------------------------------------------------
 u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 {
@@ -311,7 +310,7 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 	u_int32_t cpt = 0;
 	u_int8_t ep;
 
-	DEBUGPCRF("enter\n");
+	DEBUGPCRF("enter(irq=%u, len=%u)", irq, length);
 
 	if (irq)
 		ep = 3;
@@ -354,7 +353,7 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 	pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
 	while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
 
-	DEBUGPCRF("return(normal, len=%u)\n", length);
+	DEBUGPCRF("return(normal, len=%u)", length);
 	return length;
 }
 
@@ -494,7 +493,7 @@ static void AT91F_CDC_Enumerate(void)
 		pUDP->UDP_CSR[3] =
 		    (wValue) ? (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_INT_IN) : 0;
 		pUDP->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
-				  AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
+				  0);//AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGP("GET_CONFIG ");
@@ -512,7 +511,7 @@ static void AT91F_CDC_Enumerate(void)
 		AT91F_USB_SendData(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_ENDPOINT:
-		DEBUGP("GET_STATUS_ENDPOINT ");
+		DEBUGP("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
 		wStatus = 0;
 		wIndex &= 0x0F;
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex <= 3)) {
@@ -556,21 +555,30 @@ static void AT91F_CDC_Enumerate(void)
 		AT91F_USB_SendZlp(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ENDPOINT:
-		DEBUGP("CLEAR_FEATURE_ENDPOINT ");
+		DEBUGP("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
-			if (wIndex == 1)
+			if (wIndex == 1) {
 				pUDP->UDP_CSR[1] =
 				    (AT91C_UDP_EPEDS |
 				     AT91C_UDP_EPTYPE_BULK_OUT);
-			else if (wIndex == 2)
+				pUDP->UDP_RSTEP |= AT91C_UDP_EP1;
+				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP1;
+			}
+			else if (wIndex == 2) {
 				pUDP->UDP_CSR[2] =
 				    (AT91C_UDP_EPEDS |
 				     AT91C_UDP_EPTYPE_BULK_IN);
-			else if (wIndex == 3)
+				pUDP->UDP_RSTEP |= AT91C_UDP_EP2;
+				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP2;
+			}
+			else if (wIndex == 3) {
 				pUDP->UDP_CSR[3] =
 				    (AT91C_UDP_EPEDS |
 				     AT91C_UDP_EPTYPE_INT_IN);
+				pUDP->UDP_RSTEP |= AT91C_UDP_EP3;
+				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP3;
+			}
 			AT91F_USB_SendZlp(pUDP);
 		} else
 			AT91F_USB_SendStall(pUDP);
