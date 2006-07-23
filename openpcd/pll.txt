@@ -1,0 +1,7 @@
+MAINCLK = 18.432MHz
+PLLCLK(div=24,mul=125) = 96MHz
+MCLK(divisor 2) = 48MHz
+USB(divisor 2) = 48MHz
+MC_FWR(FWS) = 2 		# 1 flash waitstate
+
+SPCK(SCBR=10) = 4.8MHz		# 5MHz max clock RC632
