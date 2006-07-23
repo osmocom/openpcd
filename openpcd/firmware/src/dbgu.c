@@ -19,7 +19,6 @@
 // Include Standard files
 #include "Board.h"
 #include "dbgu.h"
-#include "rc632_debug.h"
 #include "rc632.h"
 #include "openpcd.h"
 #define USART_SYS_LEVEL 4

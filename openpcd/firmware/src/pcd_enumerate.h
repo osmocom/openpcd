@@ -15,7 +15,7 @@
 #ifndef PCD_ENUMERATE_H
 #define PCD_ENUMERATE_H
 
-#include <include/AT91SAM7S64.h>
+#include <include/AT91SAM7.h>
 #include <include/types.h>
 
 #define AT91C_EP_OUT 1
