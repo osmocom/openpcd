@@ -74,6 +74,15 @@ static int usb_in(struct req_ctx *rctx)
 	rctx->tx.tot_len = sizeof(*poh);
 
 	switch (poh->cmd) {
+	case OPENPCD_CMD_READ_REG:
+		DEBUGP("READ REG(0x%02x) ", poh->reg);
+		pih->val = rc632_reg_read(poh->reg);
+		break;
+	case OPENPCD_CMD_READ_FIFO:
+		DEBUGP("READ FIFO(len=%u) ", poh->len);
+		pih->len = rc632_fifo_read(poh->len, pih->data);
+		rctx->tx.tot_len += pih->len;
+		break;
 	case OPENPCD_CMD_WRITE_REG:
 		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
 		rc632_reg_write(poh->reg, poh->val);
@@ -84,22 +93,21 @@ static int usb_in(struct req_ctx *rctx)
 			return -EINVAL;
 		rc632_fifo_write(poh->len, poh->data);
 		break;
+	case OPENPCD_CMD_READ_VFIFO:
+		DEBUGP("READ VFIFO ");
+		DEBUGP("NOT IMPLEMENTED YET ");
+		break;
 	case OPENPCD_CMD_WRITE_VFIFO:
 		DEBUGP("WRITE VFIFO ");
 		DEBUGP("NOT IMPLEMENTED YET ");
 		break;
-	case OPENPCD_CMD_READ_REG:
-		DEBUGP("READ REG(0x%02x) ", poh->reg);
-		pih->val = rc632_reg_read(poh->reg);
+	case OPENPCD_CMD_REG_BITS_CLEAR:
+		DEBUGP("CLEAR BITS ");
+		pih->val = rc632_clear_bits(poh->reg, poh->val);
 		break;
-	case OPENPCD_CMD_READ_FIFO:
-		DEBUGP("READ FIFO(len=%u) ", poh->len);
-		pih->len = rc632_fifo_read(poh->len, pih->data);
-		rctx->tx.tot_len += pih->len;
-		break;
-	case OPENPCD_CMD_READ_VFIFO:
-		DEBUGP("READ VFIFO ");
-		DEBUGP("NOT IMPLEMENTED YET ");
+	case OPENPCD_CMD_REG_BITS_SET:
+		DEBUGP("SET BITS ");
+		pih->val = rc632_set_bits(poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_SET_LED:
 		DEBUGP("SET LED(%u,%u) ", poh->reg, poh->val);
@@ -122,11 +130,6 @@ int main(void)
 	led_init();
 	// Init trace DBGU
 	AT91F_DBGU_Init();
-#if 1
-	AT91F_DBGU_Printk
-	    ("\n\r-I- OpenPCD test mode\n\r 0) Set Pull-up 1) Clear Pull-up "
-	     "2) Toggle LED1 3) Toggle LED2 4) Test RC632\n\r");
-
 	rc632_init();
 	
 	// Enable User Reset and set its minimal assertion to 960 us
@@ -141,15 +144,6 @@ int main(void)
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, AT91C_PA6_PCK0);
 #endif
 
-#ifdef DEBUG_LOOP_LED
-	while (1) {
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_LED1);
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_LED1);
-	}
-
-#endif
-
-#endif
 	led_switch(1, 1);
 
 	// Init USB device
