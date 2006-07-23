@@ -23,4 +23,6 @@ struct openpcd_hdr {
 #define OPENPCD_CMD_READ_VFIFO	0x13
 #define OPENPCD_CMD_SET_LED	0x21
 
+#define OPENPCD_CMD_IRQ		0x40	/* IRQ reported by RC632 */
+
 #endif
