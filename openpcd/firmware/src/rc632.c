@@ -165,7 +165,7 @@ u_int8_t rc632_set_bits(u_int8_t reg, u_int8_t bits)
 u_int8_t rc632_clear_bits(u_int8_t reg, u_int8_t bits)
 {
 	u_int8_t val = rc632_reg_read(reg);
-	val &= bits;
+	val &= ~bits;
 	rc632_reg_write(reg, val);
 
 	return val;
