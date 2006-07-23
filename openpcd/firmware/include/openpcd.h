@@ -1,8 +1,9 @@
 #ifndef _OPENPCD_PROTO_H
 #define _OPENPCD_PROTO_H
 
+/* This header file describes the USB protocol of the OpenPCD RFID reader */
+
 #include <include/types.h>
-#include <include/AT91SAM7S64.h>
 
 struct openpcd_hdr {
 	u_int8_t cmd;		/* command */
