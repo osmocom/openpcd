@@ -40,8 +40,8 @@
 
 # MCU name and submodel
 MCU      = arm7tdmi
-#SUBMDL   = AT91SAM7S64
-SUBMDL   = AT91SAM7S256
+SUBMDL   = AT91SAM7S64
+#SUBMDL   = AT91SAM7S256
 
 USE_THUMB_MODE = NO
 #USE_THUMB_MODE = YES
@@ -71,7 +71,7 @@ SRC =
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
-SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/led.c src/rc632.c src/rc632_debug.c src/req_ctx.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
+SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/led.c src/rc632.c  src/req_ctx.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -135,7 +135,8 @@ AT91LIBNOWARN = yes
 CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
-CDEFS =  -D$(RUN_MODE) -DOLIMEX -DDEBUG 
+CDEFS =  -D$(RUN_MODE) -DDEBUG 
+CDEFS += -DOLIMEX
 
 # Place -I options here
 CINCS = -Ihelper -Isrc

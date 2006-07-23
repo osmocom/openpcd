@@ -31,11 +31,15 @@ static void spi_irq(void)
 }
 
 /* stupid polling transceiver routine */
-static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
-			   u_int8_t *rx_data, u_int16_t *rx_len)
+int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
+		   u_int8_t *rx_data, u_int16_t *rx_len)
 {
 	u_int16_t tx_cur = 0;
 	u_int16_t rx_len_max = 0;
+	u_int16_t rx_cnt = 0;
+
+	DEBUGP("%s enter(tx_len=%u)\r\n", __FUNCTION__, tx_len);
+
 	if (rx_len) {
 		rx_len_max = *rx_len;
 		*rx_len = 0;
@@ -44,26 +48,27 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	AT91F_SPI_Enable(pSPI);
 	while (1) { 
 		u_int32_t sr = pSPI->SPI_SR;
-		DEBUGP("SPI_SR 0x%08x\r\n", sr);
-	 	if (sr & AT91C_SPI_TDRE) {
-			DEBUGP("TDRE, sending byte\r\n");
-			pSPI->SPI_TDR = tx_data[tx_cur++];
+		u_int8_t tmp;
+		//DEBUGP("loop:SPI_SR 0x%08x\r\n", sr);
+		if (sr & AT91C_SPI_RDRF) {
+			tmp = pSPI->SPI_RDR;
+			rx_cnt++;
+			//DEBUGP("<= RDRF, reading byte 0x%02x\r\n", tmp);
+			if (rx_len && *rx_len < rx_len_max)
+				rx_data[(*rx_len)++] = tmp;
 		}
-		if (rx_len && *rx_len < rx_len_max) {
-			if (sr & AT91C_SPI_RDRF) {
-				DEBUGP("RDRF, reading byte\r\n");
-				rx_data[(*rx_len)++] = pSPI->SPI_RDR;
+	 	if (sr & AT91C_SPI_TDRE) {
+			if (tx_len > tx_cur) {
+				tmp = tx_data[tx_cur++];
+				//DEBUGP("=> TDRE, sending byte 0x%02x\r\n", tmp);
+				pSPI->SPI_TDR = tmp;
 			}
 		}
-		if (tx_cur >= tx_len) {
-			if (!rx_len)
-				return 0;
-
-			if (*rx_len >= tx_len) 
-				return 0;
-		}
-
+		if (tx_cur >= tx_len && rx_cnt >= tx_len)
+			break;
 	}
+	AT91F_SPI_Disable(pSPI);
+	DEBUGP("%s leave(%02x %02x)\r\n", __FUNCTION__, rx_data[0], rx_data[1]);
 	return 0;
 }
 
@@ -84,13 +89,15 @@ static struct rc632 rc632;
 
 void rc632_reg_write(u_int8_t addr, u_int8_t data)
 {
+	u_int16_t rx_len = 2;
 	addr = (addr << 1) & 0x7e;
 
 	spi_outbuf[0] = addr;
 	spi_outbuf[1] = data;
 
 	/* transceive */
-	spi_transceive(spi_outbuf, 2, NULL, NULL);
+	//spi_transceive(spi_outbuf, 2, NULL, NULL);
+	spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
 }
 
 int rc632_fifo_write(u_int8_t len, u_int8_t *data)
@@ -113,7 +120,7 @@ u_int8_t rc632_reg_read(u_int8_t addr)
 
 	addr = (addr << 1) & 0x7e;
 
-	spi_outbuf[0] = addr | 0x01;
+	spi_outbuf[0] = addr | 0x80;
 	spi_outbuf[1] = 0x00;
 
 	/* transceive */
@@ -134,7 +141,7 @@ u_int8_t rc632_fifo_read(u_int8_t max_len, u_int8_t *data)
 	for (i = 0; i < fifo_length; i++)
 		spi_outbuf[i] = FIFO_ADDR;
 
-	spi_outbuf[0] |= 0x01;
+	spi_outbuf[0] |= 0x80;
 	spi_outbuf[fifo_length] = 0x00;
 
 	/* transceive */
@@ -188,8 +195,15 @@ void rc632_power(u_int8_t up)
 
 void rc632_reset(void)
 {
+	int i;
+
 	rc632_power(0);
+	for (i = 0; i < 0xfffff; i++)
+		{}
 	rc632_power(1);
+
+	/* turn off register paging */
+	rc632_reg_write(RC632_REG_PAGE0, 0x00);
 }
 
 void rc632_init(void)
@@ -208,7 +222,7 @@ void rc632_init(void)
 	//AT91F_SPI_Enable(pSPI);
 
 	DEBUGP("rc632_cfg_it_spi\r\n");
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI, AT91C_AIC_PRIOR_LOWEST,
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI, AT91C_AIC_PRIOR_HIGHEST,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &spi_irq);
 	DEBUGP("rc632_en_it_spi\r\n");
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
@@ -220,7 +234,8 @@ void rc632_init(void)
 	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10 (4.8MHz), 
 	 * DLYBS = 0, DLYBCT = 0 */
 	DEBUGP("rc632_spi_cfg_cs\r\n");
-	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
+	//AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
+	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(0xff<<8));
 
 	//DEBUGP("rc632_spi_reset\r\n");
 	//AT91F_SPI_Reset(pSPI);
@@ -242,3 +257,60 @@ void rc632_exit(void)
 	AT91F_AIC_DisableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 	AT91F_SPI_Disable(pSPI);
 }
+
+
+#ifdef DEBUG
+static int rc632_reg_write_verify(u_int8_t reg, u_int8_t val)
+{
+	u_int8_t tmp;
+
+	rc632_reg_write(reg, val);
+	tmp = rc632_reg_read(reg);
+
+	DEBUGP("reg=0x%02x, write=0x%02x, read=0x%02x ", reg, val, tmp);
+
+	return (val == tmp);
+}
+
+static u_int8_t tx_buf[0x40+1];
+static u_int8_t rx_buf[0x40+1];
+
+int rc632_dump(void)
+{
+	u_int8_t i;
+	u_int16_t rx_len = sizeof(rx_buf);
+
+	for (i = 0; i <= 0x3f; i++) {
+		tx_buf[i] = i << 1;
+		rx_buf[i] = 0x00;
+	}
+
+	/* MSB of first byte of read spi transfer is high */
+	tx_buf[0] |= 0x80;
+
+	/* last byte of read spi transfer is 0x00 */
+	tx_buf[0x40] = 0x00;
+	rx_buf[0x40] = 0x00;
+
+	spi_transceive(tx_buf, 0x41, rx_buf, &rx_len);
+
+	for (i = 0; i < 0x3f; i++)
+		DEBUGP("REG 0x%02x = 0x%02x\r\n", i, rx_buf[i+1]);
+	
+	return 0;
+}
+
+int rc632_test(void)
+{
+	if (rc632_reg_write_verify(RC632_REG_RX_WAIT, 0x55) != 1)
+		return -1;
+
+	if (rc632_reg_write_verify(RC632_REG_RX_WAIT, 0xAA) != 1)
+		return -1;
+
+	return 0;
+}
+#else
+int rc632_test(void) {}
+int rc632_dump(void) {}
+#endif

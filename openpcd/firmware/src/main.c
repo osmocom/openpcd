@@ -104,10 +104,10 @@ static int usb_in(struct req_ctx *rctx)
 	default:
 		return -EINVAL;
 	}
-	AT91F_UDP_Write(0, &rctx->tx.data[0], rctx->tx.tot_len);
+	//AT91F_UDP_Write(0, &rctx->tx.data[0], rctx->tx.tot_len);
 }
 
-//#define DEBUG_TOGGLE_LED
+#define DEBUG_TOGGLE_LED
 
 int main(void)
 {
@@ -167,6 +167,6 @@ int main(void)
 		}
 
 		/* busy-wait for led toggle */
-		for (i = 0; i < 0x7fffff; i++) {}
+		for (i = 0; i < 0x2fffff; i++) {}
 	}
 }
