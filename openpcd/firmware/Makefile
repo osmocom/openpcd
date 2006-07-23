@@ -40,8 +40,8 @@
 
 # MCU name and submodel
 MCU      = arm7tdmi
-SUBMDL   = AT91SAM7S64
-#SUBMDL   = AT91SAM7S256
+#SUBMDL   = AT91SAM7S64
+SUBMDL   = AT91SAM7S256
 
 USE_THUMB_MODE = NO
 #USE_THUMB_MODE = YES
@@ -136,7 +136,7 @@ CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
 CDEFS =  -D$(RUN_MODE) -DDEBUG 
-CDEFS += -DOLIMEX
+#CDEFS += -DOLIMEX
 
 # Place -I options here
 CINCS = -Ihelper -Isrc
