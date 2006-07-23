@@ -71,7 +71,7 @@ SRC =
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
-SRCARM  = lib/lib_AT91SAM7S64.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/led.c src/rc632.c src/rc632_debug.c src/req_ctx.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
+SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/led.c src/rc632.c src/rc632_debug.c src/req_ctx.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -148,8 +148,8 @@ CDEFS += -D$(VECTOR_LOCATION)
 ADEFS += -D$(VECTOR_LOCATION)
 endif
 
-CDEFS += -D__WinARM__
-ADEFS += -D__WinARM__
+CDEFS += -D__WinARM__ -D__$(SUBMDL)__
+ADEFS += -D__WinARM__ -D__$(SUBMDL)__
 
 
 # Compiler flags.

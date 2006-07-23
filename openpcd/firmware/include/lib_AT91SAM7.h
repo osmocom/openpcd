@@ -40,7 +40,7 @@
 #ifndef lib_AT91SAM7S64_H
 #define lib_AT91SAM7S64_H
 
-#include <include/AT91SAM7S64.h>
+#include <include/AT91SAM7.h>
 
 /* *****************************************************************************
                 SOFTWARE API FOR AIC

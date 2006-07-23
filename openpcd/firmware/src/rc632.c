@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-#include <include/lib_AT91SAM7S64.h>
+#include <include/lib_AT91SAM7.h>
 #include <include/cl_rc632.h>
 #include "openpcd.h"
 #include "fifo.h"

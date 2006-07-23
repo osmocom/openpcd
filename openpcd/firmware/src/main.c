@@ -19,7 +19,7 @@
 
 #include <errno.h>
 #include <string.h>
-#include <include/lib_AT91SAM7S64.h>
+#include <include/lib_AT91SAM7.h>
 #include <include/openpcd.h>
 #include "dbgu.h"
 #include "rc632.h"

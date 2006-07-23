@@ -16,9 +16,8 @@
 #ifndef Board_h
 #define Board_h
 
-#include <include/AT91SAM7S64.h>
-#define __inline static inline
-#include <include/lib_AT91SAM7S64.h>
+#include <include/AT91SAM7.h>
+#include <include/lib_AT91SAM7.h>
 
 #define true	-1
 #define false	0

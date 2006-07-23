@@ -21,7 +21,7 @@
 //#include "board.h"
 #include <include/usb_ch9.h>
 #include <include/types.h>
-#include <include/lib_AT91SAM7S64.h>
+#include <include/lib_AT91SAM7.h>
 #include "pcd_enumerate.h"
 #include "openpcd.h"
 #include "dbgu.h"
