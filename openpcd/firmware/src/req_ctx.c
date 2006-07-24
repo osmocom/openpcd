@@ -1,23 +1,22 @@
-
 #include <unistd.h>
 #include <stdlib.h>
-#include <include/types.h>
+#include <sys/types.h>
+#include <asm/bitops.h>
+
 #include "openpcd.h"
 #include "dbgu.h"
 
 /* FIXME: locking, FIFO order processing */
 
 static struct req_ctx req_ctx[8];
-static u_int8_t req_ctx_busy;		/* bitmask of used request contexts */
+static unsigned long req_ctx_busy;		/* bitmask of used request contexts */
 
 struct req_ctx *req_ctx_find_get(void)
 {
 	u_int8_t i;
 	for (i = 0; i < NUM_REQ_CTX; i++) {
-		if (!(req_ctx_busy & (1 << i))) {
-			req_ctx_busy |= (1 << i);
+		if (test_and_set_bit(i, &req_ctx_busy) == 1)
 			return &req_ctx[i];
-		}
 	}
 
 	return NULL;
@@ -27,11 +26,12 @@ struct req_ctx *req_ctx_find_busy(void)
 {
 	u_int8_t i;
 	for (i = 0; i < NUM_REQ_CTX; i++) {
-		if (req_ctx_busy & (1 << i))
+		if (test_bit(i, &req_ctx_busy))
 			return &req_ctx[i];
 	}
-}
 
+	return NULL;
+}
 
 u_int8_t req_ctx_num(struct req_ctx *ctx)
 {
@@ -44,5 +44,6 @@ void req_ctx_put(struct req_ctx *ctx)
 	if (offset > NUM_REQ_CTX)
 		DEBUGPCR("Error in offset calculation req_ctx_put");
 
-	req_ctx_busy &= ~(1 << offset);
+	clear_bit(offset, &req_ctx_busy);
+	//req_ctx_busy &= ~(1 << offset);
 }

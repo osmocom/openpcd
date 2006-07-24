@@ -18,7 +18,7 @@
 // 12. Apr. 2006: added modification found in the mikrocontroller.net gcc-Forum 
 //                additional line marked with /* +++ */
 
-#include <include/types.h>
+#include <sys/types.h>
 #include <include/usb_ch9.h>
 #include <include/lib_AT91SAM7.h>
 #include <include/openpcd.h>
@@ -127,12 +127,7 @@ const struct _desc cfgDescriptor = {
 #define STD_SET_INTERFACE             0x0B01
 #define STD_SYNCH_FRAME               0x0C82
 
-/// mt u_int32_t currentReceiveBank = AT91C_UDP_RX_DATA_BK0;
-
-static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length);
-static void AT91F_CDC_Enumerate(void);
-
-static char rcv_data[64];
+static void udp_ep0_handler(void);
 
 static void udp_irq(void)
 {
@@ -160,7 +155,7 @@ static void udp_irq(void)
 
 	if (isr & AT91C_UDP_EPINT0) {
 		DEBUGP("EP0INT(Control) ");
-		AT91F_CDC_Enumerate();
+		udp_ep0_handler();
 	}
 	if (isr & AT91C_UDP_EPINT1) {
 		u_int32_t cur_rcv_bank = pCDC.currentRcvBank;
@@ -236,12 +231,10 @@ static void udp_irq(void)
 	DEBUGP("END\r\n");
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_CDC_Open
-//* \brief
-//*----------------------------------------------------------------------------
-AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
+/* Open USB Device Port  */
+static AT91PS_CDC AT91F_PCD_Open(AT91PS_UDP pUdp)
 {
+	DEBUGPCRF("entering");
 	pCdc->pUdp = pUdp;
 	pCdc->currentConfiguration = 0;
 	pCdc->currentConnection = 0;
@@ -254,58 +247,38 @@ AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp)
 
 	/* End-of-Bus-Reset is always enabled */
 
+	DEBUGPCRF("returning after enabling UDP irq");
+
 	return pCdc;
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_UDP_IsConfigured
-//* \brief Test if the device is configured and handle enumeration
-//*----------------------------------------------------------------------------
-u_int8_t AT91F_UDP_IsConfigured(void)
+void udp_init(void)
+{
+	/* Set the PLL USB Divider */
+	AT91C_BASE_CKGR->CKGR_PLLR |= AT91C_CKGR_USBDIV_1;
+
+	/* Enables the 48MHz USB clock UDPCK and System Peripheral USB Clock */
+	AT91C_BASE_PMC->PMC_SCER = AT91C_PMC_UDP;
+	AT91C_BASE_PMC->PMC_PCER = (1 << AT91C_ID_UDP);
+
+	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the corresponding PIO
+	 * Set in PIO mode and Configure in Output */
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	/* Clear for set the Pul up resistor */
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+
+	/* CDC Open by structure initialization */
+	AT91F_PCD_Open(AT91C_BASE_UDP);
+}
+
+/* Test if the device is configured and handle enumeration */
+u_int8_t udp_is_configured(void)
 {
 	return pCdc->currentConfiguration;
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_UDP_Read
-//* \brief Read available data from Endpoint OUT
-//*----------------------------------------------------------------------------
-static u_int32_t AT91F_UDP_Read(char *pData, u_int32_t length)
-{
-	AT91PS_UDP pUdp = pCdc->pUdp;
-	u_int32_t packetSize, nbBytesRcv = 0, currentReceiveBank =
-	    pCdc->currentRcvBank;
-
-	while (length) {
-		if (!AT91F_UDP_IsConfigured())
-			break;
-		if (pUdp->UDP_CSR[AT91C_EP_OUT] & currentReceiveBank) {
-			packetSize =
-			    MIN(pUdp->UDP_CSR[AT91C_EP_OUT] >> 16, length);
-			length -= packetSize;
-			if (packetSize < AT91C_EP_OUT_SIZE)
-				length = 0;
-			while (packetSize--)
-				pData[nbBytesRcv++] =
-				    pUdp->UDP_FDR[AT91C_EP_OUT];
-			pUdp->UDP_CSR[AT91C_EP_OUT] &= ~(currentReceiveBank);
-			if (currentReceiveBank == AT91C_UDP_RX_DATA_BK0)
-				currentReceiveBank = AT91C_UDP_RX_DATA_BK1;
-			else
-				currentReceiveBank = AT91C_UDP_RX_DATA_BK0;
-
-		}
-	}
-	pCdc->currentRcvBank = currentReceiveBank;
-	return nbBytesRcv;
-
-}
-
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_CDC_Write
-//* \brief Send through endpoint 2/3
-//*----------------------------------------------------------------------------
-u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
+/* Send data through endpoint 2/3 */
+u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t length)
 {
 	AT91PS_UDP pUdp = pCdc->pUdp;
 	u_int32_t cpt = 0;
@@ -336,7 +309,7 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 		DEBUGPCRF("waiting for end of further packet");
 		// Wait for the the first bank to be sent
 		while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
-			if (!AT91F_UDP_IsConfigured()) {
+			if (!udp_is_configured()) {
 				DEBUGPCRF("return(!configured)");
 				return length;
 			}
@@ -347,7 +320,7 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 	// Wait for the end of transfer
 	DEBUGPCRF("waiting for end of transfer");
 	while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
-		if (!AT91F_UDP_IsConfigured()) {
+		if (!udp_is_configured()) {
 			DEBUGPCRF("return(!configured)");
 			return length;
 		}
@@ -358,14 +331,8 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length)
 	return length;
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_USB_SendData
-//* \brief Send Data through the control endpoint
-//*----------------------------------------------------------------------------
-unsigned int csrTab[100];
-unsigned char csrIdx = 0;
-
-static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, u_int32_t length)
+/* Send Data through the control endpoint */
+static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t length)
 {
 	u_int32_t cpt = 0;
 	AT91_REG csr;
@@ -404,11 +371,8 @@ static void AT91F_USB_SendData(AT91PS_UDP pUdp, const char *pData, u_int32_t len
 	}
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_USB_SendZlp
-//* \brief Send zero length packet through the control endpoint
-//*----------------------------------------------------------------------------
-void AT91F_USB_SendZlp(AT91PS_UDP pUdp)
+/* Send zero length packet through the control endpoint */
+static void udp_ep0_send_zlp(AT91PS_UDP pUdp)
 {
 	pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
 	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP)) ;
@@ -416,11 +380,8 @@ void AT91F_USB_SendZlp(AT91PS_UDP pUdp)
 	while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_USB_SendStall
-//* \brief Stall the control endpoint
-//*----------------------------------------------------------------------------
-void AT91F_USB_SendStall(AT91PS_UDP pUdp)
+/* Stall the control endpoint */
+static void udp_ep0_send_stall(AT91PS_UDP pUdp)
 {
 	pUdp->UDP_CSR[0] |= AT91C_UDP_FORCESTALL;
 	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_ISOERROR)) ;
@@ -428,11 +389,8 @@ void AT91F_USB_SendStall(AT91PS_UDP pUdp)
 	while (pUdp->UDP_CSR[0] & (AT91C_UDP_FORCESTALL | AT91C_UDP_ISOERROR)) ;
 }
 
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_CDC_Enumerate
-//* \brief This function is a callback invoked when a SETUP packet is received
-//*----------------------------------------------------------------------------
-static void AT91F_CDC_Enumerate(void)
+/* Handle requests on the USB Control Endpoint */
+static void udp_ep0_handler(void)
 {
 	AT91PS_UDP pUDP = pCdc->pUdp;
 	u_int8_t bmRequestType, bRequest;
@@ -464,17 +422,17 @@ static void AT91F_CDC_Enumerate(void)
 	case STD_GET_DESCRIPTOR:
 		DEBUGP("GET_DESCRIPTOR ");
 		if (wValue == 0x100)	// Return Device Descriptor
-			AT91F_USB_SendData(pUDP, (const char *) &devDescriptor,
+			udp_ep0_send_data(pUDP, (const char *) &devDescriptor,
 					   MIN(sizeof(devDescriptor), wLength));
 		else if (wValue == 0x200)	// Return Configuration Descriptor
-			AT91F_USB_SendData(pUDP, (const char *) &cfgDescriptor,
+			udp_ep0_send_data(pUDP, (const char *) &cfgDescriptor,
 					   MIN(sizeof(cfgDescriptor), wLength));
 		else
-			AT91F_USB_SendStall(pUDP);
+			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_ADDRESS:
 		DEBUGP("SET_ADDRESS ");
-		AT91F_USB_SendZlp(pUDP);
+		udp_ep0_send_zlp(pUDP);
 		pUDP->UDP_FADDR = (AT91C_UDP_FEN | wValue);
 		pUDP->UDP_GLBSTATE = (wValue) ? AT91C_UDP_FADDEN : 0;
 		break;
@@ -483,7 +441,7 @@ static void AT91F_CDC_Enumerate(void)
 		if (wValue)
 			DEBUGP("VALUE!=0 ");
 		pCdc->currentConfiguration = wValue;
-		AT91F_USB_SendZlp(pUDP);
+		udp_ep0_send_zlp(pUDP);
 		pUDP->UDP_GLBSTATE =
 		    (wValue) ? AT91C_UDP_CONFG : AT91C_UDP_FADDEN;
 		pUDP->UDP_CSR[1] =
@@ -498,18 +456,18 @@ static void AT91F_CDC_Enumerate(void)
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGP("GET_CONFIG ");
-		AT91F_USB_SendData(pUDP, (char *)&(pCdc->currentConfiguration),
+		udp_ep0_send_data(pUDP, (char *)&(pCdc->currentConfiguration),
 				   sizeof(pCdc->currentConfiguration));
 		break;
 	case STD_GET_STATUS_ZERO:
 		DEBUGP("GET_STATUS_ZERO ");
 		wStatus = 0;
-		AT91F_USB_SendData(pUDP, (char *)&wStatus, sizeof(wStatus));
+		udp_ep0_send_data(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_INTERFACE:
 		DEBUGP("GET_STATUS_INTERFACE ");
 		wStatus = 0;
-		AT91F_USB_SendData(pUDP, (char *)&wStatus, sizeof(wStatus));
+		udp_ep0_send_data(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_ENDPOINT:
 		DEBUGP("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
@@ -518,42 +476,42 @@ static void AT91F_CDC_Enumerate(void)
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex <= 3)) {
 			wStatus =
 			    (pUDP->UDP_CSR[wIndex] & AT91C_UDP_EPEDS) ? 0 : 1;
-			AT91F_USB_SendData(pUDP, (char *)&wStatus,
+			udp_ep0_send_data(pUDP, (char *)&wStatus,
 					   sizeof(wStatus));
 		} else if ((pUDP->UDP_GLBSTATE & AT91C_UDP_FADDEN)
 			   && (wIndex == 0)) {
 			wStatus =
 			    (pUDP->UDP_CSR[wIndex] & AT91C_UDP_EPEDS) ? 0 : 1;
-			AT91F_USB_SendData(pUDP, (char *)&wStatus,
+			udp_ep0_send_data(pUDP, (char *)&wStatus,
 					   sizeof(wStatus));
 		} else
-			AT91F_USB_SendStall(pUDP);
+			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_FEATURE_ZERO:
 		DEBUGP("SET_FEATURE_ZERO ");
-		AT91F_USB_SendStall(pUDP);
+		udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_FEATURE_INTERFACE:
 		DEBUGP("SET_FEATURE_INTERFACE ");
-		AT91F_USB_SendZlp(pUDP);
+		udp_ep0_send_zlp(pUDP);
 		break;
 	case STD_SET_FEATURE_ENDPOINT:
 		DEBUGP("SET_FEATURE_ENDPOINT ");
-		AT91F_USB_SendZlp(pUDP);
+		udp_ep0_send_zlp(pUDP);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
 			pUDP->UDP_CSR[wIndex] = 0;
-			AT91F_USB_SendZlp(pUDP);
+			udp_ep0_send_zlp(pUDP);
 		} else
-			AT91F_USB_SendStall(pUDP);
+			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ZERO:
 		DEBUGP("CLEAR_FEATURE_ZERO ");
-		AT91F_USB_SendStall(pUDP);
+		udp_ep0_send_stall(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_INTERFACE:
 		DEBUGP("CLEAR_FEATURE_INTERFACE ");
-		AT91F_USB_SendZlp(pUDP);
+		udp_ep0_send_zlp(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ENDPOINT:
 		DEBUGP("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
@@ -580,17 +538,17 @@ static void AT91F_CDC_Enumerate(void)
 				pUDP->UDP_RSTEP |= AT91C_UDP_EP3;
 				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP3;
 			}
-			AT91F_USB_SendZlp(pUDP);
+			udp_ep0_send_zlp(pUDP);
 		} else
-			AT91F_USB_SendStall(pUDP);
+			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_INTERFACE:
 		DEBUGP("SET INTERFACE ");
-		AT91F_USB_SendStall(pUDP);
+		udp_ep0_send_stall(pUDP);
 		break;
 	default:
 		DEBUGP("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
-		AT91F_USB_SendStall(pUDP);
+		udp_ep0_send_stall(pUDP);
 		break;
 	}
 }

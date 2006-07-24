@@ -11,6 +11,10 @@
 #include "openpcd.h"
 #include "fifo.h"
 #include "dbgu.h"
+#include "pcd_enumerate.h"
+
+#define SPI_DEBUG_LOOPBACK
+#define SPI_USES_DMA
 
 static AT91PS_SPI pSPI = AT91C_BASE_SPI;
 
@@ -19,18 +23,45 @@ static void spi_irq(void)
 {
 	u_int32_t status = pSPI->SPI_SR;
 
-	DEBUGP("spi_irq: 0x%08x", status);
+	DEBUGP("spi_irq: 0x%08x ", status);
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 
 	if (status & AT91C_SPI_OVRES)
-		DEBUGP("Overrun detected ");
+		DEBUGP("Overrun ");
 	if (status & AT91C_SPI_MODF)
-		DEBUGP("Mode Fault detected ");
+		DEBUGP("ModeFault ");
+	if (status & AT91C_SPI_ENDRX) {
+		pSPI->SPI_IDR = AT91C_SPI_ENDRX;
+		DEBUGP("ENDRX ");
+	}
+	if (status & AT91C_SPI_ENDTX) {
+		pSPI->SPI_IDR = AT91C_SPI_ENDTX;
+		DEBUGP("ENDTX ");
+	}
 
 	DEBUGP("\r\n");
 }
 
+#ifdef SPI_USES_DMA
+int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
+		   u_int8_t *rx_data, u_int16_t *rx_len)
+{
+	DEBUGP("Starting DMA Xfer: ");
+	AT91F_SPI_ReceiveFrame(pSPI, rx_data, *rx_len, NULL, 0);
+	AT91F_SPI_SendFrame(pSPI, tx_data, tx_len, NULL, 0);
+	AT91F_PDC_EnableRx(AT91C_BASE_PDC_SPI);
+	AT91F_PDC_EnableTx(AT91C_BASE_PDC_SPI);
+	pSPI->SPI_IER = AT91C_SPI_ENDTX|AT91C_SPI_ENDRX;
+	AT91F_SPI_Enable(pSPI);
+
+	while (!(pSPI->SPI_SR & (AT91C_SPI_ENDRX|AT91C_SPI_ENDTX))) ;
+
+	DEBUGPCR("DMA Xfer finished");
+
+	return 0;
+}
+#else
 /* stupid polling transceiver routine */
 int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
 		   u_int8_t *rx_data, u_int16_t *rx_len)
@@ -77,6 +108,7 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 
 	return 0;
 }
+#endif
 
 /* static buffers used by routines below */
 static u_int8_t spi_outbuf[64+1];
@@ -209,16 +241,18 @@ static void rc632_irq(void)
 	
 	irq_opcdh.val = cause;
 	
-	AT91F_UDP_Write(1, &irq_opcdh, sizeof(irq_opcdh));
+	AT91F_UDP_Write(1, (u_int8_t *) &irq_opcdh, sizeof(irq_opcdh));
 	DEBUGP("\n");
 }
 
 void rc632_power(u_int8_t up)
 {
 	if (up)
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA,
+				      OPENPCD_PIO_RC632_RESET);
 	else
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA,
+				    OPENPCD_PIO_RC632_RESET);
 }
 
 void rc632_reset(void)
@@ -251,8 +285,17 @@ void rc632_init(void)
 			      OPENPCD_IRQ_PRIO_SPI,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &spi_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
+
 	AT91F_SPI_EnableIt(pSPI, AT91C_SPI_MODF|AT91C_SPI_OVRES);
+#ifdef SPI_USES_DMA
+	AT91F_SPI_EnableIt(pSPI, AT91C_SPI_ENDRX|AT91C_SPI_ENDTX);
+#endif
+
+#ifdef SPI_DEBUG_LOOPBACK
+	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED|AT91C_SPI_LLB);
+#else
 	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED);
+#endif
 	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10 (4.8MHz), 
 	 * DLYBS = 0, DLYBCT = 0 */
 	//AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
@@ -261,12 +304,14 @@ void rc632_init(void)
 	//AT91F_SPI_Reset(pSPI);
 
 	/* Register rc632_irq */
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, OPENPCD_RC632_IRQ,
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632,
 			      OPENPCD_IRQ_PRIO_RC632,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &rc632_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
 
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_RC632_RESET);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_RC632_RESET);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_MFIN);
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPCD_PIO_MFOUT);
 
 	/* initialize static part of openpcd_hdr for USB IRQ reporting */
 	irq_opcdh.cmd = OPENPCD_CMD_IRQ;

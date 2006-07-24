@@ -1,0 +1,6 @@
+Different Targets can be built by implementing a _init_func() and _main_func()_
+function in src/main_foo.c
+
+The resulting binary main_foo.bin can be built by issuing
+	make TARGET=main_foo
+

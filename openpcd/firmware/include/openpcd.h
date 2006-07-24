@@ -3,7 +3,7 @@
 
 /* This header file describes the USB protocol of the OpenPCD RFID reader */
 
-#include <include/types.h>
+#include <sys/types.h>
 
 struct openpcd_hdr {
 	u_int8_t cmd;		/* command */

@@ -17,6 +17,7 @@
 //* Generated           : AT91 SW Application Group  08/30/2005 (15:52:59)
 //*
 
+#include <sys/types.h>
 #include <include/AT91SAM7.h>
 #include <include/lib_AT91SAM7.h>
 
@@ -107,10 +108,10 @@ void AT91F_PDC_Open(AT91PS_PDC pPDC)       // \arg pointer to a PDC controller
 	AT91F_PDC_DisableTx(pPDC);
 
 	//* Reset all Counter register Next buffer first
-	AT91F_PDC_SetNextTx(pPDC, (char *) 0, 0);
-	AT91F_PDC_SetNextRx(pPDC, (char *) 0, 0);
-	AT91F_PDC_SetTx(pPDC, (char *) 0, 0);
-	AT91F_PDC_SetRx(pPDC, (char *) 0, 0);
+	AT91F_PDC_SetNextTx(pPDC, NULL, 0);
+	AT91F_PDC_SetNextRx(pPDC, NULL, 0);
+	AT91F_PDC_SetTx(pPDC, NULL, 0);
+	AT91F_PDC_SetRx(pPDC, NULL, 0);
 
     //* Enable the RX and TX PDC transfer requests
 	AT91F_PDC_EnableRx(pPDC);
@@ -128,10 +129,10 @@ void AT91F_PDC_Close(AT91PS_PDC pPDC)       // \arg pointer to a PDC controller
 	AT91F_PDC_DisableTx(pPDC);
 
 	//* Reset all Counter register Next buffer first
-	AT91F_PDC_SetNextTx(pPDC, (char *) 0, 0);
-	AT91F_PDC_SetNextRx(pPDC, (char *) 0, 0);
-	AT91F_PDC_SetTx(pPDC, (char *) 0, 0);
-	AT91F_PDC_SetRx(pPDC, (char *) 0, 0);
+	AT91F_PDC_SetNextTx(pPDC, NULL, 0);
+	AT91F_PDC_SetNextRx(pPDC, NULL, 0);
+	AT91F_PDC_SetTx(pPDC, NULL, 0);
+	AT91F_PDC_SetRx(pPDC, NULL, 0);
 
 }
 
@@ -141,9 +142,9 @@ void AT91F_PDC_Close(AT91PS_PDC pPDC)       // \arg pointer to a PDC controller
 //*----------------------------------------------------------------------------
 unsigned int AT91F_PDC_SendFrame(
 	AT91PS_PDC pPDC,
-	char *pBuffer,
+	const unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	const unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	if (AT91F_PDC_IsTxEmpty(pPDC)) {
@@ -169,9 +170,9 @@ unsigned int AT91F_PDC_SendFrame(
 //*----------------------------------------------------------------------------
 unsigned int AT91F_PDC_ReceiveFrame (
 	AT91PS_PDC pPDC,
-	char *pBuffer,
+	unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	if (AT91F_PDC_IsRxEmpty(pPDC)) {

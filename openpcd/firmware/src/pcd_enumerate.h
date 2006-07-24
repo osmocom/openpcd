@@ -15,8 +15,8 @@
 #ifndef PCD_ENUMERATE_H
 #define PCD_ENUMERATE_H
 
-#include <include/AT91SAM7.h>
-#include <include/types.h>
+#include <sys/types.h>
+#include <AT91SAM7.h>
 
 #define AT91C_EP_OUT 1
 #define AT91C_EP_OUT_SIZE 0x40
@@ -36,9 +36,9 @@ typedef struct _AT91S_CDC
 
 //* external function description
 
-AT91PS_CDC AT91F_CDC_Open(AT91PS_UDP pUdp);
+extern void udp_init(void);
 u_int8_t AT91F_UDP_IsConfigured(void);
-u_int32_t AT91F_UDP_Write(u_int8_t irq, const char *pData, u_int32_t length);
+u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t length);
 
 #endif // CDC_ENUMERATE_H
 

@@ -19,7 +19,7 @@
 #ifndef __LINUX_USB_CH9_H
 #define __LINUX_USB_CH9_H
 
-#include <include/types.h>
+#include <sys/types.h>
 
 /*-------------------------------------------------------------------------*/
 

@@ -169,7 +169,7 @@ extern void AT91F_AIC_Open(
 //*----------------------------------------------------------------------------
 static inline void AT91F_PDC_SetNextRx (
 	AT91PS_PDC pPDC,     // \arg pointer to a PDC controller
-	char *address,       // \arg address to the next bloc to be received
+	unsigned char *address,// \arg address to the next bloc to be received
 	unsigned int bytes)  // \arg number of bytes to be received
 {
 	pPDC->PDC_RNPR = (unsigned int) address;
@@ -182,7 +182,7 @@ static inline void AT91F_PDC_SetNextRx (
 //*----------------------------------------------------------------------------
 static inline void AT91F_PDC_SetNextTx (
 	AT91PS_PDC pPDC,       // \arg pointer to a PDC controller
-	char *address,         // \arg address to the next bloc to be transmitted
+	const unsigned char *address,// \arg address to the next bloc to be transmitted
 	unsigned int bytes)    // \arg number of bytes to be transmitted
 {
 	pPDC->PDC_TNPR = (unsigned int) address;
@@ -195,7 +195,7 @@ static inline void AT91F_PDC_SetNextTx (
 //*----------------------------------------------------------------------------
 static inline void AT91F_PDC_SetRx (
 	AT91PS_PDC pPDC,       // \arg pointer to a PDC controller
-	char *address,         // \arg address to the next bloc to be received
+	unsigned char *address,// \arg address to the next bloc to be received
 	unsigned int bytes)    // \arg number of bytes to be received
 {
 	pPDC->PDC_RPR = (unsigned int) address;
@@ -208,7 +208,7 @@ static inline void AT91F_PDC_SetRx (
 //*----------------------------------------------------------------------------
 static inline void AT91F_PDC_SetTx (
 	AT91PS_PDC pPDC,       // \arg pointer to a PDC controller
-	char *address,         // \arg address to the next bloc to be transmitted
+	const unsigned char *address,// \arg address to the next bloc to be transmitted
 	unsigned int bytes)    // \arg number of bytes to be transmitted
 {
 	pPDC->PDC_TPR = (unsigned int) address;
@@ -313,9 +313,9 @@ extern void AT91F_PDC_Close(AT91PS_PDC pPDC);       // \arg pointer to a PDC con
 //*----------------------------------------------------------------------------
 extern unsigned int AT91F_PDC_SendFrame(
 	AT91PS_PDC pPDC,
-	char *pBuffer,
+	const unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	const unsigned char *pNextBuffer,
 	unsigned int szNextBuffer);
 
 //*----------------------------------------------------------------------------
@@ -324,9 +324,9 @@ extern unsigned int AT91F_PDC_SendFrame(
 //*----------------------------------------------------------------------------
 extern unsigned int AT91F_PDC_ReceiveFrame (
 	AT91PS_PDC pPDC,
-	char *pBuffer,
+	unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	unsigned char *pNextBuffer,
 	unsigned int szNextBuffer);
 
 /* *****************************************************************************
@@ -1701,9 +1701,9 @@ static inline void AT91F_SPI_CfgPCS (
 //*----------------------------------------------------------------------------
 static inline unsigned int AT91F_SPI_ReceiveFrame (
 	AT91PS_SPI pSPI,
-	char *pBuffer,
+	unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	return AT91F_PDC_ReceiveFrame(
@@ -1720,9 +1720,9 @@ static inline unsigned int AT91F_SPI_ReceiveFrame (
 //*----------------------------------------------------------------------------
 static inline unsigned int AT91F_SPI_SendFrame(
 	AT91PS_SPI pSPI,
-	char *pBuffer,
+	const unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	const unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	return AT91F_PDC_SendFrame(
@@ -2168,9 +2168,9 @@ static inline void AT91F_SSC_DisableIt (
 //*----------------------------------------------------------------------------
 static inline unsigned int AT91F_SSC_ReceiveFrame (
 	AT91PS_SSC pSSC,
-	char *pBuffer,
+	unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	return AT91F_PDC_ReceiveFrame(
@@ -2187,9 +2187,9 @@ static inline unsigned int AT91F_SSC_ReceiveFrame (
 //*----------------------------------------------------------------------------
 static inline unsigned int AT91F_SSC_SendFrame(
 	AT91PS_SSC pSSC,
-	char *pBuffer,
+	const unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	const unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	return AT91F_PDC_SendFrame(
@@ -2480,9 +2480,9 @@ static inline int AT91F_US_GetChar (
 //*----------------------------------------------------------------------------
 static inline unsigned int AT91F_US_SendFrame(
 	AT91PS_USART pUSART,
-	char *pBuffer,
+	const unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	const unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	return AT91F_PDC_SendFrame(
@@ -2499,9 +2499,9 @@ static inline unsigned int AT91F_US_SendFrame(
 //*----------------------------------------------------------------------------
 static inline unsigned int AT91F_US_ReceiveFrame (
 	AT91PS_USART pUSART,
-	char *pBuffer,
+	unsigned char *pBuffer,
 	unsigned int szBuffer,
-	char *pNextBuffer,
+	unsigned char *pNextBuffer,
 	unsigned int szNextBuffer )
 {
 	return AT91F_PDC_ReceiveFrame(

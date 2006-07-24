@@ -63,7 +63,7 @@ PATH_TO_LINKSCRIPTS=compil/SrcWinARM/
 #VECTOR_LOCATION=VECTORS_IN_RAM
 
 # Target file name (without extension).
-TARGET = main
+TARGET:= main_dumbreader
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -71,7 +71,9 @@ SRC =
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
-SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c src/led.c src/rc632.c  src/req_ctx.c src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
+SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
+	  src/led.c src/rc632.c  src/req_ctx.c src/trigger.c src/main.c \
+	  src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -91,8 +93,10 @@ CPPSRCARM =
 # care about how the name is spelled on its command-line.
 ASRC = 
 
+ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S lib/testclearbit.S lib/testsetbit.S
+
 # List Assembler source files here which must be assembled in ARM-Mode..
-ASRCARM  = compil/SrcWinARM/Cstartup.S
+ASRCARM  = compil/SrcWinARM/Cstartup.S $(ASRCLIB)
 
 ## Output format. (can be ihex or binary)
 ## (binary i.e. for openocd and SAM-BA, hex i.e. for lpc21isp and uVision)
@@ -135,11 +139,11 @@ AT91LIBNOWARN = yes
 CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
-CDEFS =  -D$(RUN_MODE) -DDEBUG 
-#CDEFS += -DOLIMEX
+CDEFS =  -D$(RUN_MODE) -D__MS_types__ -DDEBUG 
+CDEFS += -DOLIMEX
 
 # Place -I options here
-CINCS = -Ihelper -Isrc
+CINCS = -Iinclude -Isrc
 
 # Place -D or -U options for ASM here
 ADEFS =  -D$(RUN_MODE)
@@ -192,7 +196,7 @@ CPPFLAGS =
 #  -Wa,...:    tell GCC to pass this to the assembler.
 #  -ahlns:     create listing
 #  -g$(DEBUG): have the assembler create line number information
-ASFLAGS = $(ADEFS) -Wa,-adhlns=$(<:.S=.lst),--g$(DEBUG)
+ASFLAGS = $(ADEFS) -Wa,-adhlns=$(<:.S=.lst),--g$(DEBUG) -Iinclude/ -D__ASSEMBLY__
 
 
 #Additional libraries.

@@ -1,7 +1,7 @@
 #ifndef _FIFO_H
 #define _FIFO_H
 
-#include <include/types.h>
+#include <sys/types.h>
 
 #define FIFO_SIZE	1024
 

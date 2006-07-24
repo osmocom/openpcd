@@ -1,26 +1,24 @@
-//*----------------------------------------------------------------------------
-//*         ATMEL Microcontroller Software Support  -  ROUSSET  -
-//*----------------------------------------------------------------------------
-//* The software is delivered "AS IS" without warranty or condition of any
-//* kind, either express, implied or statutory. This includes without
-//* limitation any warranty or condition with respect to merchantability or
-//* fitness for any particular purpose, or against the infringements of
-//* intellectual property rights of others.
-//*----------------------------------------------------------------------------
-//* File Name           : Debug.c
-//* Object              : Debug menu
-//* Creation            : JPP   14/Sep/2004
-//* 1.1 29/Aug/05 JPP   : Update AIC definion
-//*----------------------------------------------------------------------------
-
-// modified for WinARM example (remove scanf-function) 
-// by Martin Thomas
+/*----------------------------------------------------------------------------
+ *         ATMEL Microcontroller Software Support  -  ROUSSET  -
+ *----------------------------------------------------------------------------
+ * The software is delivered "AS IS" without warranty or condition of any
+ * kind, either express, implied or statutory. This includes without
+ * limitation any warranty or condition with respect to merchantability or
+ * fitness for any particular purpose, or against the infringements of
+ * intellectual property rights of others.
+ *----------------------------------------------------------------------------
+ * File Name           : Debug.c
+ * Object              : Debug menu
+ * Creation            : JPP   14/Sep/2004
+ * 1.1 29/Aug/05 JPP   : Update AIC definion
+ *----------------------------------------------------------------------------*/
 
 // Include Standard files
 #include "Board.h"
 #include "dbgu.h"
 #include "rc632.h"
 #include "openpcd.h"
+#include "led.h"
 #define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
 //*--------------------------1--------------------------------------------------
@@ -62,10 +60,10 @@ static void DBGU_irq_handler(void)
 	case '0':		//* info
 		AT91F_DBGU_Frame("Set Pull up\n\r");
 		// Set
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, AT91C_PIO_UDP_PUP);
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 		break;
 	case '1':		//* info
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, AT91C_PIO_UDP_PUP);
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 		AT91F_DBGU_Printk("Clear Pull up\n\r");
 		// Reset Application
 		Send_reset();
@@ -92,8 +90,8 @@ static void DBGU_irq_handler(void)
 
 		break;
 	case '6':
-		DEBUGPCR("Writing RC632 Reg RxWait: 0x%02x",
-			  rc632_reg_write(RC632_REG_RX_WAIT, 0x55));
+		DEBUGPCR("Writing RC632 Reg RxWait: 0x55");
+		rc632_reg_write(RC632_REG_RX_WAIT, 0x55);
 		break;
 	case '7':
 		rc632_dump();
@@ -162,7 +160,8 @@ void AT91F_DBGU_Frame(char *buffer)
 
 	for (len = 0; buffer[len] != '\0'; len++) {
 	}
-	AT91F_US_SendFrame((AT91PS_USART) AT91C_BASE_DBGU, buffer, len, 0, 0);
+	AT91F_US_SendFrame((AT91PS_USART) AT91C_BASE_DBGU, 
+			   (unsigned char *)buffer, len, 0, 0);
 
 }
 
@@ -233,8 +232,9 @@ void debugp(const char *format, ...)
 	vsnprintf(dbg_buf, sizeof(dbg_buf)-1, format, ap);
 	va_end(ap);
 
-	dbg_buf[sizeof(dbg_buf)-1] = '\0';				\
-	AT91F_DBGU_Printk(dbg_buf);					\
+	dbg_buf[sizeof(dbg_buf)-1] = '\0';			
+	//AT91F_DBGU_Frame(dbg_buf);
+	AT91F_DBGU_Printk(dbg_buf);
 }
 #endif
 
