@@ -13,7 +13,7 @@
 #include "dbgu.h"
 #include "pcd_enumerate.h"
 
-#define SPI_DEBUG_LOOPBACK
+//#define SPI_DEBUG_LOOPBACK
 #define SPI_USES_DMA
 
 static AT91PS_SPI pSPI = AT91C_BASE_SPI;
