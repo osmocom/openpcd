@@ -72,7 +72,8 @@ SRC =
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
 SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
-	  src/led.c src/rc632.c  src/req_ctx.c src/trigger.c src/main.c \
+	  src/led.c src/rc632.c  src/rc632_highlevel.c src/req_ctx.c \
+	  src/trigger.c src/main.c \
 	  src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
 
 # List C++ source files here.
