@@ -65,6 +65,22 @@ EP3	interrupt
 
 3.1 dumb interface
 
+struct usb_pcd_out_hdr {
+	u_int8_t cmd;		/* command */
+	u_int8_t flags;
+	u_int8_t reg;		/* register */
+	u_int8_t res;
+	u_int16_t len;
+	u_int8_t data[0];
+} __attribute__ ((packed));
+
+#define USB_PCD_CMD_WRITE_REG	0x01
+#define USB_PCD_CMD_WRITE_FIFO	0x02
+#define USB_PCD_CMD_WRITE_VFIFO	0x03
+#define USB_PCD_CMD_READ_REG	0x11
+#define USB_PCD_CMD_READ_FIFO	0x12
+#define USB_PCD_CMD_WRITE_VFIFO	0x13
+
 TBD
 
 3.2 Intelligent interface
@@ -102,7 +118,7 @@ is used to search for a free buffer using which the UDC RX DMA can be refilled.
 
 4.1.1 Performing SPI Register Read
 
-[ UDC has configured RX dma for reception of usb packets ]
+[ UDC has configured RX FIFO for reception of usb packets ]
 - UDC issues interrupt that USB endpoint receive has completed (FIFO)
 	- UDC driver defragments multiple packets into one transfer [optional]
 	- UDC driver submits another buffer for DMA reception

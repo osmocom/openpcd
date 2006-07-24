@@ -1,0 +1,27 @@
+SPI:
+- use PDC DMA for SPI transfers
+- use real SPI clock divisor (4.8MHz) rather than current 320kHz clock
+
+RC632:
+- Fix locking between 'atomic' ops like set/clear bit and RC632 IRQ
+- Implement VFIFO handling
+
+USB:
+- don't busy-wait for EP2/EP3 transfers but rather use TX completion IRQ
+- Implement VFIFO handling
+- Add DFU descriptor to host
+
+DFU:
+- implement DFU protocol for memory and flash
+- add capability to copy and execute DFU from RAM
+
+Generic:
+-
+
+Later, for PICCsim:
+- Implement SSC code for sampling subcarrier
+- Implement SSC code for generating subcarrier
+- Implement Manchester coding
+
+Way Later, for librfid:
+- Implement parts (or all of) 14443 in firmware as alternative configuration
