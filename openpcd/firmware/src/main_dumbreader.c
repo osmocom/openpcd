@@ -27,22 +27,22 @@ static int usb_in(struct req_ctx *rctx)
 	switch (poh->cmd) {
 	case OPENPCD_CMD_READ_REG:
 		DEBUGP("READ REG(0x%02x) ", poh->reg);
-		pih->val = rc632_reg_read(poh->reg);
+		rc632_reg_read(RAH, poh->reg, &pih->val);
 		break;
 	case OPENPCD_CMD_READ_FIFO:
 		DEBUGP("READ FIFO(len=%u) ", poh->val);
-		pih->len = rc632_fifo_read(poh->val, pih->data);
+		rc632_fifo_read(RAH, poh->val, pih->data);
 		rctx->tx.tot_len += pih->len;
 		break;
 	case OPENPCD_CMD_WRITE_REG:
 		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
-		rc632_reg_write(poh->reg, poh->val);
+		rc632_reg_write(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_WRITE_FIFO:
 		DEBUGP("WRITE FIFO(len=%u) ", poh->len);
 		if (len - sizeof(*poh) < poh->len)
 			return -EINVAL;
-		rc632_fifo_write(poh->len, poh->data);
+		rc632_fifo_write(RAH, poh->len, poh->data, 0);
 		break;
 	case OPENPCD_CMD_READ_VFIFO:
 		DEBUGP("READ VFIFO ");
@@ -54,11 +54,11 @@ static int usb_in(struct req_ctx *rctx)
 		break;
 	case OPENPCD_CMD_REG_BITS_CLEAR:
 		DEBUGP("CLEAR BITS ");
-		pih->val = rc632_clear_bits(poh->reg, poh->val);
+		pih->val = rc632_clear_bits(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_REG_BITS_SET:
 		DEBUGP("SET BITS ");
-		pih->val = rc632_set_bits(poh->reg, poh->val);
+		pih->val = rc632_set_bits(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_SET_LED:
 		DEBUGP("SET LED(%u,%u) ", poh->reg, poh->val);

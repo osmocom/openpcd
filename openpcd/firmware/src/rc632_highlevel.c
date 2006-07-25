@@ -1,5 +1,22 @@
-/* ISO 14443 WUPA / SELECT anticollision implementation, part of OpenPCD 
- * (C) 2006 by Harald Welte <laforge@gnumonks.org>
+/* Generic Philips CL RC632 Routines
+ *
+ * (C) Harald Welte <laforge@gnumonks.org>
+ *
+ */
+
+/*
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 
+ *  as published by the Free Software Foundation
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include <sys/types.h>
@@ -9,6 +26,7 @@
 #include "rc632.h"
 #include "dbgu.h"
 #include <rfid_layer2_iso14443a.h>
+#include <rfid_protocol_mifare_classic.h>
 
 /* initially we use the same values as cm5121 */
 #define OPENPCD_CW_CONDUCTANCE		0x3f
@@ -18,15 +36,67 @@
 #define OPENPCD_14443B_BITPHASE		0xad
 #define OPENPCD_14443B_THRESHOLD	0xff
 
+#define RC632_TMO_AUTH1	14000
+
+#define ENTER()		DEBUGPCRF("entering")
+struct rfid_asic rc632;
+
+static int 
+rc632_set_bit_mask(struct rfid_asic_handle *handle, 
+		   u_int8_t reg, u_int8_t mask, u_int8_t val)
+{
+	int ret;
+	u_int8_t tmp;
+
+	ret = rc632_reg_read(handle, reg, &tmp);
+	if (ret < 0)
+		return ret;
+
+	/* if bits are already like we want them, abort */
+	if ((tmp & mask) == val)
+		return 0;
+
+	return rc632_reg_write(handle, reg, (tmp & ~mask)|(val & mask));
+}
+
+static int 
+rc632_turn_on_rf(struct rfid_asic_handle *handle)
+{
+	ENTER();
+	return rc632_set_bits(handle, RC632_REG_TX_CONTROL, 0x03);
+}
+
+static int 
+rc632_turn_off_rf(struct rfid_asic_handle *handle)
+{
+	ENTER();
+	return rc632_clear_bits(handle, RC632_REG_TX_CONTROL, 0x03);
+}
+
+static int
+rc632_power_up(struct rfid_asic_handle *handle)
+{
+	ENTER();
+	return rc632_clear_bits(handle, RC632_REG_CONTROL, 
+				RC632_CONTROL_POWERDOWN);
+}
+
+static int
+rc632_power_down(struct rfid_asic_handle *handle)
+{
+	return rc632_set_bits(handle, RC632_REG_CONTROL,
+			      RC632_CONTROL_POWERDOWN);
+}
+
 /* calculate best 8bit prescaler and divisor for given usec timeout */
 static int best_prescaler(u_int64_t timeout, u_int8_t *prescaler,
 			  u_int8_t *divisor)
 {
-	u_int8_t bst_prescaler, best_divisor, i;
+	u_int8_t best_presc, best_divisor, i;
 	int64_t smallest_diff;
 
 	smallest_diff = 0x7fffffffffffffff;
-	bst_prescaler = 0;
+	best_presc = 0;
 
 	for (i = 0; i < 21; i++) {
 		u_int64_t clk, tmp_div, res;
@@ -45,143 +115,168 @@ static int best_prescaler(u_int64_t timeout, u_int8_t *prescaler,
 			continue;
 
 		if (diff < smallest_diff) {
-			bst_prescaler = i;
+			best_presc = i;
 			best_divisor = tmp_div;
 			smallest_diff = diff;
 		}
 	}
 
-	*prescaler = bst_prescaler;
+	*prescaler = best_presc;
 	*divisor = best_divisor;
 
 	DEBUGP("timeout %u usec, prescaler = %u, divisor = %u\n",
-		timeout, bst_prescaler, best_divisor);
+		timeout, best_presc, best_divisor);
 
 	return 0;
 }
 
-
 static int
-rc632_timer_set(u_int64_t timeout)
+rc632_timer_set(struct rfid_asic_handle *handle,
+		u_int64_t timeout)
 {
 	int ret;
 	u_int8_t prescaler, divisor;
 
 	ret = best_prescaler(timeout, &prescaler, &divisor);
 
-	rc632_reg_write(RC632_REG_TIMER_CLOCK, prescaler & 0x1f);
+	ret = rc632_reg_write(handle, RC632_REG_TIMER_CLOCK,
+			      prescaler & 0x1f);
+	if (ret < 0)
+		return ret;
 
-	rc632_reg_write(RC632_REG_TIMER_CONTROL,
-			RC632_TMR_START_TX_END|RC632_TMR_STOP_RX_BEGIN);
+	ret = rc632_reg_write(handle, RC632_REG_TIMER_CONTROL,
+			      RC632_TMR_START_TX_END|RC632_TMR_STOP_RX_BEGIN);
 
 	/* clear timer irq bit */
-	rc632_set_bits(RC632_REG_INTERRUPT_RQ, RC632_IRQ_TIMER);
+	ret = rc632_set_bits(handle, RC632_REG_INTERRUPT_RQ, RC632_IRQ_TIMER);
 
-	rc632_reg_write(RC632_REG_TIMER_RELOAD, divisor);
+	ret |= rc632_reg_write(handle, RC632_REG_TIMER_RELOAD, divisor);
 
 	return ret;
 }
 
 /* Wait until RC632 is idle or TIMER IRQ has happened */
-static int rc632_wait_idle_timer(void)
+static int rc632_wait_idle_timer(struct rfid_asic_handle *handle)
 {
+	int ret;
 	u_int8_t irq, cmd;
 
 	while (1) {
-		irq = rc632_reg_read(RC632_REG_INTERRUPT_RQ);
+		ret = rc632_reg_read(handle, RC632_REG_INTERRUPT_RQ, &irq);
+		if (ret < 0)
+			return ret;
 
 		/* FIXME: currently we're lazy:  If we actually received
 		 * something even after the timer expired, we accept it */
 		if (irq & RC632_IRQ_TIMER && !(irq & RC632_IRQ_RX)) {
 			u_int8_t foo;
-			foo = rc632_reg_read(RC632_REG_PRIMARY_STATUS);
+			rc632_reg_read(handle, RC632_REG_PRIMARY_STATUS, &foo);
 			if (foo & 0x04)
-				foo = rc632_reg_read(RC632_REG_ERROR_FLAG);
+				rc632_reg_read(handle, RC632_REG_ERROR_FLAG, &foo);
 
 			return -110;
 		}
 
-		cmd = rc632_reg_read(RC632_REG_COMMAND);
+		ret = rc632_reg_read(handle, RC632_REG_COMMAND, &cmd);
+		if (ret < 0)
+			return ret;
 
 		if (cmd == 0)
 			return 0;
 
 		/* poll every millisecond */
-	//	usleep(1000);
+		/* FIXME usleep(1000);*/
 	}
 }
 
-
+/* Stupid RC632 implementations don't evaluate interrupts but poll the
+ * command register for "status idle" */
 static int
-rc632_iso14443a_init(void)
+rc632_wait_idle(struct rfid_asic_handle *handle, u_int64_t timeout)
 {
-	// FIXME: some fifo work (drain fifo?)
-	
-	/* flush fifo (our way) */
-	rc632_reg_write(RC632_REG_CONTROL, 0x01);
+	u_int8_t cmd = 0xff;
+	int ret, cycles = 0;
+#define USLEEP_PER_CYCLE	128
 
-	rc632_reg_write(RC632_REG_TX_CONTROL,
-			(RC632_TXCTRL_TX1_RF_EN |
-			 RC632_TXCTRL_TX2_RF_EN |
-			 RC632_TXCTRL_TX2_INV |
-			 RC632_TXCTRL_FORCE_100_ASK |
-			 RC632_TXCTRL_MOD_SRC_INT));
+	while (cmd != 0) {
+		ret = rc632_reg_read(handle, RC632_REG_COMMAND, &cmd);
+		if (ret < 0)
+			return ret;
 
-	rc632_reg_write(RC632_REG_CW_CONDUCTANCE,
-			OPENPCD_CW_CONDUCTANCE);
+		if (cmd == 0) {
+			/* FIXME: read second time ?? */
+			return 0;
+		}
 
-	/* Since FORCE_100_ASK is set (cf mc073930.pdf), this line may be left out? */
-	rc632_reg_write(RC632_REG_MOD_CONDUCTANCE,
-			OPENPCD_MOD_CONDUCTANCE);
+		{
+			u_int8_t foo;
+			rc632_reg_read(handle, RC632_REG_PRIMARY_STATUS, &foo);
+			if (foo & 0x04)
+				rc632_reg_read(handle, RC632_REG_ERROR_FLAG, &foo);
+		}
 
-	rc632_reg_write(RC632_REG_CODER_CONTROL,
-			(RC632_CDRCTRL_TXCD_14443A |
-			 RC632_CDRCTRL_RATE_106K));
+		/* Abort after some timeout */
+		if (cycles > timeout*100/USLEEP_PER_CYCLE) {
+			return -ETIMEDOUT;
+		}
 
-	rc632_reg_write(RC632_REG_MOD_WIDTH, 0x13);
-
-	rc632_reg_write(RC632_REG_MOD_WIDTH_SOF, 0x3f);
-
-	rc632_reg_write(RC632_REG_TYPE_B_FRAMING, 0x00);
-
-	rc632_reg_write(RC632_REG_RX_CONTROL1,
-		      (RC632_RXCTRL1_GAIN_35DB |
-		       RC632_RXCTRL1_ISO14443 |
-		       RC632_RXCTRL1_SUBCP_8));
-
-	rc632_reg_write(RC632_REG_DECODER_CONTROL,
-		      (RC632_DECCTRL_MANCHESTER |
-		       RC632_DECCTRL_RXFR_14443A));
-
-	rc632_reg_write(RC632_REG_BIT_PHASE,
-			OPENPCD_14443A_BITPHASE);
-
-	rc632_reg_write(RC632_REG_RX_THRESHOLD,
-			OPENPCD_14443A_THRESHOLD);
-
-	rc632_reg_write(RC632_REG_BPSK_DEM_CONTROL, 0x00);
-			      
-	rc632_reg_write(RC632_REG_RX_CONTROL2,
-		      (RC632_RXCTRL2_DECSRC_INT |
-		       RC632_RXCTRL2_CLK_Q));
-
-	/* Omnikey proprietary driver has 0x03, but 0x06 is the default reset
-	 * value ?!? */
-	rc632_reg_write(RC632_REG_RX_WAIT, 0x06);
-
-	rc632_reg_write(RC632_REG_CHANNEL_REDUNDANCY,
-		      (RC632_CR_PARITY_ENABLE |
-		       RC632_CR_PARITY_ODD));
-
-	rc632_reg_write(RC632_REG_CRC_PRESET_LSB, 0x63);
-
-	rc632_reg_write(RC632_REG_CRC_PRESET_MSB, 0x63);
+		cycles++;
+		usleep(USLEEP_PER_CYCLE);
+	}
 
 	return 0;
 }
 
 static int
-rc632_transceive(const u_int8_t *tx_buf,
+rc632_transmit(struct rfid_asic_handle *handle,
+		const u_int8_t *buf,
+		u_int8_t len,
+		u_int64_t timeout)
+{
+	int ret, cur_len;
+	const u_int8_t *cur_buf = buf;
+
+	if (len > 64)
+		cur_len = 64;
+	else
+		cur_len = len;
+	
+	do {
+		ret = rc632_fifo_write(handle, cur_len, cur_buf, 0x03);
+		if (ret < 0)
+			return ret;
+
+		if (cur_buf == buf)  {
+			/* only start transmit first time */
+			ret = rc632_reg_write(handle, RC632_REG_COMMAND,
+					      RC632_CMD_TRANSMIT);
+			if (ret < 0)
+				return ret;
+		}
+
+		cur_buf += cur_len;
+		if (cur_buf < buf + len) {
+			cur_len = buf - cur_buf;
+			if (cur_len > 64)
+				cur_len = 64;
+		} else
+			cur_len = 0;
+
+	} while (cur_len);
+
+	return rc632_wait_idle(handle, timeout);
+}
+
+static int
+tcl_toggle_pcb(struct rfid_asic_handle *handle)
+{
+	// FIXME: toggle something between 0x0a and 0x0b
+	return 0;
+}
+
+static int
+rc632_transceive(struct rfid_asic_handle *handle,
+		 const u_int8_t *tx_buf,
 		 u_int8_t tx_len,
 		 u_int8_t *rx_buf,
 		 u_int8_t *rx_len,
@@ -198,58 +293,330 @@ rc632_transceive(const u_int8_t *tx_buf,
 	else
 		cur_tx_len = tx_len;
 
-	ret = rc632_timer_set(timer);
+	ret = rc632_timer_set(handle, timer);
 	if (ret < 0)
 		return ret;
 	
 	/* clear all interrupts */
-	rc632_reg_write(RC632_REG_INTERRUPT_RQ, 0x7f);
+	ret = rc632_reg_write(handle, RC632_REG_INTERRUPT_RQ, 0x7f);
 
 	do {	
-		rc632_fifo_write(cur_tx_len, cur_tx_buf);
+		ret = rc632_fifo_write(handle, cur_tx_len, cur_tx_buf, 0x03);
+		if (ret < 0)
+			return ret;
 
-		if (cur_tx_buf == tx_buf)
-			rc632_reg_write(RC632_REG_COMMAND,
-					RC632_CMD_TRANSCEIVE);
+		if (cur_tx_buf == tx_buf) {
+			ret = rc632_reg_write(handle, RC632_REG_COMMAND,
+					      RC632_CMD_TRANSCEIVE);
+			if (ret < 0)
+				return ret;
+		}
 
 		cur_tx_buf += cur_tx_len;
 		if (cur_tx_buf < tx_buf + tx_len) {
 			u_int8_t fifo_fill;
-			fifo_fill = rc632_reg_read(RC632_REG_FIFO_LENGTH);
+			ret = rc632_reg_read(handle, RC632_REG_FIFO_LENGTH,
+					     &fifo_fill);
+			if (ret < 0)
+				return ret;
 
 			cur_tx_len = 64 - fifo_fill;
-			DEBUGPCR("refilling tx fifo with %u bytes", cur_tx_len);
+			DEBUGPCRF("refilling tx fifo with %u bytes", cur_tx_len);
 		} else
 			cur_tx_len = 0;
 
 	} while (cur_tx_len);
 
-	//if (toggle == 1)
-		//tcl_toggle_pcb(handle);
+	if (toggle == 1)
+		tcl_toggle_pcb(handle);
 
-	ret = rc632_wait_idle_timer();
+	ret = rc632_wait_idle_timer(handle);
 	if (ret < 0)
 		return ret;
 
-	*rx_len = rc632_reg_read(RC632_REG_FIFO_LENGTH);
+	ret = rc632_reg_read(handle, RC632_REG_FIFO_LENGTH, rx_len);
+	if (ret < 0)
+		return ret;
 
 	if (*rx_len == 0) {
 		u_int8_t tmp;
 
 		DEBUGP("rx_len == 0\n");
 
-		tmp = rc632_reg_read(RC632_REG_ERROR_FLAG);
-		tmp = rc632_reg_read(RC632_REG_CHANNEL_REDUNDANCY);
+		rc632_reg_read(handle, RC632_REG_ERROR_FLAG, &tmp);
+		rc632_reg_read(handle, RC632_REG_CHANNEL_REDUNDANCY, &tmp);
 
 		return -1; 
 	}
 
-	return rc632_fifo_read(*rx_len, rx_buf);
+	return rc632_fifo_read(handle, *rx_len, rx_buf);
 }
+
+static int
+rc632_read_eeprom(struct rfid_asic_handle *handle)
+{
+	u_int8_t recvbuf[60];
+	u_int8_t sndbuf[3];
+	int ret;
+
+	sndbuf[0] = 0x00;
+	sndbuf[1] = 0x00;
+	sndbuf[2] = 0x3c;
+
+	ret = rc632_fifo_write(handle, 3, sndbuf, 0x03);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_COMMAND, RC632_CMD_READ_E2);
+	if (ret < 0)
+		return ret;
+
+	usleep(20000);
+
+	ret = rc632_fifo_read(handle, sizeof(recvbuf), recvbuf);
+	if (ret < 0)
+		return ret;
+
+	// FIXME: do something with eeprom contents
+	return ret;
+}
+
+static int
+rc632_calc_crc16_from(struct rfid_asic_handle *handle)
+{
+	u_int8_t sndbuf[2] = { 0x01, 0x02 };
+	u_int8_t crc_lsb = 0x00 , crc_msb = 0x00;
+	int ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CRC_PRESET_LSB, 0x12);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CRC_PRESET_MSB, 0xe0);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_fifo_write(handle, sizeof(sndbuf), sndbuf, 3);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_COMMAND, RC632_CMD_CALC_CRC);
+	if (ret < 0)
+		return ret;
+	
+	usleep(10000);	// FIXME: no checking for cmd completion?
+
+	ret = rc632_reg_read(handle, RC632_REG_CRC_RESULT_LSB, &crc_lsb);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_read(handle, RC632_REG_CRC_RESULT_MSB, &crc_msb);
+	if (ret < 0)
+		return ret;
+
+	// FIXME: what to do with crc result?
+	return ret;
+}
+
+
+int
+rc632_register_dump(struct rfid_asic_handle *handle, u_int8_t *buf)
+{
+	int ret;
+	u_int8_t i;
+
+	for (i = 0; i <= 0x3f; i++) {
+		ret = rc632_reg_read(handle, i, &buf[i]);
+		// do we want error checks?
+	}
+	return 0;
+}
+
+
+#if 0
+static int
+rc632_init(struct rfid_asic_handle *ah)
+{
+	int ret;
+
+	/* switch off rf (make sure PICCs are reset at init time) */
+	ret = rc632_power_down(ah);
+	if (ret < 0)
+		return ret;
+
+	usleep(10000);
+
+	/* switch on rf */
+	ret = rc632_power_up(ah);
+	if (ret < 0)
+		return ret;
+
+	/* disable register paging */
+	ret = rc632_reg_write(ah, 0x00, 0x00);
+	if (ret < 0)
+		return ret;
+
+	/* set some sane default values */
+	ret = rc632_reg_write(ah, 0x11, 0x5b);
+	if (ret < 0)
+		return ret;
+
+	/* switch on rf */
+	ret = rc632_turn_on_rf(ah);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int
+rc632_fini(struct rfid_asic_handle *ah)
+{
+	int ret;
+
+	/* switch off rf */
+	ret = rc632_turn_off_rf(ah);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_power_down(ah);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+#endif
+
+
+/* 
+ * Philips CL RC632 primitives for ISO 14443-A compliant PICC's
+ *
+ * (C) 2005 by Harald Welte <laforge@gnumonks.org>
+ *
+ */
+
+int
+rc632_iso14443a_init(struct rfid_asic_handle *handle)
+{
+	int ret;
+
+	// FIXME: some fifo work (drain fifo?)
+	
+	/* flush fifo (our way) */
+	ret = rc632_reg_write(handle, RC632_REG_CONTROL, 0x01);
+
+	ret = rc632_reg_write(handle, RC632_REG_TX_CONTROL,
+			(RC632_TXCTRL_TX1_RF_EN |
+			 RC632_TXCTRL_TX2_RF_EN |
+			 RC632_TXCTRL_TX2_INV |
+			 RC632_TXCTRL_FORCE_100_ASK |
+			 RC632_TXCTRL_MOD_SRC_INT));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CW_CONDUCTANCE,
+				OPENPCD_CW_CONDUCTANCE);
+	if (ret < 0)
+		return ret;
+
+	/* Since FORCE_100_ASK is set (cf mc073930.pdf), this line may be left out? */
+	ret = rc632_reg_write(handle, RC632_REG_MOD_CONDUCTANCE,
+				OPENPCD_MOD_CONDUCTANCE);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CODER_CONTROL,
+				(RC632_CDRCTRL_TXCD_14443A |
+				 RC632_CDRCTRL_RATE_106K));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_MOD_WIDTH, 0x13);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_MOD_WIDTH_SOF, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_TYPE_B_FRAMING, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_RX_CONTROL1,
+			      (RC632_RXCTRL1_GAIN_35DB |
+			       RC632_RXCTRL1_ISO14443 |
+			       RC632_RXCTRL1_SUBCP_8));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_DECODER_CONTROL,
+			      (RC632_DECCTRL_MANCHESTER |
+			       RC632_DECCTRL_RXFR_14443A));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_BIT_PHASE,
+				OPENPCD_14443A_BITPHASE);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_RX_THRESHOLD,
+				OPENPCD_14443A_THRESHOLD);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_BPSK_DEM_CONTROL, 0x00);
+	if (ret < 0)
+		return ret;
+			      
+	ret = rc632_reg_write(handle, RC632_REG_RX_CONTROL2,
+			      (RC632_RXCTRL2_DECSRC_INT |
+			       RC632_RXCTRL2_CLK_Q));
+	if (ret < 0)
+		return ret;
+
+	/* Omnikey proprietary driver has 0x03, but 0x06 is the default reset value ?!? */
+	ret = rc632_reg_write(handle, RC632_REG_RX_WAIT, 0x06);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CHANNEL_REDUNDANCY,
+			      (RC632_CR_PARITY_ENABLE |
+			       RC632_CR_PARITY_ODD));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CRC_PRESET_LSB, 0x63);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CRC_PRESET_MSB, 0x63);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int
+rc632_iso14443a_fini(struct iso14443a_handle *handle_14443)
+{
+
+#if 0
+	ret = rc632_turn_off_rf(handle);
+	if (ret < 0)
+		return ret;
+#endif
+
+
+	return 0;
+}
+
 
 /* issue a 14443-3 A PCD -> PICC command in a short frame, such as REQA, WUPA */
 int
-rc632_iso14443a_transceive_sf(u_int8_t cmd,
+rc632_iso14443a_transceive_sf(struct rfid_asic_handle *handle,
+				u_int8_t cmd,
 		    		struct iso14443a_atqa *atqa)
 {
 	int ret;
@@ -261,22 +628,28 @@ rc632_iso14443a_transceive_sf(u_int8_t cmd,
 	tx_buf[0] = cmd;
 
 	/* transfer only 7 bits of last byte in frame */
-	rc632_reg_write(RC632_REG_BIT_FRAMING, 0x07);
+	ret = rc632_reg_write(handle, RC632_REG_BIT_FRAMING, 0x07);
+	if (ret < 0)
+		return ret;
 
-	rc632_clear_bits(RC632_REG_CONTROL,
-			RC632_CONTROL_CRYPTO1_ON);
+	ret = rc632_clear_bits(handle, RC632_REG_CONTROL,
+				RC632_CONTROL_CRYPTO1_ON);
+	if (ret < 0)
+		return ret;
 
 #if 0
-	ret = rc632_reg_write(RC632_REG_CHANNEL_REDUNDANCY,
+	ret = rc632_reg_write(handle, RC632_REG_CHANNEL_REDUNDANCY,
 				(RC632_CR_PARITY_ENABLE |
 				 RC632_CR_PARITY_ODD));
 #else
-	rc632_clear_bits(RC632_REG_CHANNEL_REDUNDANCY,
-			RC632_CR_RX_CRC_ENABLE|RC632_CR_TX_CRC_ENABLE);
+	ret = rc632_clear_bits(handle, RC632_REG_CHANNEL_REDUNDANCY,
+				RC632_CR_RX_CRC_ENABLE|RC632_CR_TX_CRC_ENABLE);
 				
 #endif
+	if (ret < 0)
+		return ret;
 
-	ret = rc632_transceive(tx_buf, sizeof(tx_buf),
+	ret = rc632_transceive(handle, tx_buf, sizeof(tx_buf),
 				(u_int8_t *)atqa, &rx_len,
 				ISO14443A_FDT_ANTICOL_LAST1, 0);
 	if (ret < 0) {
@@ -285,7 +658,9 @@ rc632_iso14443a_transceive_sf(u_int8_t cmd,
 	}
 
 	/* switch back to normal 8bit last byte */
-	rc632_reg_write(RC632_REG_BIT_FRAMING, 0x00);
+	ret = rc632_reg_write(handle, RC632_REG_BIT_FRAMING, 0x00);
+	if (ret < 0)
+		return ret;
 
 	if (rx_len != 2) {
 		DEBUGP("rx_len(%d) != 2\n", rx_len);
@@ -296,8 +671,9 @@ rc632_iso14443a_transceive_sf(u_int8_t cmd,
 }
 
 /* transceive regular frame */
-static int
-rc632_iso14443ab_transceive(unsigned int frametype,
+int
+rc632_iso14443ab_transceive(struct rfid_asic_handle *handle,
+			   unsigned int frametype,
 			   const u_int8_t *tx_buf, unsigned int tx_len,
 			   u_int8_t *rx_buf, unsigned int *rx_len,
 			   u_int64_t timeout, unsigned int flags)
@@ -327,20 +703,25 @@ rc632_iso14443ab_transceive(unsigned int frametype,
 		return -EINVAL;
 		break;
 	}
-	rc632_reg_write(RC632_REG_CHANNEL_REDUNDANCY, channel_red);
+	ret = rc632_reg_write(handle, RC632_REG_CHANNEL_REDUNDANCY,
+			      channel_red);
+	if (ret < 0)
+		return ret;
 
-	ret = rc632_transceive(tx_buf, tx_len, rx_buf, &rxl, timeout, 0);
+	ret = rc632_transceive(handle, tx_buf, tx_len, rx_buf, &rxl, timeout, 0);
 	*rx_len = rxl;
 	if (ret < 0)
 		return ret;
+
 
 	return 0; 
 }
 
 /* transceive anti collission bitframe */
-static int
-rc632_iso14443a_transceive_acf(struct iso14443a_anticol_cmd *acf,
-			       unsigned int *bit_of_col)
+int
+rc632_iso14443a_transceive_acf(struct rfid_asic_handle *handle,
+				struct iso14443a_anticol_cmd *acf,
+				unsigned int *bit_of_col)
 {
 	int ret;
 	u_int8_t rx_buf[64];
@@ -352,18 +733,18 @@ rc632_iso14443a_transceive_acf(struct iso14443a_anticol_cmd *acf,
 	memset(rx_buf, 0, sizeof(rx_buf));
 
 	/* disable mifare cryto */
-	ret = rc632_clear_bits(RC632_REG_CONTROL,
+	ret = rc632_clear_bits(handle, RC632_REG_CONTROL,
 				RC632_CONTROL_CRYPTO1_ON);
 	if (ret < 0)
 		return ret;
 
 	/* disable CRC summing */
 #if 0
-	ret = rc632_reg_write(RC632_REG_CHANNEL_REDUNDANCY,
+	ret = rc632_reg_write(handle, RC632_REG_CHANNEL_REDUNDANCY,
 				(RC632_CR_PARITY_ENABLE |
 				 RC632_CR_PARITY_ODD));
 #else
-	ret = rc632_clear_bits(RC632_REG_CHANNEL_REDUNDANCY,
+	ret = rc632_clear_bits(handle, RC632_REG_CHANNEL_REDUNDANCY,
 				RC632_CR_TX_CRC_ENABLE|RC632_CR_TX_CRC_ENABLE);
 #endif
 	if (ret < 0)
@@ -379,10 +760,12 @@ rc632_iso14443a_transceive_acf(struct iso14443a_anticol_cmd *acf,
 	//rx_align = 8 - tx_last_bits;/* rx frame complements tx */
 
 	/* set RxAlign and TxLastBits*/
-	rc632_reg_write(RC632_REG_BIT_FRAMING,
-			(rx_align << 4) | (tx_last_bits));
+	ret = rc632_reg_write(handle, RC632_REG_BIT_FRAMING,
+				(rx_align << 4) | (tx_last_bits));
+	if (ret < 0)
+		return ret;
 
-	ret = rc632_transceive((u_int8_t *)acf, tx_bytes,
+	ret = rc632_transceive(handle, (u_int8_t *)acf, tx_bytes,
 				rx_buf, &rx_len, 0x32, 0);
 	if (ret < 0)
 		return ret;
@@ -395,11 +778,15 @@ rc632_iso14443a_transceive_acf(struct iso14443a_anticol_cmd *acf,
 	memcpy(&acf->uid_bits[tx_bytes+1-2], &rx_buf[1], rx_len-1);
 
 	/* determine whether there was a collission */
-	error_flag = rc632_reg_read(RC632_REG_ERROR_FLAG);
+	ret = rc632_reg_read(handle, RC632_REG_ERROR_FLAG, &error_flag);
+	if (ret < 0)
+		return ret;
 
 	if (error_flag & RC632_ERR_FLAG_COL_ERR) {
 		/* retrieve bit of collission */
-		boc = rc632_reg_read(RC632_REG_COLL_POS);
+		ret = rc632_reg_read(handle, RC632_REG_COLL_POS, &boc);
+		if (ret < 0)
+			return ret;
 
 		/* bit of collission relative to start of part 1 of 
 		 * anticollision frame (!) */
@@ -409,7 +796,6 @@ rc632_iso14443a_transceive_acf(struct iso14443a_anticol_cmd *acf,
 	return 0;
 }
 
-#if 0
 enum rc632_rate {
 	RC632_RATE_106	= 0x00,
 	RC632_RATE_212	= 0x01,
@@ -488,25 +874,25 @@ static int rc632_iso14443a_set_speed(struct rfid_asic_handle *handle,
 		if (rate > ARRAY_SIZE(rx_configs))
 			return -EINVAL;
 
-		rc = rc632_set_bit_mask(RC632_REG_RX_CONTROL1,
+		rc = rc632_set_bit_mask(handle, RC632_REG_RX_CONTROL1,
 					RC632_RXCTRL1_SUBCP_MASK,
 					rx_configs[rate].subc_pulses);
 		if (rc < 0)
 			return rc;
 
-		rc = rc632_set_bit_mask(RC632_REG_DECODER_CONTROL,
+		rc = rc632_set_bit_mask(handle, RC632_REG_DECODER_CONTROL,
 					RC632_DECCTRL_BPSK,
 					rx_configs[rate].rx_coding);
 		if (rc < 0)
 			return rc;
 
-		rc = rc632_reg_write(RC632_REG_RX_THRESHOLD,
+		rc = rc632_reg_write(handle, RC632_REG_RX_THRESHOLD,
 					rx_configs[rate].rx_threshold);
 		if (rc < 0)
 			return rc;
 
 		if (rx_configs[rate].rx_coding == RC632_DECCTRL_BPSK) {
-			rc = rc632_reg_write(
+			rc = rc632_reg_write(handle, 
 					     RC632_REG_BPSK_DEM_CONTROL,
 					     rx_configs[rate].bpsk_dem_ctrl);
 			if (rc < 0)
@@ -517,13 +903,13 @@ static int rc632_iso14443a_set_speed(struct rfid_asic_handle *handle,
 		if (rate > ARRAY_SIZE(tx_configs))
 			return -EINVAL;
 
-		rc = rc632_set_bit_mask(RC632_REG_CODER_CONTROL,
+		rc = rc632_set_bit_mask(handle, RC632_REG_CODER_CONTROL,
 					RC632_CDRCTRL_RATE_MASK,
 					tx_configs[rate].rate);
 		if (rc < 0)
 			return rc;
 
-		rc = rc632_reg_write(RC632_REG_MOD_WIDTH,
+		rc = rc632_reg_write(handle, RC632_REG_MOD_WIDTH,
 				     tx_configs[rate].mod_width);
 		if (rc < 0)
 			return rc;
@@ -531,4 +917,527 @@ static int rc632_iso14443a_set_speed(struct rfid_asic_handle *handle,
 
 	return 0;
 }
+
+static int rc632_iso14443b_init(struct rfid_asic_handle *handle)
+{
+	int ret;
+
+	// FIXME: some FIFO work
+	
+	/* flush fifo (our way) */
+	ret = rc632_reg_write(handle, RC632_REG_CONTROL, 0x01);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_TX_CONTROL,
+			(RC632_TXCTRL_TX1_RF_EN |
+			 RC632_TXCTRL_TX2_RF_EN |
+			 RC632_TXCTRL_TX2_INV |
+			 RC632_TXCTRL_MOD_SRC_INT));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CW_CONDUCTANCE, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_MOD_CONDUCTANCE, 0x04);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CODER_CONTROL,
+			      (RC632_CDRCTRL_TXCD_NRZ |
+			       RC632_CDRCTRL_RATE_14443B));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_MOD_WIDTH, 0x13);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_MOD_WIDTH_SOF, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_TYPE_B_FRAMING,
+			      (RC632_TBFRAMING_SOF_11L_3H |
+			       (6 << RC632_TBFRAMING_SPACE_SHIFT) |
+			       RC632_TBFRAMING_EOF_11));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_RX_CONTROL1,
+			      (RC632_RXCTRL1_GAIN_35DB |
+			       RC632_RXCTRL1_ISO14443 |
+			       RC632_RXCTRL1_SUBCP_8));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_DECODER_CONTROL,
+			      (RC632_DECCTRL_BPSK |
+			       RC632_DECCTRL_RXFR_14443B));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_BIT_PHASE,
+				OPENPCD_14443B_BITPHASE);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_RX_THRESHOLD,
+				OPENPCD_14443B_THRESHOLD);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_BPSK_DEM_CONTROL,
+			      ((0x2 & RC632_BPSKD_TAUB_MASK)<<RC632_BPSKD_TAUB_SHIFT |
+			       (0x3 & RC632_BPSKD_TAUD_MASK)<<RC632_BPSKD_TAUD_SHIFT |
+			       RC632_BPSKD_FILTER_AMP_DETECT |
+			       RC632_BPSKD_NO_RX_EOF |
+			       RC632_BPSKD_NO_RX_EGT));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_RX_CONTROL2,
+			      (RC632_RXCTRL2_AUTO_PD |
+			       RC632_RXCTRL2_DECSRC_INT));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_RX_WAIT, 0x03);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CHANNEL_REDUNDANCY,
+			      (RC632_CR_TX_CRC_ENABLE |
+			       RC632_CR_RX_CRC_ENABLE |
+			       RC632_CR_CRC3309));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CRC_PRESET_LSB, 0xff);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(handle, RC632_REG_CRC_PRESET_MSB, 0xff);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int
+rc632_iso15693_init(struct rfid_asic_handle *h)
+{
+	int ret;
+
+	ret = rc632_reg_write(h, RC632_REG_TX_CONTROL,
+						(RC632_TXCTRL_MOD_SRC_INT |
+						 RC632_TXCTRL_TX2_INV |
+						 RC632_TXCTRL_TX2_RF_EN |
+						 RC632_TXCTRL_TX1_RF_EN));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CW_CONDUCTANCE, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_CONDUCTANCE, 0x03);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CODER_CONTROL,
+						(RC632_CDRCTRL_RATE_15693 |
+						 0x03)); /* FIXME */
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH, 0x3f);
+	if (ret < 0)
+		return ret;
+	
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH_SOF, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_TYPE_B_FRAMING, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_CONTROL1, 
+						(RC632_RXCTRL1_SUBCP_16 |
+						 RC632_RXCTRL1_ISO15693 |
+						 RC632_RXCTRL1_GAIN_35DB));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_DECODER_CONTROL,
+						(RC632_DECCTRL_RXFR_15693 |
+						 RC632_DECCTRL_RX_INVERT));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_BIT_PHASE, 0xe0);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_THRESHOLD, 0xff);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_BPSK_DEM_CONTROL, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_CONTROL2,
+						(RC632_RXCTRL2_AUTO_PD |
+						 RC632_RXCTRL2_DECSRC_INT));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CHANNEL_REDUNDANCY,
+						(RC632_CR_CRC3309 |
+						 RC632_CR_RX_CRC_ENABLE |
+						 RC632_CR_TX_CRC_ENABLE));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CRC_PRESET_LSB, 0xff);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CRC_PRESET_MSB, 0xff);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int
+rc632_iso15693_icode_init(struct rfid_asic_handle *h)
+{
+	int ret;
+
+	ret = rc632_reg_write(h, RC632_REG_TX_CONTROL,
+						(RC632_TXCTRL_MOD_SRC_INT |
+						 RC632_TXCTRL_TX2_INV |
+						 RC632_TXCTRL_TX2_RF_EN |
+						 RC632_TXCTRL_TX1_RF_EN));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CW_CONDUCTANCE, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_CONDUCTANCE, 0x02);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CODER_CONTROL, 0x2c);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH_SOF, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH_SOF, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_TYPE_B_FRAMING, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_CONTROL1, 0x8b); /* FIXME */
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_DECODER_CONTROL, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_BIT_PHASE, 0x52);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_THRESHOLD, 0x66);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_BPSK_DEM_CONTROL, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_CONTROL2, 
+						RC632_RXCTRL2_DECSRC_INT);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CHANNEL_REDUNDANCY,
+						(RC632_CR_RX_CRC_ENABLE |
+						 RC632_CR_TX_CRC_ENABLE));
+	ret = rc632_reg_write(h, RC632_REG_CRC_PRESET_LSB, 0xfe);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CRC_PRESET_MSB, 0xff);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int
+rc632_iso15693_icl_init(struct rfid_asic_handle *h)
+{
+	int ret;
+	
+	/* ICL */
+
+	ret = rc632_reg_write(h, RC632_REG_TX_CONTROL, 
+						(RC632_TXCTRL_MOD_SRC_INT |	
+						 RC632_TXCTRL_TX2_INV |
+						 RC632_TXCTRL_TX2_RF_EN |
+						 RC632_TXCTRL_TX1_RF_EN));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CW_CONDUCTANCE, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_CONDUCTANCE, 0x11);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CODER_CONTROL, 
+						(RC632_CDRCTRL_RATE_15693 |
+						 RC632_CDRCTRL_TXCD_ICODE_STD |
+						 0x03)); /* FIXME */
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH, 0x3f);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_MOD_WIDTH_SOF, 0x3f);
+	if (ret < 0)
+		return ret;
+	ret = rc632_reg_write(h, RC632_REG_RX_CONTROL1, 
+						(RC632_RXCTRL1_SUBCP_16|
+						 RC632_RXCTRL1_ISO15693|
+						 RC632_RXCTRL1_GAIN_35DB));
+	if (ret < 0)
+		return ret;
+	ret = rc632_reg_write(h, RC632_REG_DECODER_CONTROL,
+						(RC632_DECCTRL_RX_INVERT|
+						 RC632_DECCTRL_RXFR_15693));
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_BIT_PHASE, 0xbd);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_THRESHOLD, 0xff);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_BPSK_DEM_CONTROL, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_RX_CONTROL2, 
+						RC632_RXCTRL2_DECSRC_INT);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CHANNEL_REDUNDANCY, 0x00);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CRC_PRESET_LSB, 0x12);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_CRC_PRESET_MSB, 0xe0);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+struct mifare_authcmd {
+	u_int8_t auth_cmd;
+	u_int8_t block_address;
+	u_int32_t serno;	/* lsb 1 2 msb */
+} __attribute__ ((packed));
+
+
+#define RFID_MIFARE_KEY_LEN 6
+#define RFID_MIFARE_KEY_CODED_LEN 12
+
+/* Transform crypto1 key from generic 6byte into rc632 specific 12byte */
+static int
+rc632_mifare_transform_key(const u_int8_t *key6, u_int8_t *key12)
+{
+	int i;
+	u_int8_t ln;
+	u_int8_t hn;
+
+	for (i = 0; i < RFID_MIFARE_KEY_LEN; i++) {
+		ln = key6[i] & 0x0f;
+		hn = key6[i] >> 4;
+		key12[i * 2 + 1] = (~ln << 4) | ln;
+		key12[i * 2] = (~hn << 4) | hn;
+	}
+	return 0;
+}
+
+static int
+rc632_mifare_set_key(struct rfid_asic_handle *h, const u_int8_t *key)
+{
+	u_int8_t coded_key[RFID_MIFARE_KEY_CODED_LEN];
+	u_int8_t reg;
+	int ret;
+
+	ret = rc632_mifare_transform_key(key, coded_key);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_fifo_write(h, RFID_MIFARE_KEY_CODED_LEN, coded_key, 0x03);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_COMMAND, RC632_CMD_LOAD_KEY);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_wait_idle(h, RC632_TMO_AUTH1);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_read(h, RC632_REG_ERROR_FLAG, &reg);
+	if (ret < 0)
+		return ret;
+
+	if (reg & RC632_ERR_FLAG_KEY_ERR)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int
+rc632_mifare_auth(struct rfid_asic_handle *h, u_int8_t cmd, u_int32_t serno,
+		  u_int8_t block)
+{
+	int ret;
+	struct mifare_authcmd acmd;
+	u_int8_t reg;
+
+	if (cmd != RFID_CMD_MIFARE_AUTH1A && cmd != RFID_CMD_MIFARE_AUTH1B)
+		return -EINVAL;
+
+	/* Initialize acmd */
+	acmd.block_address = block & 0xff;
+	acmd.auth_cmd = cmd;
+	//acmd.serno = htonl(serno);
+	acmd.serno = serno;
+
+	/* Clear Rx CRC */
+	ret = rc632_clear_bits(h, RC632_REG_CHANNEL_REDUNDANCY,
+				RC632_CR_RX_CRC_ENABLE);
+	if (ret < 0)
+		return ret;
+
+	/* Send Authent1 Command */
+	ret = rc632_fifo_write(h, sizeof(acmd), (unsigned char *)&acmd, 0x03);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_write(h, RC632_REG_COMMAND, RC632_CMD_AUTHENT1);
+	if (ret < 0)
+		return ret;
+
+	/* Wait until transmitter is idle */
+	ret = rc632_wait_idle(h, RC632_TMO_AUTH1);
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_reg_read(h, RC632_REG_SECONDARY_STATUS, &reg);
+	if (ret < 0)
+		return ret;
+	if (reg & 0x07)
+		return -EIO;
+
+	/* Clear Tx CRC */
+	ret = rc632_clear_bits(h, RC632_REG_CHANNEL_REDUNDANCY,
+				RC632_CR_TX_CRC_ENABLE);
+	if (ret < 0)
+		return ret;
+
+	/* Send Authent2 Command */
+	ret = rc632_reg_write(h, RC632_REG_COMMAND, RC632_CMD_AUTHENT2);
+	if (ret < 0)
+		return ret;
+
+	/* Wait until transmitter is idle */
+	ret = rc632_wait_idle(h, RC632_TMO_AUTH1);
+	if (ret < 0)
+		return ret;
+
+	/* Check whether authentication was successful */
+	ret = rc632_reg_read(h, RC632_REG_CONTROL, &reg);
+	if (ret < 0)
+		return ret;
+
+	if (!(reg & RC632_CONTROL_CRYPTO1_ON))
+		return -EACCES;
+
+	return 0;
+
+}
+
+/* transceive regular frame */
+static int
+rc632_mifare_transceive(struct rfid_asic_handle *handle,
+			const u_int8_t *tx_buf, unsigned int tx_len,
+			u_int8_t *rx_buf, unsigned int *rx_len,
+			u_int64_t timeout, unsigned int flags)
+{
+	int ret;
+	u_int8_t rxl = *rx_len & 0xff;
+
+	DEBUGP("entered\n");
+	memset(rx_buf, 0, *rx_len);
+
+#if 1
+	ret = rc632_reg_write(handle, RC632_REG_CHANNEL_REDUNDANCY,
+				(RC632_CR_PARITY_ENABLE |
+				 RC632_CR_PARITY_ODD |
+				 RC632_CR_TX_CRC_ENABLE |
+				 RC632_CR_RX_CRC_ENABLE));
+#else
+	ret = rc632_clear_bits(handle, RC632_REG_CHANNEL_REDUNDANCY,
+				RC632_CR_RX_CRC_ENABLE|RC632_CR_TX_CRC_ENABLE);
 #endif
+	if (ret < 0)
+		return ret;
+
+	ret = rc632_transceive(handle, tx_buf, tx_len, rx_buf, &rxl, 0x32, 0);
+	*rx_len = rxl;
+	if (ret < 0)
+		return ret;
+
+
+	return 0; 
+}
+

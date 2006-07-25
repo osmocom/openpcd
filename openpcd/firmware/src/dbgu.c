@@ -78,20 +78,20 @@ static void DBGU_irq_handler(void)
 		break;
 	case '4':
 		AT91F_DBGU_Printk("Testing RC632 : ");
-		if (rc632_test() == 0)
+		if (rc632_test(RAH) == 0)
 			AT91F_DBGU_Printk("SUCCESS!\n\r");
 		else
 			AT91F_DBGU_Printk("ERROR!\n\r");
 			
 		break;
 	case '5':
-		DEBUGPCR("Reading RC632 Reg RxWait: 0x%02xr",
-			  rc632_reg_read(RC632_REG_RX_WAIT));
+		rc632_reg_read(RAH, RC632_REG_RX_WAIT, &value);
+		DEBUGPCR("Reading RC632 Reg RxWait: 0x%02xr", value);
 
 		break;
 	case '6':
 		DEBUGPCR("Writing RC632 Reg RxWait: 0x55");
-		rc632_reg_write(RC632_REG_RX_WAIT, 0x55);
+		rc632_reg_write(RAH, RC632_REG_RX_WAIT, 0x55);
 		break;
 	case '7':
 		rc632_dump();

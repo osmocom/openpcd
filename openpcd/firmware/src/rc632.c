@@ -1,5 +1,10 @@
-/* Philips CL RC632 driver (via SPI) 
+/* Philips CL RC632 driver (via SPI) for OpenPCD firmware
  * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
+ *
+ * This is heavily based on the librfid RC632 driver. All primitive access
+ * functions such as rc632_{reg,fifo}_{read,write}() are API compatible to
+ * librfid in order to be able to leverage higher-level code from librfid
+ * to this OpenPCD firmware.
  *
  * */
 
@@ -12,6 +17,9 @@
 #include "fifo.h"
 #include "dbgu.h"
 #include "pcd_enumerate.h"
+#include "rc632.h"
+
+/* SPI driver */
 
 //#define SPI_DEBUG_LOOPBACK
 #define SPI_USES_DMA
@@ -110,7 +118,11 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 }
 #endif
 
-/* static buffers used by routines below */
+/* RC632 driver */
+
+/* static buffers used by RC632 access primitives below. 
+ * Since we only have one */
+
 static u_int8_t spi_outbuf[64+1];
 static u_int8_t spi_inbuf[64+1];
 
@@ -125,7 +137,8 @@ static struct rc632 rc632;
 
 /* RC632 access primitives */
 
-void rc632_reg_write(u_int8_t addr, u_int8_t data)
+int rc632_reg_write(struct rfid_asic_handle *hdl,
+		    u_int8_t addr, u_int8_t data)
 {
 	u_int16_t rx_len = 2;
 	addr = (addr << 1) & 0x7e;
@@ -134,10 +147,11 @@ void rc632_reg_write(u_int8_t addr, u_int8_t data)
 	spi_outbuf[1] = data;
 
 	//spi_transceive(spi_outbuf, 2, NULL, NULL);
-	spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
+	return spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
 }
 
-int rc632_fifo_write(u_int8_t len, u_int8_t *data)
+int rc632_fifo_write(struct rfid_asic_handle *hdl,
+		     u_int8_t len, u_int8_t *data, u_int8_t flags)
 {
 	if (len > sizeof(spi_outbuf)-1)
 		len = sizeof(spi_outbuf)-1;
@@ -145,12 +159,11 @@ int rc632_fifo_write(u_int8_t len, u_int8_t *data)
 	spi_outbuf[0] = FIFO_ADDR;
 	memcpy(&spi_outbuf[1], data, len);
 
-	spi_transceive(spi_outbuf, len+1, NULL, NULL);
-
-	return len;
+	return spi_transceive(spi_outbuf, len+1, NULL, NULL);
 }
 
-u_int8_t rc632_reg_read(u_int8_t addr)
+int rc632_reg_read(struct rfid_asic_handle *hdl, 
+		   u_int8_t addr, u_int8_t *val)
 {
 	u_int16_t rx_len = 2;
 
@@ -161,14 +174,24 @@ u_int8_t rc632_reg_read(u_int8_t addr)
 
 	spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
 
-	return spi_inbuf[1];
+	*val = spi_inbuf[1];
+
+	return 0;
 }
 
-u_int8_t rc632_fifo_read(u_int8_t max_len, u_int8_t *data)
+int rc632_fifo_read(struct rfid_asic_handle *hdl,
+		    u_int8_t max_len, u_int8_t *data)
 {
-	u_int8_t fifo_length = rc632_reg_read(RC632_REG_FIFO_LENGTH);
+	int ret;
+	u_int8_t fifo_length;
 	u_int8_t i;
-	u_int16_t rx_len = fifo_length+1;
+	u_int16_t rx_len;
+
+ 	ret = rc632_reg_read(hdl, RC632_REG_FIFO_LENGTH, &fifo_length);
+	if (ret < 0)
+		return ret;
+
+	rx_len = fifo_length+1;
 
 	if (max_len < fifo_length)
 		fifo_length = max_len;
@@ -182,25 +205,37 @@ u_int8_t rc632_fifo_read(u_int8_t max_len, u_int8_t *data)
 	spi_transceive(spi_outbuf, fifo_length+1, spi_inbuf, &rx_len);
 	memcpy(data, spi_inbuf+1, rx_len-1);
 
-	return rx_len-1;
+	return 0;
 }
 
-u_int8_t rc632_set_bits(u_int8_t reg, u_int8_t bits)
+int rc632_set_bits(struct rfid_asic_handle *hdl,
+		   u_int8_t reg, u_int8_t bits)
 {
-	u_int8_t val = rc632_reg_read(reg);
+	u_int8_t val;
+	int ret;
+	
+	ret = rc632_reg_read(hdl, reg, &val);
+	if (ret < 0)
+		return ret;
+
 	val |= bits;
-	rc632_reg_write(reg, val);
 
-	return val;
+	return rc632_reg_write(hdl, reg, val);
 }
 
-u_int8_t rc632_clear_bits(u_int8_t reg, u_int8_t bits)
+int rc632_clear_bits(struct rfid_asic_handle *hdl,
+		     u_int8_t reg, u_int8_t bits)
 {
-	u_int8_t val = rc632_reg_read(reg);
-	val &= ~bits;
-	rc632_reg_write(reg, val);
+	u_int8_t val;
+	int ret;
+	
+	ret = rc632_reg_read(hdl, reg, &val);
+	if (ret < 0)
+		return ret;
 
-	return val;
+	val &= ~bits;
+
+	return rc632_reg_write(hdl, reg, val);
 }
 
 /* RC632 interrupt handling */
@@ -209,10 +244,11 @@ static struct openpcd_hdr irq_opcdh;
 static void rc632_irq(void)
 {
 	/* CL RC632 has interrupted us */
-	u_int8_t cause = rc632_reg_read(RC632_REG_INTERRUPT_RQ);
+	u_int8_t cause;
+	rc632_reg_read(RAH, RC632_REG_INTERRUPT_RQ, &cause);
 
 	/* ACK all interrupts */
-	rc632_reg_write(RC632_REG_INTERRUPT_RQ, cause);
+	rc632_reg_write(RAH, RC632_REG_INTERRUPT_RQ, cause);
 	DEBUGP("rc632_irq: ");
 
 	if (cause & RC632_INT_LOALERT) {
@@ -265,7 +301,7 @@ void rc632_reset(void)
 	rc632_power(1);
 
 	/* turn off register paging */
-	rc632_reg_write(RC632_REG_PAGE0, 0x00);
+	rc632_reg_write(RAH, RC632_REG_PAGE0, 0x00);
 }
 
 void rc632_init(void)
@@ -331,12 +367,13 @@ void rc632_exit(void)
 
 
 #ifdef DEBUG
-static int rc632_reg_write_verify(u_int8_t reg, u_int8_t val)
+static int rc632_reg_write_verify(struct rfid_asic_handle *hdl,
+				  u_int8_t reg, u_int8_t val)
 {
 	u_int8_t tmp;
 
-	rc632_reg_write(reg, val);
-	tmp = rc632_reg_read(reg);
+	rc632_reg_write(hdl, reg, val);
+	rc632_reg_read(hdl, reg, &tmp);
 
 	DEBUGP("reg=0x%02x, write=0x%02x, read=0x%02x ", reg, val, tmp);
 
@@ -371,12 +408,12 @@ int rc632_dump(void)
 	return 0;
 }
 
-int rc632_test(void)
+int rc632_test(struct rfid_asic_handle *hdl)
 {
-	if (rc632_reg_write_verify(RC632_REG_RX_WAIT, 0x55) != 1)
+	if (rc632_reg_write_verify(hdl, RC632_REG_RX_WAIT, 0x55) != 1)
 		return -1;
 
-	if (rc632_reg_write_verify(RC632_REG_RX_WAIT, 0xAA) != 1)
+	if (rc632_reg_write_verify(hdl, RC632_REG_RX_WAIT, 0xAA) != 1)
 		return -1;
 
 	return 0;
