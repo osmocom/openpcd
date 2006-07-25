@@ -35,6 +35,7 @@
 # - 19. Mai. 2006  - USE_THUMB_MODE switch, ROM_RUN->RUN_FROM_ROM RAM_RUN->RUN_FROM_RAM
 
 
+FLASH_TOOL = AT91FLASH
 #FLASH_TOOL = UVISION
 #FLASH_TOOL = OPENOCD
 
@@ -366,6 +367,12 @@ gccversion :
 
 
 # Program the device.
+# Program the device by using our relais card robot over USB
+ifeq ($(FLASH_TOOL),AT91FLASH)
+program: $(TARGET).$(IMGEXT)
+	ls -l $(TARGET).$(IMGEXT)
+	at91flash $(TARGET).$(IMGEXT)
+else
 ifeq ($(FLASH_TOOL),UVISION)
 # Program the device with Keil's uVision (needs configured uVision-Workspace). 
 program: $(TARGET).$(IMGEXT)
@@ -385,6 +392,7 @@ program: $(TARGET).$(IMGEXT)
 	@echo
 	@echo $(MSG_LPC21_RESETREMINDER)
 	$(LPC21ISP) $(LPC21ISP_OPTIONS) $(LPC21ISP_DEBUG) $(LPC21ISP_FLASHFILE) $(LPC21ISP_PORT) $(LPC21ISP_BAUD) $(LPC21ISP_XTAL)
+endif
 endif
 endif
 
