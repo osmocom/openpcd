@@ -14,7 +14,7 @@
  *----------------------------------------------------------------------------*/
 
 // Include Standard files
-#include "Board.h"
+#include <board.h>
 #include "dbgu.h"
 #include "rc632.h"
 #include "openpcd.h"
@@ -172,10 +172,10 @@ void AT91F_DBGU_Frame(char *buffer)
 int AT91F_DBGU_Get(char *val)
 {
 	if ((AT91F_US_RxReady((AT91PS_USART) AT91C_BASE_DBGU)) == 0)
-		return (false);
+		return (0);
 	else {
 		*val = AT91F_US_GetChar((AT91PS_USART) AT91C_BASE_DBGU);
-		return (true);
+		return (-1);
 	}
 }
 

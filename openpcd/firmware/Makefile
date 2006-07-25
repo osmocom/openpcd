@@ -52,7 +52,7 @@ RUN_MODE=RUN_FROM_ROM
 #RUN_MODE=RUN_FROM_RAM
 
 # with / at end
-PATH_TO_LINKSCRIPTS=compil/SrcWinARM/
+PATH_TO_LINKSCRIPTS=link/
 
 #### not used in this example:
 ## Exception-Vector placement only supported for "ROM_RUN"
@@ -63,7 +63,7 @@ PATH_TO_LINKSCRIPTS=compil/SrcWinARM/
 #VECTOR_LOCATION=VECTORS_IN_RAM
 
 # Target file name (without extension).
-TARGET:= main_dumbreader
+TARGET:= main_reqa
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -73,8 +73,8 @@ SRC =
 # use file-extension c for "c-only"-files
 SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
 	  src/led.c src/rc632.c  src/rc632_highlevel.c src/req_ctx.c \
-	  src/trigger.c src/main.c \
-	  src/$(TARGET).c compil/SrcWinARM/Cstartup_SAM7.c 
+	  src/trigger.c src/main.c src/syscalls.c \
+	  src/$(TARGET).c src/start/Cstartup_SAM7.c 
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -97,7 +97,7 @@ ASRC =
 ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S lib/testclearbit.S lib/testsetbit.S
 
 # List Assembler source files here which must be assembled in ARM-Mode..
-ASRCARM  = compil/SrcWinARM/Cstartup.S $(ASRCLIB)
+ASRCARM  = src/start/Cstartup.S $(ASRCLIB)
 
 ## Output format. (can be ihex or binary)
 ## (binary i.e. for openocd and SAM-BA, hex i.e. for lpc21isp and uVision)
@@ -107,7 +107,7 @@ FORMAT = binary
 # Optimization level, can be [0, 1, 2, 3, s]. 
 # 0 = turn off optimization. s = optimize for size.
 # (Note: 3 is not always the best optimization level. See avr-libc FAQ.)
-OPT = s
+OPT = 3
 #OPT = 0
 
 # Debugging format.
@@ -119,7 +119,7 @@ DEBUG = dwarf-2
 # List any extra directories to look for include files here.
 #     Each directory must be seperated by a space.
 #### FreeRTOS
-EXTRAINCDIRS =  compil/SrcWinARM
+EXTRAINCDIRS =
 
 # List any extra directories to look for library files here.
 #     Each directory must be seperated by a space.
@@ -141,7 +141,7 @@ CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
 CDEFS =  -D$(RUN_MODE) -D__MS_types__ -DDEBUG 
-CDEFS += -DOLIMEX
+#CDEFS += -DOLIMEX
 
 # Place -I options here
 CINCS = -Iinclude -Isrc
@@ -154,8 +154,8 @@ CDEFS += -D$(VECTOR_LOCATION)
 ADEFS += -D$(VECTOR_LOCATION)
 endif
 
-CDEFS += -D__WinARM__ -D__$(SUBMDL)__
-ADEFS += -D__WinARM__ -D__$(SUBMDL)__
+CDEFS += -D__$(SUBMDL)__
+ADEFS += -D__$(SUBMDL)__
 
 
 # Compiler flags.
@@ -176,6 +176,7 @@ CFLAGS += -Wredundant-decls -Wreturn-type -Wshadow
 CFLAGS += -Wbad-function-cast -Wsign-compare -Waggregate-return 
 CFLAGS += -Wa,-adhlns=$(subst $(suffix $<),.lst,$<) 
 CFLAGS += $(patsubst %,-I%,$(EXTRAINCDIRS))
+#CFLAGS += -ffunction-sections -fdata-sections       
 
 # flags only for C
 CONLYFLAGS += -Wnested-externs 
@@ -222,12 +223,12 @@ MATH_LIB = -lm
 #    -Map:      create map file
 #    --cref:    add cross reference to  map file
 LDFLAGS = -nostartfiles -Wl,-Map=$(TARGET).map,--cref
-LDFLAGS += -lc
 LDFLAGS += $(NEWLIBLPC) $(MATH_LIB)
 LDFLAGS += -lc -lgcc 
 LDFLAGS += $(CPLUSPLUS_LIB)
 LDFLAGS += $(patsubst %,-L%,$(EXTRA_LIBDIRS))
 LDFLAGS += $(patsubst %,-l%,$(EXTRA_LIBS))
+#LDFLAGS += --gc-sections
 
 # Set Linker-Script Depending On Selected Memory and Controller
 ifeq ($(RUN_MODE),RUN_FROM_RAM)
@@ -476,7 +477,6 @@ clean: begin clean_list finished end
 clean_list :
 	@echo
 	@echo $(MSG_CLEANING)
-	$(REMOVE) ../Common_WinARM/$(TARGET).hex
 	$(REMOVE) $(TARGET).hex
 	$(REMOVE) $(TARGET).bin
 	$(REMOVE) $(TARGET).obj

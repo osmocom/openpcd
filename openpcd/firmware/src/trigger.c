@@ -1,6 +1,6 @@
+#include <lib_AT91SAM7.h>
 #include "openpcd.h"
 #include "trigger.h"
-#include <lib_AT91SAM7.h>
 
 void trigger_init(void)
 {

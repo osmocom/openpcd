@@ -14,7 +14,7 @@
 #include <reent.h>
 #include <sys/stat.h>
 
-#include "Board.h"
+#include <board.h>
 
 static void my_putc(char c) 
 {

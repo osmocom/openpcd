@@ -39,8 +39,8 @@
 // CVS Reference       : /ADC_6051C.pl/1.1/Fri Oct 17 09:12:38 2003//
 //  ----------------------------------------------------------------------------
 
-#ifndef AT91SAM7S64_H
-#define AT91SAM7S64_H
+#ifndef __AT91SAM7_H__
+#define __AT91SAM7_H__
 
 typedef volatile unsigned int AT91_REG;// Hardware register definition
 
@@ -1927,4 +1927,4 @@ typedef struct _AT91S_UDP {
 #endif
 #endif
 
-#endif
+#endif/*__AT91SAM7_H__*/

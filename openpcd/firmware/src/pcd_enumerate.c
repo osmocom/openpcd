@@ -19,9 +19,9 @@
 //                additional line marked with /* +++ */
 
 #include <sys/types.h>
-#include <include/usb_ch9.h>
-#include <include/lib_AT91SAM7.h>
-#include <include/openpcd.h>
+#include <usb_ch9.h>
+#include <lib_AT91SAM7.h>
+#include <openpcd.h>
 
 #include "pcd_enumerate.h"
 #include "openpcd.h"
