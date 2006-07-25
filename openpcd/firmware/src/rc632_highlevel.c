@@ -59,14 +59,14 @@ rc632_set_bit_mask(struct rfid_asic_handle *handle,
 	return rc632_reg_write(handle, reg, (tmp & ~mask)|(val & mask));
 }
 
-static int 
+int 
 rc632_turn_on_rf(struct rfid_asic_handle *handle)
 {
 	ENTER();
 	return rc632_set_bits(handle, RC632_REG_TX_CONTROL, 0x03);
 }
 
-static int 
+int 
 rc632_turn_off_rf(struct rfid_asic_handle *handle)
 {
 	ENTER();
