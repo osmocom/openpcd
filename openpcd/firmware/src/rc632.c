@@ -19,10 +19,16 @@
 #include "pcd_enumerate.h"
 #include "rc632.h"
 
+#if 1
+#define DEBUGPSPI DEBUGP
+#else
+#define	DEBUGPSPI(x, args ...) DEBUGP("")
+#endif
+
 /* SPI driver */
 
 //#define SPI_DEBUG_LOOPBACK
-#define SPI_USES_DMA
+//#define SPI_USES_DMA
 
 static AT91PS_SPI pSPI = AT91C_BASE_SPI;
 
@@ -31,31 +37,31 @@ static void spi_irq(void)
 {
 	u_int32_t status = pSPI->SPI_SR;
 
-	DEBUGP("spi_irq: 0x%08x ", status);
+	DEBUGPSPI("spi_irq: 0x%08x ", status);
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 
 	if (status & AT91C_SPI_OVRES)
-		DEBUGP("Overrun ");
+		DEBUGPSPI("Overrun ");
 	if (status & AT91C_SPI_MODF)
-		DEBUGP("ModeFault ");
+		DEBUGPSPI("ModeFault ");
 	if (status & AT91C_SPI_ENDRX) {
 		pSPI->SPI_IDR = AT91C_SPI_ENDRX;
-		DEBUGP("ENDRX ");
+		DEBUGPSPI("ENDRX ");
 	}
 	if (status & AT91C_SPI_ENDTX) {
 		pSPI->SPI_IDR = AT91C_SPI_ENDTX;
-		DEBUGP("ENDTX ");
+		DEBUGPSPI("ENDTX ");
 	}
 
-	DEBUGP("\r\n");
+	DEBUGPSPI("\r\n");
 }
 
 #ifdef SPI_USES_DMA
 int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
 		   u_int8_t *rx_data, u_int16_t *rx_len)
 {
-	DEBUGP("Starting DMA Xfer: ");
+	DEBUGPSPI("spi_transcieve: Starting DMA Xfer: ");
 	AT91F_SPI_ReceiveFrame(pSPI, rx_data, *rx_len, NULL, 0);
 	AT91F_SPI_SendFrame(pSPI, tx_data, tx_len, NULL, 0);
 	AT91F_PDC_EnableRx(AT91C_BASE_PDC_SPI);
@@ -65,7 +71,8 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 
 	while (!(pSPI->SPI_SR & (AT91C_SPI_ENDRX|AT91C_SPI_ENDTX))) ;
 
-	DEBUGPCR("DMA Xfer finished");
+	DEBUGPSPI("DMA Xfer finished\r\n");
+	AT91F_SPI_Disable(pSPI);
 
 	return 0;
 }
@@ -79,9 +86,9 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	u_int16_t rx_cnt = 0;
 
 	/* disable RC632 interrupt because it wants to do SPI transactions */
-	AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_RC632_IRQ);
+	AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 
-	DEBUGPCRF("enter(tx_len=%u)", tx_len);
+	DEBUGPSPI("spi_transceive: enter(tx_len=%u) ", tx_len);
 
 	if (rx_len) {
 		rx_len_max = *rx_len;
@@ -107,12 +114,12 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	}
 	AT91F_SPI_Disable(pSPI);
 	if (rx_data)
-		DEBUGPCRF("leave(%02x %02x)", rx_data[0], rx_data[1]);
+		DEBUGPSPI("leave(%02x %02x)\r\n", rx_data[0], rx_data[1]);
 	else
-		DEBUGPCRF("leave()");
+		DEBUGPSPI("leave()\r\n");
 
 	/* Re-enable RC632 interrupts */
-	AT91F_AIC_EnableIt(AT91C_BASE_AIC, OPENPCD_RC632_IRQ);
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 
 	return 0;
 }
@@ -283,6 +290,7 @@ static void rc632_irq(void)
 
 void rc632_power(u_int8_t up)
 {
+        DEBUGPCRF("powering %s RC632", up ? "up" : "down");
 	if (up)
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA,
 				      OPENPCD_PIO_RC632_RESET);
@@ -309,13 +317,12 @@ void rc632_init(void)
 	//fifo_init(&rc632.fifo, 256, NULL, &rc632);
 
 	DEBUGPCRF("entering");
+
 	AT91F_SPI_CfgPMC();
 
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA,
 				AT91C_PA11_NPCS0|AT91C_PA12_MISO|
 				AT91C_PA13_MOSI |AT91C_PA14_SPCK, 0);
-
-	//AT91F_SPI_Enable(pSPI);
 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI,
 			      OPENPCD_IRQ_PRIO_SPI,
@@ -346,8 +353,13 @@ void rc632_init(void)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_RC632_RESET);
+#if 0
+	DEBUGPCR("CfgOutput(RC632_MFIN)");
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_MFIN);
+/* This crashes for some unknown reason */
+	DEBUGPCR("CfgInput(RC632_MFOUT)");
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPCD_PIO_MFOUT);
+#endif
 
 	/* initialize static part of openpcd_hdr for USB IRQ reporting */
 	irq_opcdh.cmd = OPENPCD_CMD_IRQ;
@@ -375,7 +387,7 @@ static int rc632_reg_write_verify(struct rfid_asic_handle *hdl,
 	rc632_reg_write(hdl, reg, val);
 	rc632_reg_read(hdl, reg, &tmp);
 
-	DEBUGP("reg=0x%02x, write=0x%02x, read=0x%02x ", reg, val, tmp);
+	DEBUGPCRF("reg=0x%02x, write=0x%02x, read=0x%02x ", reg, val, tmp);
 
 	return (val == tmp);
 }
@@ -403,7 +415,7 @@ int rc632_dump(void)
 	spi_transceive(tx_buf, 0x41, rx_buf, &rx_len);
 
 	for (i = 0; i < 0x3f; i++)
-		DEBUGP("REG 0x%02x = 0x%02x\r\n", i, rx_buf[i+1]);
+		DEBUGPCR("REG 0x%02x = 0x%02x", i, rx_buf[i+1]);
 	
 	return 0;
 }
