@@ -64,7 +64,7 @@ PATH_TO_LINKSCRIPTS=link/
 #VECTOR_LOCATION=VECTORS_IN_RAM
 
 # Target file name (without extension).
-TARGET:= main_reqa
+TARGET:=main_reqa
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -73,7 +73,7 @@ SRC =
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
 SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
-	  src/led.c src/rc632.c  src/rc632_highlevel.c src/req_ctx.c \
+	  src/led.c src/rc632.c src/rc632_highlevel.c src/req_ctx.c \
 	  src/trigger.c src/main.c src/syscalls.c \
 	  src/$(TARGET).c src/start/Cstartup_SAM7.c 
 
