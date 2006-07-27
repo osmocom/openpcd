@@ -353,13 +353,8 @@ void rc632_init(void)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_RC632_RESET);
-#if 0
-	DEBUGPCR("CfgOutput(RC632_MFIN)");
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_MFIN);
-/* This crashes for some unknown reason */
-	DEBUGPCR("CfgInput(RC632_MFOUT)");
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPCD_PIO_MFOUT);
-#endif
 
 	/* initialize static part of openpcd_hdr for USB IRQ reporting */
 	irq_opcdh.cmd = OPENPCD_CMD_IRQ;
