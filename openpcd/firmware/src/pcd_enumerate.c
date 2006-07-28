@@ -22,7 +22,6 @@
 #include <usb_ch9.h>
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
-#include <interrupt_utils.h>
 
 #include "pcd_enumerate.h"
 #include "openpcd.h"

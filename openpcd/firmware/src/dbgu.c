@@ -15,7 +15,6 @@
 
 // Include Standard files
 #include <board.h>
-#include <interrupt_utils.h>
 #include "dbgu.h"
 #include "rc632.h"
 #include "openpcd.h"

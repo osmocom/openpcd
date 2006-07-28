@@ -13,7 +13,6 @@
 #include <lib_AT91SAM7.h>
 #include <cl_rc632.h>
 #include <openpcd.h>
-#include <interrupt_utils.h>
 #include "openpcd.h"
 #include "fifo.h"
 #include "dbgu.h"
