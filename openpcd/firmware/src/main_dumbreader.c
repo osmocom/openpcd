@@ -7,6 +7,7 @@
 #include "led.h"
 #include "pcd_enumerate.h"
 #include "openpcd.h"
+#include "main.h"
 
 static int usb_in(struct req_ctx *rctx)
 {
@@ -78,6 +79,11 @@ void _init_func(void)
 {
 	rc632_init();
 	udp_init();
+}
+
+int _main_dbgu(char key)
+{
+	return -EINVAL;
 }
 
 void _main_func(void)

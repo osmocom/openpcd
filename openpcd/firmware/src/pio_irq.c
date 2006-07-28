@@ -1,4 +1,5 @@
 
+#include <interrupt_helper.h>
 #define NR_PIO 32
 
 static u_int8_t ffs(u_int32_t in)

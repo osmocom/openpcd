@@ -25,8 +25,8 @@
 #include <cl_rc632.h>
 #include "rc632.h"
 #include "dbgu.h"
-#include <rfid_layer2_iso14443a.h>
-#include <rfid_protocol_mifare_classic.h>
+#include <librfid/rfid_layer2_iso14443a.h>
+#include <librfid/rfid_protocol_mifare_classic.h>
 
 /* initially we use the same values as cm5121 */
 #define OPENPCD_CW_CONDUCTANCE		0x3f
@@ -274,7 +274,7 @@ tcl_toggle_pcb(struct rfid_asic_handle *handle)
 	return 0;
 }
 
-static int
+int
 rc632_transceive(struct rfid_asic_handle *handle,
 		 const u_int8_t *tx_buf,
 		 u_int8_t tx_len,
@@ -861,9 +861,9 @@ static struct tx_config tx_configs[] = {
 	},
 };
 
-static int rc632_iso14443a_set_speed(struct rfid_asic_handle *handle,
-				     unsigned int tx,
-				     u_int8_t rate)
+int rc632_iso14443a_set_speed(struct rfid_asic_handle *handle,
+			     unsigned int tx,
+			     u_int8_t rate)
 {
 	int rc;
 	u_int8_t reg;

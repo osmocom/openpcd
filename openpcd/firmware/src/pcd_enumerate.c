@@ -22,6 +22,7 @@
 #include <usb_ch9.h>
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
+#include <interrupt_utils.h>
 
 #include "pcd_enumerate.h"
 #include "openpcd.h"
@@ -137,8 +138,6 @@ static void udp_irq(void)
 
 	DEBUGP("udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
 
-	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
-
 	if (isr & AT91C_UDP_ENDBUSRES) {
 		DEBUGP("ENDBUSRES ");
 		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
@@ -229,6 +228,7 @@ static void udp_irq(void)
 	}
 
 	DEBUGP("END\r\n");
+	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 }
 
 /* Open USB Device Port  */

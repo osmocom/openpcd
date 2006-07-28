@@ -1,12 +1,6 @@
 #ifndef _RFID_ISO14443A_H
 #define _RFID_ISO14443A_H
 
-enum rfid_frametype {
-	RFID_14443A_FRAME_REGULAR,
-	RFID_14443B_FRAME_REGULAR,
-	RFID_MIFARE_FRAME,
-};
-
 
 enum rfid_14443a_opt {
 	RFID_OPT_14443A_SPEED_RX	= 0x00000001,
@@ -38,7 +32,7 @@ struct iso14443a_atqa {
 		 uid_size:2;
 	u_int8_t proprietary:4,
 		 rfu2:4;
-};
+} __attribute__ ((packed));
 
 #define ISO14443A_HLTA		0x5000
 
@@ -47,7 +41,7 @@ struct iso14443a_anticol_cmd {
 	unsigned char		sel_code;
 	unsigned char		nvb;
 	unsigned char		uid_bits[5];
-};
+} __attribute__ ((packed));
 
 enum iso14443a_anticol_sel_code {
 	ISO14443A_AC_SEL_CODE_CL1	= 0x93,
@@ -57,6 +51,11 @@ enum iso14443a_anticol_sel_code {
 
 #define ISO14443A_BITOFCOL_NONE         0xffffffff
 
+struct iso14443a_handle {
+	unsigned int state;
+	unsigned int level;
+	unsigned int tcl_capable;
+};
 
 enum iso14443a_level {
 	ISO14443A_LEVEL_NONE,
@@ -82,5 +81,7 @@ enum iso14443a_state {
 #define ISO14443_CARRIER_FREQ	13560000
 #define ISO14443A_FDT_OTHER_LAST1(n)	(((n*128+84)*1000000)/ISO14443_CARRIER_FREQ)
 
+#include <librfid/rfid_layer2.h>
+struct rfid_layer2 rfid_layer2_iso14443a;
 
 #endif /* _ISO14443A_H */

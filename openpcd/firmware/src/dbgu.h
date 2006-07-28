@@ -21,6 +21,7 @@
 
 //* ----------------------- External Function Prototype -----------------------
 
+extern const char *hexdump(const void *data, unsigned int len);
 void AT91F_DBGU_Init(void);
 void AT91F_DBGU_Printk(	char *buffer);
 void AT91F_DBGU_Frame(	char *buffer);

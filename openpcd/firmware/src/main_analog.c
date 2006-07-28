@@ -15,6 +15,7 @@
 #include "led.h"
 #include "trigger.h"
 #include "pcd_enumerate.h"
+#include "main.h"
 
 void _init_func(void)
 {
@@ -23,17 +24,41 @@ void _init_func(void)
 	rc632_init();
 	DEBUGPCRF("turning on RF");
 	rc632_turn_on_rf(RAH);
+	/* FIXME: do we need this? */
 	DEBUGPCRF("initializing 14443A operation");
 	rc632_iso14443a_init(RAH);
+	/* Switch to 848kBps (1subcp / bit) */
+	rc632_clear_bits(RAH, RC632_REG_RX_CONTROL1, RC632_RXCTRL1_SUBCP_MASK);
 }
 
 int _main_dbgu(char key)
 {
-	return -EINVAL;
+	static char ana_out_sel;
+	int ret = -EINVAL;
+
+	switch (key) {
+	case 'q':
+		ana_out_sel--;
+		ret = 1;
+		break;
+	case 'w':
+		ana_out_sel++;
+		ret = 1;
+		break;
+	}
+
+	if (ret == 1) {
+		ana_out_sel &= 0x0f;
+		DEBUGPCR("switching to analog output mode 0x%x\n", ana_out_sel);
+		rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+	}
+
+	return ret;
 }
 
 void _main_func(void)
 {
+#if 1
 	struct iso14443a_atqa atqa;
 
 	memset(&atqa, 0, sizeof(atqa));
@@ -47,6 +72,6 @@ void _main_func(void)
 		DEBUGPCRF("received ATQA: %s\n", hexdump((char *)&atqa, sizeof(atqa)));
 		led_switch(1, 1);
 	}
-	
+#endif	
 	led_toggle(2);
 }

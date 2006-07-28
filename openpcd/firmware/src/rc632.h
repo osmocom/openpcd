@@ -3,7 +3,7 @@
 
 #include <sys/types.h>
 #include <cl_rc632.h>
-#include <rfid.h>
+#include <librfid/rfid.h>
 
 extern int rc632_reg_write(struct rfid_asic_handle *hdl,
 			   u_int8_t addr, u_int8_t data);

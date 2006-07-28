@@ -10,9 +10,10 @@
 
 #include <string.h>
 
-#include <include/lib_AT91SAM7.h>
-#include <include/cl_rc632.h>
-#include <include/openpcd.h>
+#include <lib_AT91SAM7.h>
+#include <cl_rc632.h>
+#include <openpcd.h>
+#include <interrupt_utils.h>
 #include "openpcd.h"
 #include "fifo.h"
 #include "dbgu.h"
@@ -22,13 +23,19 @@
 #if 1
 #define DEBUGPSPI DEBUGP
 #else
-#define	DEBUGPSPI(x, args ...) DEBUGP("")
+#define	DEBUGPSPI(x, args ...) 
 #endif
 
 /* SPI driver */
 
-//#define SPI_DEBUG_LOOPBACK
-//#define SPI_USES_DMA
+#ifdef OLIMEX
+#define SPI_DEBUG_LOOPBACK
+#endif
+
+#define SPI_USES_DMA
+#define SPI_DEBUG_LOOPBACK
+
+#define SPI_MAX_XFER_LEN	65
 
 static AT91PS_SPI pSPI = AT91C_BASE_SPI;
 
@@ -38,8 +45,6 @@ static void spi_irq(void)
 	u_int32_t status = pSPI->SPI_SR;
 
 	DEBUGPSPI("spi_irq: 0x%08x ", status);
-
-	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 
 	if (status & AT91C_SPI_OVRES)
 		DEBUGPSPI("Overrun ");
@@ -55,30 +60,43 @@ static void spi_irq(void)
 	}
 
 	DEBUGPSPI("\r\n");
+
+	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 }
 
 #ifdef SPI_USES_DMA
-int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
-		   u_int8_t *rx_data, u_int16_t *rx_len)
+static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
+			  u_int8_t *rx_data, u_int16_t *rx_len)
 {
-	DEBUGPSPI("spi_transcieve: Starting DMA Xfer: ");
-	AT91F_SPI_ReceiveFrame(pSPI, rx_data, *rx_len, NULL, 0);
+	//tx_len = *rx_len = 65;
+	DEBUGPSPI("DMA Xfer tx=%s\r\n", hexdump(tx_data, tx_len));
+	if (*rx_len < tx_len) {
+		DEBUGPCRF("rx_len=%u smaller tx_len=%u\n", *rx_len, tx_len);
+		return -1;
+	}
+	//AT91F_SPI_Disable(pSPI);
+
+	AT91F_SPI_ReceiveFrame(pSPI, rx_data, tx_len, NULL, 0);
 	AT91F_SPI_SendFrame(pSPI, tx_data, tx_len, NULL, 0);
+
 	AT91F_PDC_EnableRx(AT91C_BASE_PDC_SPI);
 	AT91F_PDC_EnableTx(AT91C_BASE_PDC_SPI);
+
 	pSPI->SPI_IER = AT91C_SPI_ENDTX|AT91C_SPI_ENDRX;
-	AT91F_SPI_Enable(pSPI);
+	//pSPI->SPI_IDR = AT91C_SPI_ENDTX|AT91C_SPI_ENDRX;
 
-	while (!(pSPI->SPI_SR & (AT91C_SPI_ENDRX|AT91C_SPI_ENDTX))) ;
 
-	DEBUGPSPI("DMA Xfer finished\r\n");
-	AT91F_SPI_Disable(pSPI);
+	while (! (pSPI->SPI_SR & AT91C_SPI_ENDRX)) ;
+
+	DEBUGPSPI("DMA Xfer finished rx=%s\r\n", hexdump(rx_data, tx_len));
+
+	*rx_len = tx_len;
 
 	return 0;
 }
 #else
 /* stupid polling transceiver routine */
-int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
+static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
 		   u_int8_t *rx_data, u_int16_t *rx_len)
 {
 	u_int16_t tx_cur = 0;
@@ -95,7 +113,7 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 		*rx_len = 0;
 	}
 
-	AT91F_SPI_Enable(pSPI);
+	//AT91F_SPI_Enable(pSPI);
 	while (1) { 
 		u_int32_t sr = pSPI->SPI_SR;
 		u_int8_t tmp;
@@ -112,7 +130,7 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 		if (tx_cur >= tx_len && rx_cnt >= tx_len)
 			break;
 	}
-	AT91F_SPI_Disable(pSPI);
+	//AT91F_SPI_Disable(pSPI);
 	if (rx_data)
 		DEBUGPSPI("leave(%02x %02x)\r\n", rx_data[0], rx_data[1]);
 	else
@@ -130,8 +148,8 @@ int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 /* static buffers used by RC632 access primitives below. 
  * Since we only have one */
 
-static u_int8_t spi_outbuf[64+1];
-static u_int8_t spi_inbuf[64+1];
+static u_int8_t spi_outbuf[SPI_MAX_XFER_LEN];
+static u_int8_t spi_inbuf[SPI_MAX_XFER_LEN];
 
 #define FIFO_ADDR (RC632_REG_FIFO_DATA << 1)
 
@@ -301,12 +319,14 @@ void rc632_power(u_int8_t up)
 
 void rc632_reset(void)
 {
-	int i;
+	volatile int i;
 
 	rc632_power(0);
 	for (i = 0; i < 0xfffff; i++)
 		{}
 	rc632_power(1);
+	for (i = 0; i < 0xfffff; i++)
+		{}
 
 	/* turn off register paging */
 	rc632_reg_write(RAH, RC632_REG_PAGE0, 0x00);
@@ -335,14 +355,17 @@ void rc632_init(void)
 #endif
 
 #ifdef SPI_DEBUG_LOOPBACK
-	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED|AT91C_SPI_LLB);
+	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED|
+				AT91C_SPI_MODFDIS|AT91C_SPI_LLB);
 #else
-	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED);
+	AT91F_SPI_CfgMode(pSPI, AT91C_SPI_MSTR|AT91C_SPI_PS_FIXED|
+				AT91C_SPI_MODFDIS);
 #endif
 	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10 (4.8MHz), 
 	 * DLYBS = 0, DLYBCT = 0 */
 	//AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
 	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(0x7f<<8));
+	AT91F_SPI_Enable(pSPI);
 
 	//AT91F_SPI_Reset(pSPI);
 
@@ -350,9 +373,10 @@ void rc632_init(void)
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632,
 			      OPENPCD_IRQ_PRIO_RC632,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &rc632_irq);
-	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_RC632_RESET);
+
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_MFIN);
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPCD_PIO_MFOUT);
 
@@ -363,15 +387,19 @@ void rc632_init(void)
 	irq_opcdh.len = 0x00;
 
 	rc632_reset();
+
+	/* configure AUX to test signal four */
+	rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, 0x04);
 };
 
+#if 0
 void rc632_exit(void)
 {
-	AT91F_AIC_DisableIt(AT91C_BASE_AIC, AT91C_ID_IRQ1);
+	AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 	AT91F_AIC_DisableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 	AT91F_SPI_Disable(pSPI);
 }
-
+#endif
 
 #ifdef DEBUG
 static int rc632_reg_write_verify(struct rfid_asic_handle *hdl,
@@ -387,30 +415,27 @@ static int rc632_reg_write_verify(struct rfid_asic_handle *hdl,
 	return (val == tmp);
 }
 
-static u_int8_t tx_buf[0x40+1];
-static u_int8_t rx_buf[0x40+1];
-
 int rc632_dump(void)
 {
 	u_int8_t i;
-	u_int16_t rx_len = sizeof(rx_buf);
+	u_int16_t rx_len = sizeof(spi_inbuf);
 
 	for (i = 0; i <= 0x3f; i++) {
-		tx_buf[i] = i << 1;
-		rx_buf[i] = 0x00;
+		spi_outbuf[i] = i << 1;
+		spi_inbuf[i] = 0x00;
 	}
 
 	/* MSB of first byte of read spi transfer is high */
-	tx_buf[0] |= 0x80;
+	spi_outbuf[0] |= 0x80;
 
 	/* last byte of read spi transfer is 0x00 */
-	tx_buf[0x40] = 0x00;
-	rx_buf[0x40] = 0x00;
+	spi_outbuf[0x40] = 0x00;
+	spi_inbuf[0x40] = 0x00;
 
-	spi_transceive(tx_buf, 0x41, rx_buf, &rx_len);
+	spi_transceive(spi_outbuf, 0x41, spi_inbuf, &rx_len);
 
 	for (i = 0; i < 0x3f; i++)
-		DEBUGPCR("REG 0x%02x = 0x%02x", i, rx_buf[i+1]);
+		DEBUGPCR("REG 0x%02x = 0x%02x", i, spi_inbuf[i+1]);
 	
 	return 0;
 }

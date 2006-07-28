@@ -5,8 +5,6 @@
 #include "led.h"
 #include "openpcd.h"
 
-#define DEBUG_TOGGLE_LED
-
 int main(void)
 {
 	/* initialize LED and debug unit */
@@ -30,12 +28,6 @@ int main(void)
 
 	DEBUGPCRF("entering main (idle) loop");
 	while (1) {
-#ifdef DEBUG_TOGGLE_LED
-		/* toggle LEDs */
-		led_toggle(1);
-		led_toggle(2);
-#endif
-
 		/* Call application specific main idle function */
 		_main_func();
 	}

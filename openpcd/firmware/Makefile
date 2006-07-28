@@ -77,6 +77,8 @@ SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
 	  src/trigger.c src/main.c src/syscalls.c \
 	  src/$(TARGET).c src/start/Cstartup_SAM7.c 
 
+SRCARM += src/rfid_layer2_iso14443a.c
+
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
 CPPSRC = 
@@ -141,8 +143,10 @@ AT91LIBNOWARN = yes
 CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
-CDEFS =  -D$(RUN_MODE) -D__MS_types__ -DDEBUG 
-#CDEFS += -DOLIMEX
+CDEFS =  -D$(RUN_MODE) -D__MS_types__ -D__LIBRFID__ -DDEBUG 
+ifdef OLIMEX
+CDEFS += -DOLIMEX
+endif
 
 # Place -I options here
 CINCS = -Iinclude -Isrc
