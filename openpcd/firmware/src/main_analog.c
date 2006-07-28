@@ -45,7 +45,16 @@ int _main_dbgu(char key)
 		ana_out_sel++;
 		ret = 1;
 		break;
+	case 'c':
+		rc632_turn_on_rf(RAH);
+		break;
+	case 'o':
+		rc632_turn_off_rf(RAH);
+		break;
 	}
+
+	if (ana_out_sel >= 0xd)
+		ana_out_sel = 0;
 
 	if (ret == 1) {
 		ana_out_sel &= 0x0f;
