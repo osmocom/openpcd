@@ -228,15 +228,9 @@ enum rc632_reg_timer_control {
        RC632_TMR_STOP_RX_END           = 0x08,
 };
  
-enum rc632_reg_timer_irq {
-       RC632_IRQ_LO_ALERT              = 0x01,
-       RC632_IRQ_HI_ALERT              = 0x02,
-       RC632_IRQ_IDLE                  = 0x04,
-       RC632_IRQ_RX                    = 0x08,
-       RC632_IRQ_TX                    = 0x10,
-       RC632_IRQ_TIMER                 = 0x20,
-
-       RC632_IRQ_SET                   = 0x80,
+enum rc632_reg_irq_pin_cfg {
+	RC632_IRQCFG_CMOS		= 0x01,
+	RC632_IRQCFG_INV		= 0x02,
 };
 
 
