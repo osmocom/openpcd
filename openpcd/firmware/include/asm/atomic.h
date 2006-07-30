@@ -18,6 +18,7 @@ typedef struct { volatile int counter; } atomic_t;
 #define atomic_read(v)	((v)->counter)
 
 #include <asm/system.h>
+#include <asm/compiler.h>
 
 #define atomic_set(v,i)	(((v)->counter) = (i))
 
