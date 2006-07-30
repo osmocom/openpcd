@@ -9,6 +9,8 @@
 #include "openpcd.h"
 #include "main.h"
 
+#define MAX_PAYLOAD_LEN	(64 - sizeof(struct openpcd_hdr))
+
 static int usb_in(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
@@ -20,21 +22,57 @@ static int usb_in(struct req_ctx *rctx)
 	if (len < sizeof(*poh))
 		return -EINVAL;
 
-	//data_len = ntohs(poh->len);
-
 	memcpy(pih, poh, sizeof(*poh));
 	rctx->tx.tot_len = sizeof(*poh);
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_READ_REG:
-		DEBUGP("READ REG(0x%02x) ", poh->reg);
 		rc632_reg_read(RAH, poh->reg, &pih->val);
+		DEBUGP("READ REG(0x%02x)=0x%02x ", poh->reg, pih->val);
+		goto respond;
 		break;
 	case OPENPCD_CMD_READ_FIFO:
-		DEBUGP("READ FIFO(len=%u) ", poh->val);
-		rc632_fifo_read(RAH, poh->val, pih->data);
-		rctx->tx.tot_len += pih->len;
+		{
+		u_int16_t tot_len = poh->val, remain_len;
+		if (tot_len > MAX_PAYLOAD_LEN) {
+			pih->len = MAX_PAYLOAD_LEN;
+			remain_len -= pih->len;
+			rc632_fifo_read(RAH, pih->len, pih->data);
+			rctx->tx.tot_len += pih->len;
+			DEBUGP("READ FIFO(len=%u)=%s ", pih->len,
+				hexdump(pih->data, poh->val));
+			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+			udp_refill_ep(2, rctx);
+
+			/* get and initialize second rctx */
+			rctx = req_ctx_find_get(RCTX_STATE_FREE,
+						RCTX_STATE_MAIN_PROCESSING);
+			if (!rctx) {
+				DEBUGPCRF("FATAL_NO_RCTX!!!\n");
+				break;
+			}
+			poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+			pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+			memcpy(pih, poh, sizeof(*poh));
+			rctx->tx.tot_len = sizeof(*poh);
+
+			pih->len = remain_len;
+			rc632_fifo_read(RAH, pih->len, pih->data);
+			rctx->tx.tot_len += pih->len;
+			DEBUGP("READ FIFO(len=%u)=%s ", pih->len,
+				hexdump(pih->data, poh->val));
+			/* don't set state of second rctx, main function
+			 * body will do this after switch statement */
+		} else {
+			pih->len = poh->val;
+			rc632_fifo_read(RAH, poh->val, pih->data);
+			rctx->tx.tot_len += pih->len;
+			DEBUGP("READ FIFO(len=%u)=%s ", poh->val,
+				hexdump(pih->data, poh->val));
+		}
+		goto respond;
 		break;
+		}
 	case OPENPCD_CMD_WRITE_REG:
 		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
 		rc632_reg_write(RAH, poh->reg, poh->val);
@@ -48,6 +86,7 @@ static int usb_in(struct req_ctx *rctx)
 	case OPENPCD_CMD_READ_VFIFO:
 		DEBUGP("READ VFIFO ");
 		DEBUGP("NOT IMPLEMENTED YET ");
+		goto respond;
 		break;
 	case OPENPCD_CMD_WRITE_VFIFO:
 		DEBUGP("WRITE VFIFO ");
@@ -65,20 +104,33 @@ static int usb_in(struct req_ctx *rctx)
 		DEBUGP("SET LED(%u,%u) ", poh->reg, poh->val);
 		led_switch(poh->reg, poh->val);
 		break;
+	case OPENPCD_CMD_DUMP_REGS:
+		DEBUGP("DUMP REGS ");
+		DEBUGP("NOT IMPLEMENTED YET ");
+		goto respond;
+		break;
 	default:
+		DEBUGP("UNKNOWN ");
 		return -EINVAL;
+		break;
 	}
-	DEBUGPCRF("calling UDP_Write");
-	AT91F_UDP_Write(0, &rctx->tx.data[0], rctx->tx.tot_len);
-	DEBUGPCRF("usb_in: returning to main");
-	
+	req_ctx_put(rctx);
 	return 0;
+
+respond:
+	req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+	/* FIXME: we could try to send this immediately */
+	udp_refill_ep(2, rctx);
+	DEBUGPCR("");
+
+	return 1;
 }
 
 void _init_func(void)
 {
 	rc632_init();
 	udp_init();
+	rc632_test(RAH);
 }
 
 int _main_dbgu(char key)
@@ -90,11 +142,32 @@ void _main_func(void)
 {
 	struct req_ctx *rctx;
 
-	for (rctx = req_ctx_find_busy(); rctx; 
-	     rctx = req_ctx_find_busy()) {
+	/* first we try to get rid of pending to-be-sent stuff */
+	while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP3_PENDING,
+				       RCTX_STATE_UDP_EP3_BUSY)) {
+		DEBUGPCRF("EP3_BUSY for ctx %u", req_ctx_num(rctx));
+		if (udp_refill_ep(3, rctx) < 0)
+			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP3_PENDING);
+	}
+
+#if 0
+	while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP2_PENDING,
+				       RCTX_STATE_UDP_EP2_BUSY)) {
+		DEBUGPCRF("EP2_BUSY for ctx %u", req_ctx_num(rctx));
+		if (udp_refill_ep(2, rctx) < 0)
+			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+	}
+#endif
+
+	/* next we deal with incoming reqyests from USB EP1 */
+	while (rctx = req_ctx_find_get(RCTX_STATE_UDP_RCV_DONE,
+				       RCTX_STATE_MAIN_PROCESSING)) {
 	     	DEBUGPCRF("found used ctx %u: len=%u", 
 			req_ctx_num(rctx), rctx->rx.tot_len);
 		usb_in(rctx);
-		req_ctx_put(rctx);
+
 	}
+
+	rc632_unthrottle();
+	udp_unthrottle();
 }
