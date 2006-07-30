@@ -38,6 +38,7 @@ iso14443a_transceive_sf(struct rfid_layer2_handle *handle,
 			 struct iso14443a_atqa *atqa)
 {
 	//struct rfid_reader *rdr = handle->rh->reader;
+	DEBUGPCRF("");
 
 	return rc632_iso14443a_transceive_sf(handle->rh, cmd, atqa);
 }
@@ -49,6 +50,7 @@ iso14443a_transceive_acf(struct rfid_layer2_handle *handle,
 			 unsigned int *bit_of_col)
 {
 	//struct rfid_reader *rdr = handle->rh->reader;
+	DEBUGPCRF("");
 
 	return rc632_iso14443a_transceive_acf(handle->rh, acf, bit_of_col);
 }
@@ -61,8 +63,9 @@ iso14443a_transceive(struct rfid_layer2_handle *handle,
 			unsigned char *rx_buf, unsigned int *rx_len,
 			u_int64_t timeout, unsigned int flags)
 {
-	return rc632_transceive(handle->rh, frametype, tx_buf,
-				tx_len, rx_buf, rx_len, timeout, flags);
+	DEBUGPCRF("tx_len=%u, rx_len=%u", tx_len, *rx_len);
+	return rc632_iso14443ab_transceive(handle->rh, frametype, tx_buf,
+					   tx_len, rx_buf, rx_len, timeout, flags);
 }
 
 static int 
@@ -93,7 +96,7 @@ set_bit_in_field(unsigned char *bitfield, unsigned int bit)
 	DEBUGP("%p = 0x%02x\n", (bitfield+byte_count), *(bitfield+byte_count));
 }
 
-static int
+int
 iso14443a_anticol(struct rfid_layer2_handle *handle)
 {
 	int ret;
@@ -145,13 +148,13 @@ cascade:
 	ret = iso14443a_transceive_acf(handle, &acf, &bit_of_col);
 	if (ret < 0)
 		return ret;
-	DEBUGP("bit_of_col = %u\n", bit_of_col);
+	DEBUGP("bit_of_col = %d\n", bit_of_col);
 	
 	while (bit_of_col != ISO14443A_BITOFCOL_NONE) {
 		set_bit_in_field(&acf.uid_bits[0], bit_of_col-16);
 		iso14443a_code_nvb_bits(&acf.nvb, bit_of_col);
 		ret = iso14443a_transceive_acf(handle, &acf, &bit_of_col);
-		DEBUGP("bit_of_col = %u\n", bit_of_col);
+		DEBUGP("bit_of_col = %d\n", bit_of_col);
 		if (ret < 0)
 			return ret;
 	}
