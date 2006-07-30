@@ -21,6 +21,8 @@ extern int rc632_set_bits(struct rfid_asic_handle *hdl,
 extern void rc632_init(void);
 extern void rc632_exit(void);
 
+extern void rc632_unthrottle(void);
+
 #ifdef DEBUG
 extern int rc632_test(struct rfid_asic_handle *hdl);
 extern int rc632_dump(void);

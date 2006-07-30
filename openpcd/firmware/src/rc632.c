@@ -281,16 +281,19 @@ int rc632_clear_bits(struct rfid_asic_handle *hdl,
 }
 
 /* RC632 interrupt handling */
-static struct openpcd_hdr irq_opcdh;
 
 static void rc632_irq(void)
 {
-	/* CL RC632 has interrupted us */
+	struct req_ctx *irq_rctx;
+	struct openpcd_hdr *irq_opcdh;
 	u_int8_t cause;
+
+	/* CL RC632 has interrupted us */
 	rc632_reg_read(RAH, RC632_REG_INTERRUPT_RQ, &cause);
 
 	/* ACK all interrupts */
-	rc632_reg_write(RAH, RC632_REG_INTERRUPT_RQ, cause);
+	//rc632_reg_write(RAH, RC632_REG_INTERRUPT_RQ, cause);
+	rc632_reg_write(RAH, RC632_REG_INTERRUPT_RQ, RC632_INT_TIMER);
 	DEBUGP("rc632_irq: ");
 
 	if (cause & RC632_INT_LOALERT) {
@@ -317,10 +320,32 @@ static void rc632_irq(void)
 	if (cause & RC632_INT_TX)
 		DEBUGP("TxComplete ");
 	
-	irq_opcdh.val = cause;
+
+	irq_rctx = req_ctx_find_get(RCTX_STATE_FREE,
+				    RCTX_STATE_RC632IRQ_BUSY);
+	if (!irq_rctx) {
+		DEBUGPCRF("NO RCTX!\n");
+		/* disable rc632 interrupt until RCTX is free */
+		AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
+		return;
+	}
+
+	irq_opcdh = (struct openpcd_hdr *) &irq_rctx->tx.data[0];
+
+	/* initialize static part of openpcd_hdr for USB IRQ reporting */
+	irq_opcdh->cmd = OPENPCD_CMD_IRQ;
+	irq_opcdh->flags = 0x00;
+	irq_opcdh->reg = 0x07;
+	irq_opcdh->len = 0x00;
+	irq_opcdh->val = cause;
 	
-	AT91F_UDP_Write(1, (u_int8_t *) &irq_opcdh, sizeof(irq_opcdh));
-	DEBUGP("\n");
+	req_ctx_set_state(irq_rctx, RCTX_STATE_UDP_EP3_PENDING);
+	DEBUGPCR("");
+}
+
+void rc632_unthrottle(void)
+{
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 }
 
 void rc632_power(u_int8_t up)
@@ -397,16 +422,17 @@ void rc632_init(void)
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_MFIN);
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPCD_PIO_MFOUT);
 
-	/* initialize static part of openpcd_hdr for USB IRQ reporting */
-	irq_opcdh.cmd = OPENPCD_CMD_IRQ;
-	irq_opcdh.flags = 0x00;
-	irq_opcdh.reg = 0x07;
-	irq_opcdh.len = 0x00;
-
 	rc632_reset();
 
+	/* configure IRQ pin */
+	rc632_reg_write(RAH, RC632_REG_IRQ_PIN_CONFIG,
+			RC632_IRQCFG_CMOS|RC632_IRQCFG_INV);
+	/* enable interrupts */
+	rc632_reg_write(RAH, RC632_REG_INTERRUPT_EN, RC632_INT_TIMER);
+	
 	/* configure AUX to test signal four */
 	rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, 0x04);
+
 };
 
 #if 0
