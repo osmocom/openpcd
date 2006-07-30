@@ -32,7 +32,6 @@
 #endif
 
 #define SPI_USES_DMA
-#define SPI_DEBUG_LOOPBACK
 
 #define SPI_MAX_XFER_LEN	65
 
