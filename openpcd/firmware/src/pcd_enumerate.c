@@ -18,6 +18,7 @@
 // 12. Apr. 2006: added modification found in the mikrocontroller.net gcc-Forum 
 //                additional line marked with /* +++ */
 
+#include <errno.h>
 #include <sys/types.h>
 #include <usb_ch9.h>
 #include <lib_AT91SAM7.h>
@@ -129,6 +130,44 @@ const struct _desc cfgDescriptor = {
 
 static void udp_ep0_handler(void);
 
+void udp_unthrottle(void)
+{
+	AT91PS_UDP pUDP = pCDC.pUdp;
+	pUDP->UDP_IER = AT91C_UDP_EPINT1;
+}
+
+int udp_refill_ep(int ep, struct req_ctx *rctx)
+{
+	u_int16_t i;
+	AT91PS_UDP pUDP = pCDC.pUdp;
+
+	if (rctx->tx.tot_len > 64) {
+		DEBUGPCRF("TOO LARGE!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		return -EINVAL;
+	}
+
+	DEBUGP("refilling EP%u ", ep);
+
+	/* FIXME: state machine to handle two banks of FIFO memory, etc */
+	if (atomic_read(&pCDC.ep[ep].pkts_in_transit) >= 2)
+		return -EBUSY;
+		
+	/* fill FIFO/DPR */
+	for (i = 0; i < rctx->tx.tot_len; i++) 
+		pUDP->UDP_FDR[ep] = rctx->tx.data[i];
+
+	if (atomic_read(&pCDC.ep[ep].pkts_in_transit) == 0) {
+		/* start transmit */
+		pUDP->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
+		atomic_inc(&pCDC.ep[ep].pkts_in_transit);
+	}
+	
+	/* return rctx to pool of free contexts */
+	req_ctx_put(rctx);
+
+	return 0;
+}
+
 static void udp_irq(void)
 {
 	u_int32_t csr;
@@ -174,7 +213,8 @@ static void udp_irq(void)
 		if (csr & cur_rcv_bank) {
 			u_int16_t pkt_recv = 0;
 			u_int16_t pkt_size = csr >> 16;
-			struct req_ctx *rctx = req_ctx_find_get();
+			struct req_ctx *rctx = req_ctx_find_get(RCTX_STATE_FREE,
+								RCTX_STATE_UDP_RCV_BUSY);
 
 			if (rctx) {
 				rctx->rx.tot_len = pkt_size;
@@ -190,32 +230,61 @@ static void udp_irq(void)
 				DEBUGP(rctx->rx.data);
 #endif
 				pCDC.currentRcvBank = cur_rcv_bank;
-			} else
-				DEBUGP("NO RCTX AVAIL! ");
+				req_ctx_set_state(rctx, RCTX_STATE_UDP_RCV_DONE);
+				DEBUGP("RCTX=%u ", req_ctx_num(rctx));
+			} else {
+				/* disable interrupts for now */
+				pUDP->UDP_IDR = AT91C_UDP_EPINT1;
+				DEBUGP("NO_RCTX_AVAIL! ");
+			}
 		}
 	}
 	if (isr & AT91C_UDP_EPINT2) {
 		csr = pUDP->UDP_CSR[2];
-		//pUDP->UDP_ICR = AT91C_UDP_EPINT2;
-		DEBUGP("EP2INT(In) ");
+		DEBUGP("EP2INT(In, CSR=0x%08x) ", csr);
+		if (csr & AT91C_UDP_TXCOMP) {
+			struct req_ctx *rctx;
+
+			DEBUGP("ACK_TX_COMP ");
+			/* acknowledge TX completion */
+			pUDP->UDP_CSR[2] &= ~AT91C_UDP_TXCOMP;
+			while (pUDP->UDP_CSR[2] & AT91C_UDP_TXCOMP) ;
+
+			/* if we already have another packet in DPR, send it */
+			if (atomic_dec_return(&pCDC.ep[2].pkts_in_transit) == 1)
+				pUDP->UDP_CSR[2] |= AT91C_UDP_TXPKTRDY;
+
+			/* try to re-fill from pending rcts for EP2 */
+			rctx = req_ctx_find_get(RCTX_STATE_UDP_EP2_PENDING,
+						RCTX_STATE_UDP_EP2_BUSY);
+			if (rctx)
+				udp_refill_ep(2, rctx);
+			else
+				DEBUGP("NO_RCTX_pending ");
+
+			/* FIXME: re-fill second packet into DPR */
+		}
 	}
 	if (isr & AT91C_UDP_EPINT3) {
 		csr = pUDP->UDP_CSR[3];
-		//pUDP->UDP_ICR = AT91C_UDP_EPINT3;
-		DEBUGP("EP3INT(Interrupt) ");
+		DEBUGP("EP3INT(Interrupt, CSR=0x%08x) ", csr);
+		/* Transmit has completed, re-fill from pending rcts for EP3 */
 	}
 
 	if (isr & AT91C_UDP_RXSUSP) {
 		pUDP->UDP_ICR = AT91C_UDP_RXSUSP;
 		DEBUGP("RXSUSP ");
+		/* FIXME: implement suspend/resume */
 	}
 	if (isr & AT91C_UDP_RXRSM) {
 		pUDP->UDP_ICR = AT91C_UDP_RXRSM;
 		DEBUGP("RXRSM ");
+		/* FIXME: implement suspend/resume */
 	}
 	if (isr & AT91C_UDP_EXTRSM) {
 		pUDP->UDP_ICR = AT91C_UDP_EXTRSM;
 		DEBUGP("EXTRSM ");
+		/* FIXME: implement suspend/resume */
 	}
 	if (isr & AT91C_UDP_SOFINT) {
 		pUDP->UDP_ICR = AT91C_UDP_SOFINT;
@@ -224,6 +293,7 @@ static void udp_irq(void)
 	if (isr & AT91C_UDP_WAKEUP) {
 		pUDP->UDP_ICR = AT91C_UDP_WAKEUP;
 		DEBUGP("WAKEUP ");
+		/* FIXME: implement suspend/resume */
 	}
 
 	DEBUGP("END\r\n");
@@ -275,6 +345,7 @@ u_int8_t udp_is_configured(void)
 {
 	return pCdc->currentConfiguration;
 }
+
 
 /* Send data through endpoint 2/3 */
 u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t length)
@@ -394,8 +465,21 @@ static void udp_ep0_handler(void)
 	AT91PS_UDP pUDP = pCdc->pUdp;
 	u_int8_t bmRequestType, bRequest;
 	u_int16_t wValue, wIndex, wLength, wStatus;
+	u_int32_t csr = pUDP->UDP_CSR[0];
 
-	if (!(pUDP->UDP_CSR[0] & AT91C_UDP_RXSETUP)) {
+	DEBUGP("CSR=0x%04x ", csr);
+
+	if (csr & AT91C_UDP_STALLSENT) {
+		DEBUGP("ACK_STALLSENT ");
+		pUDP->UDP_CSR[0] = ~AT91C_UDP_STALLSENT;
+	}
+
+	if (csr & AT91C_UDP_RX_DATA_BK0) {
+		DEBUGP("ACK_BANK0 ");
+		pUDP->UDP_CSR[0] = ~AT91C_UDP_RX_DATA_BK0;
+	}
+
+	if (!(csr & AT91C_UDP_RXSETUP)) {
 		DEBUGP("no setup packet ");
 		return;
 	}
@@ -451,7 +535,7 @@ static void udp_ep0_handler(void)
 		pUDP->UDP_CSR[3] =
 		    (wValue) ? (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_INT_IN) : 0;
 		pUDP->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
-				  0);//AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
+				 AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGP("GET_CONFIG ");
@@ -516,6 +600,7 @@ static void udp_ep0_handler(void)
 		DEBUGP("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
+			struct req_ctx *rctx;
 			if (wIndex == 1) {
 				pUDP->UDP_CSR[1] =
 				    (AT91C_UDP_EPEDS |
@@ -529,6 +614,10 @@ static void udp_ep0_handler(void)
 				     AT91C_UDP_EPTYPE_BULK_IN);
 				pUDP->UDP_RSTEP |= AT91C_UDP_EP2;
 				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP2;
+
+				/* free all currently transmitting contexts */
+				while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP2_BUSY,
+							       RCTX_STATE_FREE)) {}
 			}
 			else if (wIndex == 3) {
 				pUDP->UDP_CSR[3] =
@@ -536,6 +625,10 @@ static void udp_ep0_handler(void)
 				     AT91C_UDP_EPTYPE_INT_IN);
 				pUDP->UDP_RSTEP |= AT91C_UDP_EP3;
 				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP3;
+
+				/* free all currently transmitting contexts */
+				while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP3_BUSY,
+							       RCTX_STATE_FREE)) {}
 			}
 			udp_ep0_send_zlp(pUDP);
 		} else
