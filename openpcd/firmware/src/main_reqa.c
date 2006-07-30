@@ -27,26 +27,82 @@ void _init_func(void)
 	rc632_iso14443a_init(RAH);
 }
 
+#define MODE_REQA	0x01
+#define MODE_WUPA	0x02
+#define MODE_ANTICOL	0x03
+
+static volatile int mode = MODE_REQA;
+
 int _main_dbgu(char key)
 {
-	return -EINVAL;
+	switch (key) {
+	case 'r':
+		mode = MODE_REQA;
+		break;
+	case 'w':
+		mode = MODE_WUPA;
+		break;
+	case 'a':
+		mode = MODE_ANTICOL;
+		break;
+	default:
+		return -EINVAL;
+	}
+	
+	return 0;
 }
 
 void _main_func(void)
 {
+	int status;
 	struct iso14443a_atqa atqa;
+	struct rfid_layer2_handle l2h;
+	volatile int i;
 
 	memset(&atqa, 0, sizeof(atqa));
 
-	trigger_pulse();
+	/* fake layer2 handle initialization */
+	memset(&l2h, 0, sizeof(l2h));
+	l2h.l2 = &rfid_layer2_iso14443a;
+	l2h.priv.iso14443a.state = ISO14443A_STATE_NONE;
+	l2h.priv.iso14443a.level = ISO14443A_LEVEL_NONE;
 
-	if (rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_WUPA, &atqa) < 0) {
-		DEBUGPCRF("error during transceive_sf");
-		led_switch(1, 0);
-	} else {
-		DEBUGPCRF("received ATQA: %s\n", hexdump((char *)&atqa, sizeof(atqa)));
-		led_switch(1, 1);
+	trigger_pulse();
+	/* FIXME: why does this not work without reset or power-cycle? */
+	rc632_turn_off_rf();
+	//rc632_reset();
+	rc632_turn_on_rf();
+	rc632_iso14443a_init(RAH);
+	for (i = 0; i < 0xfffff; i++) {}
+	//rc632_dump();
+	switch (mode) {
+	case MODE_REQA:
+		status = rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_REQA, &atqa);
+		if (status < 0)
+			DEBUGPCRF("error during transceive_sf REQA");
+		else 
+			DEBUGPCRF("received ATQA: %s", hexdump((char *)&atqa, sizeof(atqa)));
+		break;
+	case MODE_WUPA:
+		status = rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_WUPA, &atqa);
+		if (status < 0)
+			DEBUGPCRF("error during transceive_sf WUPA");
+		else 
+			DEBUGPCRF("received WUPA: %s", hexdump((char *)&atqa, sizeof(atqa)));
+		break;
+	case MODE_ANTICOL:
+		status = iso14443a_anticol(&l2h);
+		if (status < 0)
+			DEBUGPCR("error during anticol");
+		else
+			DEBUGPCR("Anticol OK");
+		break;
 	}
-	
+
+	if (status < 0)
+		led_switch(1, 0);
+	else 
+		led_switch(1, 1);
+
 	led_toggle(2);
 }
