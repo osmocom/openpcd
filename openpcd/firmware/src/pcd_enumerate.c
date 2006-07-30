@@ -85,21 +85,21 @@ const struct _desc cfgDescriptor = {
 			  .bEndpointAddress = OPENPCD_OUT_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
 			  .wMaxPacketSize = 64,
-			  .bInterval = 0x10,	/* FIXME */
+			  .bInterval = 0x00,
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
 			  .bEndpointAddress = OPENPCD_IN_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
 			  .wMaxPacketSize = 64,
-			  .bInterval = 0x10,	/* FIXME */
+			  .bInterval = 0x00,
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
 			  .bEndpointAddress = OPENPCD_IRQ_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_INT,
 			  .wMaxPacketSize = 64,
-			  .bInterval = 0x10,	/* FIXME */
+			  .bInterval = 0xff,	/* FIXME */
 		  },
 	},
 };
