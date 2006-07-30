@@ -1,26 +1,23 @@
-//*----------------------------------------------------------------------------
-//*      ATMEL Microcontroller Software Support  -  ROUSSET  -
-//*----------------------------------------------------------------------------
-//* The software is delivered "AS IS" without warranty or condition of any
-//* kind, either express, implied or statutory. This includes without
-//* limitation any warranty or condition with respect to merchantability or
-//* fitness for any particular purpose, or against the infringements of
-//* intellectual property rights of others.
-//*----------------------------------------------------------------------------
-//* File Name           : cdc_enumerate.c
-//* Object              : Handle CDC enumeration
-//*
-//* 1.0 Apr 20 200      : ODi Creation
-//* 1.1 14/Sep/2004 JPP : Minor change
-//* 1.1 15/12/2004  JPP : suppress warning
-//*----------------------------------------------------------------------------
-
-// 12. Apr. 2006: added modification found in the mikrocontroller.net gcc-Forum 
-//                additional line marked with /* +++ */
+/* AT91SAM7 USB interface code for OpenPCD 
+ *
+ * (C) 2006 by Harald Welte <laforge@gnumonks.org>
+ *
+ * based on existing AT91SAM7 UDP CDC ACM example code, licensed as followed:
+ *----------------------------------------------------------------------------
+ *      ATMEL Microcontroller Software Support  -  ROUSSET  -
+ *----------------------------------------------------------------------------
+ * The software is delivered "AS IS" without warranty or condition of any
+ * kind, either express, implied or statutory. This includes without
+ * limitation any warranty or condition with respect to merchantability or
+ * fitness for any particular purpose, or against the infringements of
+ * intellectual property rights of others.
+ *----------------------------------------------------------------------------
+ */
 
 #include <errno.h>
-#include <sys/types.h>
 #include <usb_ch9.h>
+#include <sys/types.h>
+#include <asm/atomic.h>
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
 
@@ -28,12 +25,31 @@
 #include "openpcd.h"
 #include "dbgu.h"
 
-static struct _AT91S_CDC pCDC;
-static AT91PS_CDC pCdc = &pCDC;
+#define AT91C_EP_OUT 1
+#define AT91C_EP_OUT_SIZE 0x40
+#define AT91C_EP_IN  2
+#define AT91C_EP_IN_SIZE 0x40
+#define AT91C_EP_INT  3
+
+struct ep_ctx {
+	atomic_t pkts_in_transit;
+	void *ctx;
+};
+
+struct udp_pcd {
+	AT91PS_UDP pUdp;
+	unsigned char cur_config;
+	unsigned char cur_connection;
+	unsigned int  cur_rcv_bank;
+	struct ep_ctx ep[4];
+};
+
+
+static struct udp_pcd upcd;
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-struct usb_device_descriptor devDescriptor = {
+struct usb_device_descriptor dev_descriptor = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
 	.bcdUSB = 0x0200,
@@ -56,7 +72,7 @@ struct _desc {
 	struct usb_endpoint_descriptor ep[3];
 };
 
-const struct _desc cfgDescriptor = {
+const struct _desc cfg_descriptor = {
 	.ucfg = {
 		 .bLength = USB_DT_CONFIG_SIZE,
 		 .bDescriptorType = USB_DT_CONFIG,
@@ -85,21 +101,21 @@ const struct _desc cfgDescriptor = {
 			  .bDescriptorType = USB_DT_ENDPOINT,
 			  .bEndpointAddress = OPENPCD_OUT_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
-			  .wMaxPacketSize = 64,
+			  .wMaxPacketSize = AT91C_EP_OUT_SIZE,
 			  .bInterval = 0x00,
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
 			  .bEndpointAddress = OPENPCD_IN_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_BULK,
-			  .wMaxPacketSize = 64,
+			  .wMaxPacketSize = AT91C_EP_IN_SIZE,
 			  .bInterval = 0x00,
 		  }, {
 			  .bLength = USB_DT_ENDPOINT_SIZE,
 			  .bDescriptorType = USB_DT_ENDPOINT,
 			  .bEndpointAddress = OPENPCD_IRQ_EP,
 			  .bmAttributes = USB_ENDPOINT_XFER_INT,
-			  .wMaxPacketSize = 64,
+			  .wMaxPacketSize = AT91C_EP_IN_SIZE,
 			  .bInterval = 0xff,	/* FIXME */
 		  },
 	},
@@ -132,16 +148,16 @@ static void udp_ep0_handler(void);
 
 void udp_unthrottle(void)
 {
-	AT91PS_UDP pUDP = pCDC.pUdp;
+	AT91PS_UDP pUDP = upcd.pUdp;
 	pUDP->UDP_IER = AT91C_UDP_EPINT1;
 }
 
 int udp_refill_ep(int ep, struct req_ctx *rctx)
 {
 	u_int16_t i;
-	AT91PS_UDP pUDP = pCDC.pUdp;
+	AT91PS_UDP pUDP = upcd.pUdp;
 
-	if (rctx->tx.tot_len > 64) {
+	if (rctx->tx.tot_len > AT91C_EP_IN_SIZE) {
 		DEBUGPCRF("TOO LARGE!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		return -EINVAL;
 	}
@@ -149,17 +165,17 @@ int udp_refill_ep(int ep, struct req_ctx *rctx)
 	DEBUGP("refilling EP%u ", ep);
 
 	/* FIXME: state machine to handle two banks of FIFO memory, etc */
-	if (atomic_read(&pCDC.ep[ep].pkts_in_transit) >= 2)
+	if (atomic_read(&upcd.ep[ep].pkts_in_transit) >= 2)
 		return -EBUSY;
 		
 	/* fill FIFO/DPR */
 	for (i = 0; i < rctx->tx.tot_len; i++) 
 		pUDP->UDP_FDR[ep] = rctx->tx.data[i];
 
-	if (atomic_read(&pCDC.ep[ep].pkts_in_transit) == 0) {
+	if (atomic_read(&upcd.ep[ep].pkts_in_transit) == 0) {
 		/* start transmit */
 		pUDP->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
-		atomic_inc(&pCDC.ep[ep].pkts_in_transit);
+		atomic_inc(&upcd.ep[ep].pkts_in_transit);
 	}
 	
 	/* return rctx to pool of free contexts */
@@ -171,7 +187,7 @@ int udp_refill_ep(int ep, struct req_ctx *rctx)
 static void udp_irq(void)
 {
 	u_int32_t csr;
-	AT91PS_UDP pUDP = pCDC.pUdp;
+	AT91PS_UDP pUDP = upcd.pUdp;
 	AT91_REG isr = pUDP->UDP_ISR;
 
 	DEBUGP("udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
@@ -180,14 +196,14 @@ static void udp_irq(void)
 		DEBUGP("ENDBUSRES ");
 		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
 		pUDP->UDP_IER = AT91C_UDP_EPINT0;
-		// reset all endpoints
+		/* reset all endpoints */
 		pUDP->UDP_RSTEP = (unsigned int)-1;
 		pUDP->UDP_RSTEP = 0;
-		// Enable the function
+		/* Enable the function */
 		pUDP->UDP_FADDR = AT91C_UDP_FEN;
-		// Configure endpoint 0
+		/* Configure endpoint 0 */
 		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
-		pCDC.currentConfiguration = 0;	/* +++ */
+		upcd.cur_config = 0;
 	}
 
 	if (isr & AT91C_UDP_EPINT0) {
@@ -195,7 +211,7 @@ static void udp_irq(void)
 		udp_ep0_handler();
 	}
 	if (isr & AT91C_UDP_EPINT1) {
-		u_int32_t cur_rcv_bank = pCDC.currentRcvBank;
+		u_int32_t cur_rcv_bank = upcd.cur_rcv_bank;
 		csr = pUDP->UDP_CSR[1];
 		DEBUGP("EP1INT(Out, CSR=0x%08x) ", csr);
 		if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK1)
@@ -225,11 +241,7 @@ static void udp_irq(void)
 					cur_rcv_bank = AT91C_UDP_RX_DATA_BK1;
 				else
 					cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
-#if 0
-				rctx->rx.data[MAX_REQSIZE+MAX_HDRSIZE-1] = '\0';
-				DEBUGP(rctx->rx.data);
-#endif
-				pCDC.currentRcvBank = cur_rcv_bank;
+				upcd.cur_rcv_bank = cur_rcv_bank;
 				req_ctx_set_state(rctx, RCTX_STATE_UDP_RCV_DONE);
 				DEBUGP("RCTX=%u ", req_ctx_num(rctx));
 			} else {
@@ -251,7 +263,7 @@ static void udp_irq(void)
 			while (pUDP->UDP_CSR[2] & AT91C_UDP_TXCOMP) ;
 
 			/* if we already have another packet in DPR, send it */
-			if (atomic_dec_return(&pCDC.ep[2].pkts_in_transit) == 1)
+			if (atomic_dec_return(&upcd.ep[2].pkts_in_transit) == 1)
 				pUDP->UDP_CSR[2] |= AT91C_UDP_TXPKTRDY;
 
 			/* try to re-fill from pending rcts for EP2 */
@@ -301,13 +313,13 @@ static void udp_irq(void)
 }
 
 /* Open USB Device Port  */
-static AT91PS_CDC AT91F_PCD_Open(AT91PS_UDP pUdp)
+static int udp_open(AT91PS_UDP pUdp)
 {
 	DEBUGPCRF("entering");
-	pCdc->pUdp = pUdp;
-	pCdc->currentConfiguration = 0;
-	pCdc->currentConnection = 0;
-	pCdc->currentRcvBank = AT91C_UDP_RX_DATA_BK0;
+	upcd.pUdp = pUdp;
+	upcd.cur_config = 0;
+	upcd.cur_connection = 0;
+	upcd.cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
 			      OPENPCD_IRQ_PRIO_UDP,
@@ -316,9 +328,7 @@ static AT91PS_CDC AT91F_PCD_Open(AT91PS_UDP pUdp)
 
 	/* End-of-Bus-Reset is always enabled */
 
-	DEBUGPCRF("returning after enabling UDP irq");
-
-	return pCdc;
+	return 0;
 }
 
 void udp_init(void)
@@ -337,20 +347,20 @@ void udp_init(void)
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 
 	/* CDC Open by structure initialization */
-	AT91F_PCD_Open(AT91C_BASE_UDP);
+	udp_open(AT91C_BASE_UDP);
 }
 
+#if 0
 /* Test if the device is configured and handle enumeration */
 u_int8_t udp_is_configured(void)
 {
-	return pCdc->currentConfiguration;
+	return upcd.cur_config;
 }
-
 
 /* Send data through endpoint 2/3 */
 u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t length)
 {
-	AT91PS_UDP pUdp = pCdc->pUdp;
+	AT91PS_UDP pUdp = upcd.pUdp;
 	u_int32_t cpt = 0;
 	u_int8_t ep;
 
@@ -361,8 +371,8 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t le
 	else
 		ep = 2;
 
-	// Send the first packet
-	cpt = MIN(length, 64);
+	/* Send the first packet */
+	cpt = MIN(length, AT91C_EP_IN_SIZE);
 	length -= cpt;
 	while (cpt--)
 		pUdp->UDP_FDR[ep] = *pData++;
@@ -371,13 +381,13 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t le
 
 	while (length) {
 		DEBUGPCRF("sending further packet");
-		// Fill the second bank
-		cpt = MIN(length, 64);
+		/* Fill the second bank */
+		cpt = MIN(length, AT91C_EP_IN_SIZE);
 		length -= cpt;
 		while (cpt--)
 			pUdp->UDP_FDR[ep] = *pData++;
 		DEBUGPCRF("waiting for end of further packet");
-		// Wait for the the first bank to be sent
+		/* Wait for the the first bank to be sent */
 		while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
 			if (!udp_is_configured()) {
 				DEBUGPCRF("return(!configured)");
@@ -387,7 +397,7 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t le
 		while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
 		pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
 	}
-	// Wait for the end of transfer
+	/* Wait for the end of transfer */
 	DEBUGPCRF("waiting for end of transfer");
 	while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
 		if (!udp_is_configured()) {
@@ -400,6 +410,7 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t le
 	DEBUGPCRF("return(normal, len=%u)", length);
 	return length;
 }
+#endif
 
 /* Send Data through the control endpoint */
 static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t length)
@@ -425,7 +436,7 @@ static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t leng
 		do {
 			csr = pUdp->UDP_CSR[0];
 
-			// Data IN stage has been stopped by a status OUT
+			/* Data IN stage has been stopped by a status OUT */
 			if (csr & AT91C_UDP_RX_DATA_BK0) {
 				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
 				DEBUGP("stopped by status out ");
@@ -462,7 +473,7 @@ static void udp_ep0_send_stall(AT91PS_UDP pUdp)
 /* Handle requests on the USB Control Endpoint */
 static void udp_ep0_handler(void)
 {
-	AT91PS_UDP pUDP = pCdc->pUdp;
+	AT91PS_UDP pUDP = upcd.pUdp;
 	u_int8_t bmRequestType, bRequest;
 	u_int16_t wValue, wIndex, wLength, wStatus;
 	u_int32_t csr = pUDP->UDP_CSR[0];
@@ -500,16 +511,17 @@ static void udp_ep0_handler(void)
 	pUDP->UDP_CSR[0] &= ~AT91C_UDP_RXSETUP;
 	while ((pUDP->UDP_CSR[0] & AT91C_UDP_RXSETUP)) ;
 
-	// Handle supported standard device request Cf Table 9-3 in USB specification Rev 1.1
+	/* Handle supported standard device request Cf Table 9-3 in USB
+	 * specification Rev 1.1 */
 	switch ((bRequest << 8) | bmRequestType) {
 	case STD_GET_DESCRIPTOR:
 		DEBUGP("GET_DESCRIPTOR ");
-		if (wValue == 0x100)	// Return Device Descriptor
-			udp_ep0_send_data(pUDP, (const char *) &devDescriptor,
-					   MIN(sizeof(devDescriptor), wLength));
-		else if (wValue == 0x200)	// Return Configuration Descriptor
-			udp_ep0_send_data(pUDP, (const char *) &cfgDescriptor,
-					   MIN(sizeof(cfgDescriptor), wLength));
+		if (wValue == 0x100)	/* Return Device Descriptor */
+			udp_ep0_send_data(pUDP, (const char *) &dev_descriptor,
+					   MIN(sizeof(dev_descriptor), wLength));
+		else if (wValue == 0x200)	/* Return Configuration Descriptor */
+			udp_ep0_send_data(pUDP, (const char *) &cfg_descriptor,
+					   MIN(sizeof(cfg_descriptor), wLength));
 		else
 			udp_ep0_send_stall(pUDP);
 		break;
@@ -523,7 +535,7 @@ static void udp_ep0_handler(void)
 		DEBUGP("SET_CONFIG ");
 		if (wValue)
 			DEBUGP("VALUE!=0 ");
-		pCdc->currentConfiguration = wValue;
+		upcd.cur_config = wValue;
 		udp_ep0_send_zlp(pUDP);
 		pUDP->UDP_GLBSTATE =
 		    (wValue) ? AT91C_UDP_CONFG : AT91C_UDP_FADDEN;
@@ -539,8 +551,8 @@ static void udp_ep0_handler(void)
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGP("GET_CONFIG ");
-		udp_ep0_send_data(pUDP, (char *)&(pCdc->currentConfiguration),
-				   sizeof(pCdc->currentConfiguration));
+		udp_ep0_send_data(pUDP, (char *)&(upcd.cur_config),
+				   sizeof(upcd.cur_config));
 		break;
 	case STD_GET_STATUS_ZERO:
 		DEBUGP("GET_STATUS_ZERO ");
