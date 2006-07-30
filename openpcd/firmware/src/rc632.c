@@ -364,11 +364,17 @@ void rc632_reset(void)
 	volatile int i;
 
 	rc632_power(0);
-	for (i = 0; i < 0xfffff; i++)
+	for (i = 0; i < 0xffff; i++)
 		{}
 	rc632_power(1);
-	for (i = 0; i < 0xfffff; i++)
-		{}
+
+	/* wait for startup phase to finish */
+	while (1) {
+		u_int8_t val;
+		rc632_reg_read(RAH, RC632_REG_COMMAND, &val);
+		if (val == 0x00)
+			break;
+	}
 
 	/* turn off register paging */
 	rc632_reg_write(RAH, RC632_REG_PAGE0, 0x00);
@@ -405,11 +411,13 @@ void rc632_init(void)
 #endif
 	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 10 (4.8MHz), 
 	 * DLYBS = 0, DLYBCT = 0 */
-	//AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
+#ifdef SPI_USES_DMA
+	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(10<<8));
+#else
+	/* 320 kHz in case of I/O based SPI */
 	AT91F_SPI_CfgCs(pSPI, 0, AT91C_SPI_BITS_8|AT91C_SPI_NCPHA|(0x7f<<8));
+#endif
 	AT91F_SPI_Enable(pSPI);
-
-	//AT91F_SPI_Reset(pSPI);
 
 	/* Register rc632_irq */
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632,
@@ -494,6 +502,6 @@ int rc632_test(struct rfid_asic_handle *hdl)
 	return 0;
 }
 #else /* DEBUG */
-int rc632_test(void) {}
+int rc632_test(struct rfid_asic_handle *hdl) {}
 int rc632_dump(void) {}
 #endif /* DEBUG */
