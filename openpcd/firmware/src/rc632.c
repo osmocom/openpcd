@@ -472,7 +472,11 @@ int rc632_dump(void)
 	u_int16_t rx_len = sizeof(spi_inbuf);
 
 	for (i = 0; i <= 0x3f; i++) {
-		spi_outbuf[i] = i << 1;
+		u_int8_t reg = i;
+		if (reg == RC632_REG_FIFO_DATA)
+			reg = 0x3e;
+			
+		spi_outbuf[i] = reg << 1;
 		spi_inbuf[i] = 0x00;
 	}
 
@@ -485,8 +489,12 @@ int rc632_dump(void)
 
 	spi_transceive(spi_outbuf, 0x41, spi_inbuf, &rx_len);
 
-	for (i = 0; i < 0x3f; i++)
-		DEBUGPCR("REG 0x%02x = 0x%02x", i, spi_inbuf[i+1]);
+	for (i = 0; i < 0x3f; i++) {
+		if (i == RC632_REG_FIFO_DATA)
+			DEBUGPCR("REG 0x02 = NOT READ");
+		else
+			DEBUGPCR("REG 0x%02x = 0x%02x", i, spi_inbuf[i+1]);
+	}
 	
 	return 0;
 }
