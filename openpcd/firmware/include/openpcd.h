@@ -24,6 +24,7 @@ struct openpcd_hdr {
 #define OPENPCD_CMD_READ_REG		0x11
 #define OPENPCD_CMD_READ_FIFO		0x12
 #define OPENPCD_CMD_READ_VFIFO		0x13
+#define OPENPCD_CMD_DUMP_REGS		0x14
 
 #define OPENPCD_CMD_SET_LED		0x21
 
