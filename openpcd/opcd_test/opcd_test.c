@@ -225,7 +225,6 @@ int main(int argc, char **argv)
 				exit(2);
 			printf("setting LED %d to %s\n", i, j ? "on" : "off");
 			opcd_send_command(OPENPCD_CMD_SET_LED, i, j, 0, NULL);
-			opcd_recv_reply();
 			break;
 		case 'r':
 			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
@@ -245,7 +244,6 @@ int main(int argc, char **argv)
 			}
 			fprintf(stdout, "setting register 0x%02x to 0x%02x\n", i, j);
 			opcd_send_command(OPENPCD_CMD_WRITE_REG, i, j, 0, NULL);
-			opcd_recv_reply();
 			break;
 		case 'R':
 			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
@@ -262,7 +260,6 @@ int main(int argc, char **argv)
 			if (get_number(argv[optind], 0x00, 0xff, &j) < 0)
 				exit(2);
 			opcd_send_command(OPENPCD_CMD_REG_BITS_SET, i, j, 0, NULL);
-			opcd_recv_reply();
 			break;
 		case 'c':
 			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
@@ -270,7 +267,6 @@ int main(int argc, char **argv)
 			if (get_number(argv[optind], 0x00, 0xff, &j) < 0)
 				exit(2);
 			opcd_send_command(OPENPCD_CMD_REG_BITS_CLEAR, i, j, 0, NULL);
-			opcd_recv_reply();
 			break;
 		case 'h':
 		case '?':
