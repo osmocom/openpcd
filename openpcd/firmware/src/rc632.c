@@ -19,11 +19,22 @@
 #include "pcd_enumerate.h"
 #include "rc632.h"
 
-#if 1
+#define NOTHING {}
+
+#if 0
 #define DEBUGPSPI DEBUGP
+#define DEBUGPSPIIRQ DEBUGP
 #else
-#define	DEBUGPSPI(x, args ...) 
+#define	DEBUGPSPI(x, args ...)  NOTHING
+#define DEBUGPSPIIRQ		NOTHING
 #endif
+
+#if 0
+#define DEBUG632 DEBUGPCRF
+#else
+#define DEBUG632(x, args ...)	NOTHING
+#endif
+
 
 /* SPI driver */
 
@@ -42,22 +53,22 @@ static void spi_irq(void)
 {
 	u_int32_t status = pSPI->SPI_SR;
 
-	DEBUGPSPI("spi_irq: 0x%08x ", status);
+	DEBUGPSPIIRQ("spi_irq: 0x%08x ", status);
 
 	if (status & AT91C_SPI_OVRES)
-		DEBUGPSPI("Overrun ");
+		DEBUGPSPIIRQ("Overrun ");
 	if (status & AT91C_SPI_MODF)
-		DEBUGPSPI("ModeFault ");
+		DEBUGPSPIIRQ("ModeFault ");
 	if (status & AT91C_SPI_ENDRX) {
 		pSPI->SPI_IDR = AT91C_SPI_ENDRX;
-		DEBUGPSPI("ENDRX ");
+		DEBUGPSPIIRQ("ENDRX ");
 	}
 	if (status & AT91C_SPI_ENDTX) {
 		pSPI->SPI_IDR = AT91C_SPI_ENDTX;
-		DEBUGPSPI("ENDTX ");
+		DEBUGPSPIIRQ("ENDTX ");
 	}
 
-	DEBUGPSPI("\r\n");
+	DEBUGPSPIIRQ("\r\n");
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 }
@@ -164,6 +175,9 @@ int rc632_reg_write(struct rfid_asic_handle *hdl,
 		    u_int8_t addr, u_int8_t data)
 {
 	u_int16_t rx_len = 2;
+
+	DEBUG632("[0x%02x] <= 0x%02x", addr, data);
+
 	addr = (addr << 1) & 0x7e;
 
 	spi_outbuf[0] = addr;
@@ -182,6 +196,8 @@ int rc632_fifo_write(struct rfid_asic_handle *hdl,
 	spi_outbuf[0] = FIFO_ADDR;
 	memcpy(&spi_outbuf[1], data, len);
 
+	DEBUG632("[FIFO] <= %s", hexdump(data, len));
+
 	return spi_transceive(spi_outbuf, len+1, NULL, NULL);
 }
 
@@ -196,8 +212,9 @@ int rc632_reg_read(struct rfid_asic_handle *hdl,
 	spi_outbuf[1] = 0x00;
 
 	spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
-
 	*val = spi_inbuf[1];
+
+	DEBUG632("[0x%02x] => 0x%02x", addr>>1, *val);
 
 	return 0;
 }
@@ -227,6 +244,8 @@ int rc632_fifo_read(struct rfid_asic_handle *hdl,
 
 	spi_transceive(spi_outbuf, fifo_length+1, spi_inbuf, &rx_len);
 	memcpy(data, spi_inbuf+1, rx_len-1);
+
+	DEBUG632("[FIFO] => %s", hexdump(data, rx_len-1));
 
 	return 0;
 }
