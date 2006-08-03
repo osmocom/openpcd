@@ -33,6 +33,22 @@ void _init_func(void)
 
 static volatile int mode = MODE_REQA;
 
+static void reg_inc(u_int8_t reg)
+{
+	u_int8_t val;
+	rc632_reg_read(RAH, reg, &val);
+	rc632_reg_write(RAH, reg, val++);
+	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
+}
+
+static void reg_dec(u_int8_t reg)
+{
+	u_int8_t val;
+	rc632_reg_read(RAH, reg, &val);
+	rc632_reg_write(RAH, reg, val--);
+	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
+}
+
 int _main_dbgu(char key)
 {
 	switch (key) {
@@ -44,6 +60,21 @@ int _main_dbgu(char key)
 		break;
 	case 'a':
 		mode = MODE_ANTICOL;
+		break;
+		/* Those below don't work as long as 
+		 * iso14443a_init() is called before
+		 * every cycle */
+	case 'y':
+		reg_inc(RC632_REG_CW_CONDUCTANCE);
+		break;
+	case 'x':
+		reg_dec(RC632_REG_CW_CONDUCTANCE);
+		break;
+	case 'c':
+		reg_inc(RC632_REG_MOD_CONDUCTANCE);
+		break;
+	case 'v':
+		reg_dec(RC632_REG_MOD_CONDUCTANCE);
 		break;
 	default:
 		return -EINVAL;
@@ -73,8 +104,9 @@ void _main_func(void)
 	//rc632_reset();
 	rc632_turn_on_rf();
 	rc632_iso14443a_init(RAH);
-	for (i = 0; i < 0xfffff; i++) {}
+	for (i = 0; i < 0xfff; i++) {}
 	//rc632_dump();
+
 	switch (mode) {
 	case MODE_REQA:
 		status = rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_REQA, &atqa);
