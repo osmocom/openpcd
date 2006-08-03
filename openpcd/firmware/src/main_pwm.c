@@ -54,18 +54,18 @@ static u_int8_t rsrel_table[] = {
 
 static void help(void)
 {
-	DEBUGPCRF("o: decrease duty     p: increase duty\r\n"
-		  "k: stop pwm          l: start pwn\r\n"
-		  "n: decrease freq     m: incresae freq\r\n"
-		  "v: decrease mod_cond b: increase mod_cond\r\n"
-		  "g: decrease cw_cond  h: increase cw_cond\r\n");
-	DEBUGPCRF("u: PA0 const 1       y: PA0 const 0\r\n"
-		  "t: PA0 PWM0	        f: toggle Force100ASK");
+	DEBUGPCR("o: decrease duty     p: increase duty\r\n"
+		 "k: stop pwm          l: start pwn\r\n"
+		 "n: decrease freq     m: incresae freq\r\n"
+		 "v: decrease mod_cond b: increase mod_cond\r\n"
+		 "g: decrease cw_cond  h: increase cw_cond\r\n");
+	DEBUGPCR("u: PA0 const 1       y: PA0 const 0\r\n"
+		 "t: PA0 PWM0	        f: toggle Force100ASK");
 }
 
 void _init_func(void)
 {
-	DEBUGPCRF("\r\n===> main_pwm <===\r\n");
+	DEBUGPCR("\r\n===> main_pwm <===\r\n");
 	help();
 
 	rc632_init();
