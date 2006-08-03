@@ -101,6 +101,9 @@ void pwm_duty_set_percent(int channel, u_int16_t duty)
 
 void pwm_init(void)
 {
+	/* IMPORTANT: Disable PA17 (SSC TD) output */
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, AT91C_PIO_PA17);
+
 	/* Set PA0 to Peripheral A (PWM0) */
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA0_PWM0, 0);
 
