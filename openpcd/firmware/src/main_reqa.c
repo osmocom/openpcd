@@ -9,12 +9,13 @@
 
 #include <errno.h>
 #include <string.h>
+#include <lib_AT91SAM7.h>
 #include <librfid/rfid_layer2_iso14443a.h>
 #include "rc632.h"
 #include "dbgu.h"
 #include "led.h"
-#include "trigger.h"
 #include "pcd_enumerate.h"
+#include "trigger.h"
 
 void _init_func(void)
 {
@@ -49,9 +50,25 @@ static void reg_dec(u_int8_t reg)
 	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
 }
 
+static u_int8_t ana_out_sel;
+static u_int8_t mfout_sel;
+
+static void help(void)
+{
+	DEBUGPCR("r: REQA         w: WUPA        a: ANTICOL\r\n"
+		 "y: inc cw cond  x: dec cond    c: inc mod cond");
+	DEBUGPCR("v: dec mod cond o: dec ana_out p: dec ana_out\r\n"
+		 "h: trigger high l: trigger low");
+}
+
 int _main_dbgu(char key)
 {
+	int ret = 0;
+
 	switch (key) {
+	case '?':
+		help();
+		break;
 	case 'r':
 		mode = MODE_REQA;
 		break;
@@ -64,6 +81,7 @@ int _main_dbgu(char key)
 		/* Those below don't work as long as 
 		 * iso14443a_init() is called before
 		 * every cycle */
+
 	case 'y':
 		reg_inc(RC632_REG_CW_CONDUCTANCE);
 		break;
@@ -76,11 +94,49 @@ int _main_dbgu(char key)
 	case 'v':
 		reg_dec(RC632_REG_MOD_CONDUCTANCE);
 		break;
+	case 'o':
+		if (ana_out_sel > 0) {
+			ana_out_sel--;
+			DEBUGPCR("switching to analog output mode 0x%x\n", ana_out_sel);
+			rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+		}
+		ret = 1;
+		break;
+	case 'p':
+		if (ana_out_sel < 0xc) {
+			ana_out_sel++;
+			DEBUGPCR("switching to analog output mode 0x%x\n", ana_out_sel);
+			rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+		}
+		ret = 1;
+		break;
+	case 'u':
+		if (mfout_sel > 0) {
+			mfout_sel--;
+			DEBUGPCR("switching to MFOUT mode 0x%x\n", mfout_sel);
+			rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
+		}
+		ret = 1;
+		break;
+	case 'i':
+		if (mfout_sel < 5) {
+			mfout_sel++;
+			DEBUGPCR("switching to MFOUT mode 0x%x\n", mfout_sel);
+			rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
+		}
+		ret = 1;
+		break;
+	case 'h':
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_TRIGGER);
+		break;
+	case 'l':
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_TRIGGER);
+		break;
 	default:
 		return -EINVAL;
 	}
 	
-	return 0;
+	return ret;
 }
 
 void _main_func(void)
@@ -98,13 +154,16 @@ void _main_func(void)
 	l2h.priv.iso14443a.state = ISO14443A_STATE_NONE;
 	l2h.priv.iso14443a.level = ISO14443A_LEVEL_NONE;
 
-	trigger_pulse();
-	/* FIXME: why does this not work without reset or power-cycle? */
+	/* FIXME: why does this only work every second attempt without reset or
+	 * power-cycle? */
 	rc632_turn_off_rf();
 	//rc632_reset();
 	rc632_turn_on_rf();
+
 	rc632_iso14443a_init(RAH);
-	for (i = 0; i < 0xfff; i++) {}
+	rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+	rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
+	for (i = 0; i < 0x3ffff; i++) {}
 	//rc632_dump();
 
 	switch (mode) {
@@ -137,4 +196,5 @@ void _main_func(void)
 		led_switch(1, 1);
 
 	led_toggle(2);
+
 }
