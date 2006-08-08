@@ -52,10 +52,6 @@ static u_int8_t rsrel_table[] = {
 	37, 26, 27, 51, 38, 28, 29, 39, 30, 52, 31, 40, 41, 53, 42, 43,
 	54, 44, 45, 55, 46, 47, 56, 57, 58, 59, 60, 61, 62, 63 };
 
-
-static u_int16_t cdivs[] = { 128, 64, 32, 16 };
-static int cdiv_idx = 0;
-
 static void help(void)
 {
 	DEBUGPCR("o: decrease duty     p: increase duty\r\n"
@@ -79,18 +75,13 @@ void _init_func(void)
 	/* switch PA17 (connected to MFIN on board) to input */
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, AT91C_PIO_PA17);
 
-	DEBUGPCRF("Initializing carrier divider");
-	tc_cdiv_init();
-
-	DEBUGPCRF("Initializing PWM");
 	pwm_init();
-	pwm_freq_set(0, 105937);
-	pwm_start(0);
-	pwm_duty_set_percent(0, 22);	/* 22% of 9.43uS = 2.07uS */
 	rc632_modulate_mfin();
 
-	DEBUGPCRF("Initializing SSC RX");
-	ssc_rx_init();
+	pwm_freq_set(0, 105937);
+	pwm_start(0);
+
+	pwm_duty_set_percent(0, 22);	/* 22% of 9.43uS = 2.07uS */
 }
 
 int _main_dbgu(char key)
@@ -190,22 +181,6 @@ int _main_dbgu(char key)
 	case '?':
 		help();
 		return 0;
-		break;
-	case '<':
-		tc_cdiv_phase_inc();
-		break;
-	case '>':
-		tc_cdiv_phase_dec();
-		break;
-	case '{':
-		if (cdiv_idx > 0)
-			cdiv_idx--;
-		tc_cdiv_set_divider(cdivs[cdiv_idx]);
-		break;
-	case '}':
-		if (cdiv_idx < ARRAY_SIZE(cdivs)-1)
-			cdiv_idx++;
-		tc_cdiv_set_divider(cdivs[cdiv_idx]);
 		break;
 	default:
 		return -EINVAL;

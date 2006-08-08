@@ -16,12 +16,16 @@
 #include "led.h"
 #include "pcd_enumerate.h"
 #include "trigger.h"
+#include "tc.h"
 
 void _init_func(void)
 {
 	//udp_init();
 	trigger_init();
+	DEBUGPCRF("enabling RC632");
 	rc632_init();
+	DEBUGPCRF("enabling TC");
+	tc_cdiv_init();
 	DEBUGPCRF("turning on RF");
 	rc632_turn_on_rf(RAH);
 	DEBUGPCRF("initializing 14443A operation");
@@ -58,12 +62,17 @@ static void help(void)
 	DEBUGPCR("r: REQA         w: WUPA        a: ANTICOL\r\n"
 		 "y: inc cw cond  x: dec cond    c: inc mod cond");
 	DEBUGPCR("v: dec mod cond o: dec ana_out p: dec ana_out\r\n"
-		 "h: trigger high l: trigger low");
+		 "h: trigger high l: trigger low u: dec MFOUT mode");
+	DEBUGPCR("i: inc MFOUT md <: dec cdiv ph >: inc cdiv phase\r\n"
+		 "{: dev cdiv     }: inc cdiv");
 }
+
+static u_int16_t cdivs[] = { 128, 64, 32, 16 };
 
 int _main_dbgu(char key)
 {
 	int ret = 0;
+	static int cdiv_idx = 0;
 
 	switch (key) {
 	case '?':
@@ -132,6 +141,22 @@ int _main_dbgu(char key)
 	case 'l':
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_TRIGGER);
 		break;
+	case '<':
+		tc_cdiv_phase_inc();
+		break;
+	case '>':
+		tc_cdiv_phase_dec();
+		break;
+	case '{':
+		if (cdiv_idx > 0)
+			cdiv_idx--;
+		tc_cdiv_set_divider(cdivs[cdiv_idx]);
+		break;
+	case '}':
+		if (cdiv_idx < ARRAY_SIZE(cdivs)-1)
+			cdiv_idx++;
+		tc_cdiv_set_divider(cdivs[cdiv_idx]);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -165,6 +190,7 @@ void _main_func(void)
 	rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
 	for (i = 0; i < 0x3ffff; i++) {}
 	//rc632_dump();
+	tc_cdiv_print();
 
 	switch (mode) {
 	case MODE_REQA:
