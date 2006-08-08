@@ -75,7 +75,7 @@ SRC =
 SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
 	  src/led.c src/rc632.c src/rc632_highlevel.c src/req_ctx.c \
 	  src/trigger.c src/main.c src/syscalls.c src/pwm.c src/tc.c \
-	  src/usb_handler.c \
+	  src/usb_handler.c src/ssc.c \
 	  src/$(TARGET).c src/start/Cstartup_SAM7.c 
 
 SRCARM += src/rfid_layer2_iso14443a.c
