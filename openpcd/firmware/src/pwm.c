@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include "dbgu.h"
+#include "openpcd.h"
 
 #define Hz
 #define	kHz	*1000 Hz
@@ -104,8 +105,8 @@ void pwm_init(void)
 	/* IMPORTANT: Disable PA17 (SSC TD) output */
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, AT91C_PIO_PA17);
 
-	/* Set PA0 to Peripheral A (PWM0) */
-	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA0_PWM0, 0);
+	/* Set PA23 to Peripheral A (PWM0) */
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, OPENPCD_PIO_MFIN_PWM);
 
 	/* Enable Clock for PWM controller */
 	AT91F_PWMC_CfgPMC();

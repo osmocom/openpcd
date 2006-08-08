@@ -31,9 +31,12 @@ void tc_cdiv_phase_add(int16_t inc)
 
 void tc_cdiv_init(void)
 {
-	/* Cfg PIO28 as Periph B */
-	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, OPENPCD_PIO_CARRIER|
-			    OPENPCD_PIO_CARRIER_DIV);
+	/* Cfg PA28(TCLK1), PA0(TIOA0), PA1(TIOB0), PA20(TCLK2) as Periph B */
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, 
+			    OPENPCD_PIO_CARRIER_IN |
+			    OPENPCD_PIO_CARRIER_DIV_OUT |
+			    OPENPCD_PIO_CDIV_HELP_OUT |
+			    OPENPCD_PIO_CDIV_HELP_IN);
 
 	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC, 
 				    ((unsigned int) 1 << AT91C_ID_TC0));
@@ -41,13 +44,19 @@ void tc_cdiv_init(void)
 	/* Enable Clock for TC0 */
 	tcb->TCB_TC0.TC_CCR = AT91C_TC_CLKEN;
 
-	/* Connect TCLK1 to XC1 */
-	tcb->TCB_BMR &= ~AT91C_TCB_TC1XC1S;
-	tcb->TCB_BMR |=  AT91C_TCB_TC1XC1S_TCLK1;
+	/* Connect TCLK1 to XC1, TCLK2 to XC2 */
+	tcb->TCB_BMR &= ~(AT91C_TCB_TC1XC1S | AT91C_TCB_TC2XC2S);
+	tcb->TCB_BMR |=  (AT91C_TCB_TC1XC1S_TCLK1 | AT91C_TCB_TC2XC2S_TCLK2);
 
+	/* Clock XC1, Wave mode, Reset on RC comp
+	 * TIOA0 on RA comp = set, * TIOA0 on RC comp = clear,
+	 * TIOB0 on EEVT = set, TIOB0 on RB comp = clear,
+	 * EEVT = XC2 (TIOA0) */
 	tcb->TCB_TC0.TC_CMR = AT91C_TC_CLKS_XC1 | AT91C_TC_WAVE |
-			      AT91C_TC_WAVESEL_UP_AUTO | AT91C_TC_ACPC_SET |
-			      AT91C_TC_BCPC_CLEAR | AT91C_TC_EEVT_XC0;
+			      AT91C_TC_WAVESEL_UP_AUTO | 
+			      AT91C_TC_ACPA_SET | AT91C_TC_ACPC_CLEAR |
+			      AT91C_TC_BEEVT_SET | AT91C_TC_BCPB_CLEAR |
+			      AT91C_TC_EEVT_XC2 | AT91C_TC_ETRGEDG_RISING;
 
 	tc_cdiv_set_divider(128);
 
