@@ -21,23 +21,6 @@
 #include "led.h"
 #include "main.h"
 
-const char *
-hexdump(const void *data, unsigned int len)
-{
-	static char string[1024];
-	unsigned char *d = (unsigned char *) data;
-	unsigned int i, left;
-
-	string[0] = '\0';
-	left = sizeof(string);
-	for (i = 0; len--; i += 3) {
-		if (i >= sizeof(string) -4)
-			break;
-		snprintf(string+i, 4, " %02x", *d++);
-	}
-	return string;
-}
-
 #define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
 //*--------------------------1--------------------------------------------------
@@ -204,47 +187,27 @@ int AT91F_DBGU_Get(char *val)
 // mthomas: function not used in this application. avoid
 //  linking huge newlib code for sscanf.
 
-#ifndef __WinARM__
-//*----------------------------------------------------------------------------
-//* \fn    AT91F_DBGU_scanf
-//* \brief Get a string to USART manage Blackspace and echo
-//*----------------------------------------------------------------------------
-void AT91F_DBGU_scanf(char *type, unsigned int *val)
-{				//* Begin
-	unsigned int read = 0;
-	char buff[10];
-	unsigned int nb_read = 0;
-
-	while ((read != 0x0D) & (nb_read != sizeof(buff))) {
-		//* wait the USART Ready for reception
-		while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_RXRDY) == 0) ;
-		//* Get a char
-		read = AT91C_BASE_DBGU->DBGU_RHR;
-		buff[nb_read] = (char)read;
-		//* Manage Blackspace
-		while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXRDY) == 0) {
-		}
-		if ((char)read == 0x08) {
-			if (nb_read != 0) {
-				nb_read--;
-				AT91C_BASE_DBGU->DBGU_THR = read;
-			}
-		} else {
-			//* echo
-			AT91C_BASE_DBGU->DBGU_THR = read;
-			nb_read++;
-		}
-	}
-	//* scan the value
-	sscanf(buff, type, val);
-}				//* End
-
-#endif
-
 #ifdef DEBUG
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+const char *
+hexdump(const void *data, unsigned int len)
+{
+	static char string[256];
+	unsigned char *d = (unsigned char *) data;
+	unsigned int i, left;
+
+	string[0] = '\0';
+	left = sizeof(string);
+	for (i = 0; len--; i += 3) {
+		if (i >= sizeof(string) -4)
+			break;
+		snprintf(string+i, 4, " %02x", *d++);
+	}
+	return string;
+}
+
 static char dbg_buf[256];
 void debugp(const char *format, ...)
 {

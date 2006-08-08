@@ -98,7 +98,7 @@ CPPSRCARM =
 # care about how the name is spelled on its command-line.
 ASRC = 
 
-ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S lib/testclearbit.S lib/testsetbit.S
+ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S lib/testclearbit.S lib/testsetbit.S lib/memcpy.S lib/memset.S lib/lib1funcs.S
 
 # List Assembler source files here which must be assembled in ARM-Mode..
 ASRCARM  = src/start/Cstartup.S $(ASRCLIB)
