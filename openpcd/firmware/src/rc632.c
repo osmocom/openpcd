@@ -427,9 +427,6 @@ void rc632_init(void)
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_RC632_RESET);
 
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_MFIN);
-	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPCD_PIO_MFOUT);
-
 	rc632_reset();
 
 	/* configure IRQ pin */
