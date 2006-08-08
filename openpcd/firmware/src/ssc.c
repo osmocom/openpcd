@@ -145,10 +145,12 @@ void ssc_rx_init(void)
 	/* Enable RX interrupts */
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN |
 			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
+	AT91F_PDC_EnableRx(rx_pdc);
 }
 
 void ssc_fini(void)
 {
+	AT91F_PDC_DisableRx(rx_pdc);
 	AT91F_SSC_DisableTx(ssc);
 	AT91F_SSC_DisableRx(ssc);
 	AT91F_SSC_DisableIt(ssc, 0xfff);
