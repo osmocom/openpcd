@@ -7,12 +7,17 @@
 #include <errno.h>
 #include <string.h>
 #include <lib_AT91SAM7.h>
+#include "openpcd.h"
 #include "rc632.h"
 #include "dbgu.h"
 #include "led.h"
 #include "pwm.h"
+#include "tc.h"
+#include "ssc.h"
+#include "pcd_enumerate.h"
+#include "usb_handler.h"
 
-static u_int8_t force_100ask = 0;
+static u_int8_t force_100ask = 1;
 static u_int8_t mod_conductance = 0x3f;
 static u_int8_t cw_conductance = 0x3f;
 static u_int16_t duty_percent = 22;
@@ -52,15 +57,19 @@ static u_int8_t rsrel_table[] = {
 	37, 26, 27, 51, 38, 28, 29, 39, 30, 52, 31, 40, 41, 53, 42, 43,
 	54, 44, 45, 55, 46, 47, 56, 57, 58, 59, 60, 61, 62, 63 };
 
+
+static u_int16_t cdivs[] = { 128, 64, 32, 16 };
+static int cdiv_idx = 0;
+
 static void help(void)
 {
 	DEBUGPCR("o: decrease duty     p: increase duty\r\n"
 		 "k: stop pwm          l: start pwn\r\n"
 		 "n: decrease freq     m: incresae freq\r\n"
 		 "v: decrease mod_cond b: increase mod_cond\r\n"
-		 "g: decrease cw_cond  h: increase cw_cond\r\n");
-	DEBUGPCR("u: PA0 const 1       y: PA0 const 0\r\n"
-		 "t: PA0 PWM0	        f: toggle Force100ASK");
+		 "g: decrease cw_cond  h: increase cw_cond");
+	DEBUGPCR("u: PA23 const 1      y: PA23 const 0\r\n"
+		 "t: PA23 PWM0         f: toggle Force100ASK");
 }
 
 void _init_func(void)
@@ -75,13 +84,20 @@ void _init_func(void)
 	/* switch PA17 (connected to MFIN on board) to input */
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, AT91C_PIO_PA17);
 
-	pwm_init();
-	rc632_modulate_mfin();
+	DEBUGPCRF("Initializing carrier divider");
+	tc_cdiv_init();
 
+	DEBUGPCRF("Initializing PWM");
+	pwm_init();
 	pwm_freq_set(0, 105937);
 	pwm_start(0);
-
 	pwm_duty_set_percent(0, 22);	/* 22% of 9.43uS = 2.07uS */
+	rc632_modulate_mfin();
+
+	udp_init();
+
+	DEBUGPCRF("Initializing SSC RX");
+	ssc_rx_init();
 }
 
 int _main_dbgu(char key)
@@ -122,19 +138,19 @@ int _main_dbgu(char key)
 		}
 		break;
 	case 'u':
-		DEBUGPCRF("PA0 output high");
-		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PIO_PA0);
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, AT91C_PIO_PA0);
+		DEBUGPCRF("PA23 output high");
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PIO_PA23);
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, AT91C_PIO_PA23);
 		break;
 	case 'y':
-		DEBUGPCRF("PA0 output low");
-		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PIO_PA0);
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, AT91C_PIO_PA0);
+		DEBUGPCRF("PA23 output low");
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PIO_PA23);
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, AT91C_PIO_PA23);
 		return 0;
 		break;
 	case 't':
-		DEBUGPCRF("PA0 PeriphA (PWM)");
-		AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA0_PWM0, 0);
+		DEBUGPCRF("PA23 PeriphA (PWM)");
+		AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, AT91C_PA23_PWM0);
 		return 0;
 		break;
 	case 'f':
@@ -182,6 +198,25 @@ int _main_dbgu(char key)
 		help();
 		return 0;
 		break;
+	case '<':
+		tc_cdiv_phase_inc();
+		break;
+	case '>':
+		tc_cdiv_phase_dec();
+		break;
+	case '{':
+		if (cdiv_idx > 0)
+			cdiv_idx--;
+		tc_cdiv_set_divider(cdivs[cdiv_idx]);
+		break;
+	case '}':
+		if (cdiv_idx < ARRAY_SIZE(cdivs)-1)
+			cdiv_idx++;
+		tc_cdiv_set_divider(cdivs[cdiv_idx]);
+		break;
+	case 's':
+		ssc_rx_start();
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -192,7 +227,16 @@ int _main_dbgu(char key)
 	return 0;
 }
 
+
 void _main_func(void)
 {
+	/* first we try to get rid of pending to-be-sent stuff */
+	usb_out_process();
+
+	/* next we deal with incoming reqyests from USB EP1 (OUT) */
+	usb_in_process();
+
+	rc632_unthrottle();
+
 	led_toggle(2);
 }
