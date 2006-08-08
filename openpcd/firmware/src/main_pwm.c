@@ -236,7 +236,10 @@ void _main_func(void)
 	/* next we deal with incoming reqyests from USB EP1 (OUT) */
 	usb_in_process();
 
+	/* try unthrottling sources since we now are [more] likely to
+	 * have empty request contexts */
 	rc632_unthrottle();
+	ssc_rx_unthrottle();
 
 	led_toggle(2);
 }
