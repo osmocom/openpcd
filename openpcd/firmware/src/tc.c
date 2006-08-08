@@ -19,14 +19,20 @@ void tc_cdiv_set_divider(u_int16_t div)
 	tcb->TCB_TC0.TC_RC = div;
 
 	/* set to 50% duty cycle */
-	tcb->TCB_TC0.TC_RA = 0;
-	tcb->TCB_TC0.TC_RB = div >> 1;
+	tcb->TCB_TC0.TC_RA = 1;
+	tcb->TCB_TC0.TC_RB = 1 + (div >> 1);
 }
 
 void tc_cdiv_phase_add(int16_t inc)
 {
 	tcb->TCB_TC0.TC_RA = (tcb->TCB_TC0.TC_RA + inc) % tcb->TCB_TC0.TC_RC;
 	tcb->TCB_TC0.TC_RB = (tcb->TCB_TC0.TC_RB + inc) % tcb->TCB_TC0.TC_RC;
+
+	/* FIXME: can this be done more elegantly? */
+	if (tcb->TCB_TC0.TC_RA == 0) {
+		tcb->TCB_TC0.TC_RA += 1;
+		tcb->TCB_TC0.TC_RB += 1;
+	}
 }
 
 void tc_cdiv_init(void)
