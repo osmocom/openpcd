@@ -10,4 +10,6 @@ extern void ssc_rx_init(void);
 
 extern void ssc_fini(void);
 
+extern void ssc_rx_unthrottle(void);
+
 #endif

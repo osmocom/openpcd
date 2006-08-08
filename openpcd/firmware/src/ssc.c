@@ -88,11 +88,21 @@ static void ssc_irq(void)
 			req_ctx_set_state(ssc_state.rx_ctx[0],
 					  RCTX_STATE_UDP_EP2_PENDING);
 		}
-		ssc_rx_refill();
+		if (ssc_rx_refill() == -1)
+			AT91F_AIC_DisableIt(ssc, AT91C_SSC_ENDRX |
+					    AT91C_SSC_TXBUFE |
+					    AT91C_SSC_OVRUN);
 	}
 
 	if (ssc_sr & AT91C_SSC_OVRUN)
 		DEBUGPCRF("Rx Overrun, shouldn't happen!");
+}
+
+
+void ssc_rx_unthrottle(void)
+{
+	AT91F_AIC_EnableIt(ssc, AT91C_SSC_ENDRX |
+			   AT91C_SSC_TXBUFE | AT91C_SSC_OVRUN);
 }
 
 void ssc_rx_start(void)
