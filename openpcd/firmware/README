@@ -4,3 +4,5 @@ function in src/main_foo.c
 The resulting binary main_foo.bin can be built by issuing
 	make TARGET=main_foo
 
+If you want to add debugging support (debug unit aka DBGU, RS232), add DEBUG=1
+
