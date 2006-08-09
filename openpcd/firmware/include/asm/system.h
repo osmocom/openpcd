@@ -104,5 +104,6 @@
 	(int)(flags & PSR_I_BIT);	\
 })
 
+#define __asmeq(x, y)  ".ifnc " x "," y " ; .err ; .endif\n\t"
 
 #endif

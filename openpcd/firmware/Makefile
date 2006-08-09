@@ -72,13 +72,17 @@ SRC =
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
-SRCARM  = lib/lib_AT91SAM7.c src/pcd_enumerate.c src/fifo.c src/dbgu.c \
+SRCARM  = lib/lib_AT91SAM7.c 
+SRCARM += src/pcd_enumerate.c src/fifo.c src/dbgu.c \
 	  src/led.c src/rc632.c src/rc632_highlevel.c src/req_ctx.c \
 	  src/trigger.c src/main.c src/syscalls.c src/pwm.c src/tc.c \
 	  src/usb_handler.c src/ssc.c \
 	  src/$(TARGET).c src/start/Cstartup_SAM7.c 
+ifdef DEBUG
+SRCARM += lib/vsprintf.c lib/ctype.c lib/string.c
+endif
 
-SRCARM += src/rfid_layer2_iso14443a.c
+#SRCARM += src/rfid_layer2_iso14443a.c
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
@@ -98,7 +102,11 @@ CPPSRCARM =
 # care about how the name is spelled on its command-line.
 ASRC = 
 
-ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S lib/testclearbit.S lib/testsetbit.S lib/memcpy.S lib/memset.S lib/lib1funcs.S
+ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S \
+	  lib/testclearbit.S lib/testsetbit.S 
+ifdef DEBUG
+ASRCLIB += lib/memcpy.S lib/memset.S lib/lib1funcs.S lib/div64.S
+endif
 
 # List Assembler source files here which must be assembled in ARM-Mode..
 ASRCARM  = src/start/Cstartup.S $(ASRCLIB)
@@ -117,8 +125,8 @@ OPT = 3
 # Debugging format.
 # Native formats for AVR-GCC's -g are stabs [default], or dwarf-2.
 # AVR (extended) COFF requires stabs, plus an avr-objcopy run.
-#DEBUG = stabs
-DEBUG = dwarf-2
+#DEBUGF = stabs
+DEBUGF = dwarf-2
 
 # List any extra directories to look for include files here.
 #     Each directory must be seperated by a space.
@@ -144,7 +152,12 @@ AT91LIBNOWARN = yes
 CSTANDARD = -std=gnu99
 
 # Place -D or -U options for C here
-CDEFS =  -D$(RUN_MODE) -D__MS_types__ -D__LIBRFID__ -DDEBUG 
+CDEFS =  -D$(RUN_MODE) -D__MS_types__ -D__LIBRFID__ 
+
+ifdef DEBUG
+CDEF += -DDEBUG 
+endif
+
 ifdef OLIMEX
 CDEFS += -DOLIMEX
 endif
@@ -173,7 +186,7 @@ ADEFS += -D__$(SUBMDL)__
 #    -adhlns...: create assembler listing
 #
 # Flags for C and C++ (arm-elf-gcc/arm-elf-g++)
-CFLAGS = -g$(DEBUG)
+CFLAGS = -g$(DEBUGF)
 CFLAGS += $(CDEFS) $(CINCS)
 CFLAGS += -O$(OPT)
 CFLAGS += -Wall -Wextra -Wcast-align -Wimplicit -Wunused
@@ -203,8 +216,8 @@ CPPFLAGS =
 # Assembler flags.
 #  -Wa,...:    tell GCC to pass this to the assembler.
 #  -ahlns:     create listing
-#  -g$(DEBUG): have the assembler create line number information
-ASFLAGS = $(ADEFS) -Wa,-adhlns=$(<:.S=.lst),--g$(DEBUG) -Iinclude/ -D__ASSEMBLY__
+#  -g$(DEBUGF): have the assembler create line number information
+ASFLAGS = $(ADEFS) -Wa,-adhlns=$(<:.S=.lst),--g$(DEBUGF) -Iinclude/ -D__ASSEMBLY__
 
 
 #Additional libraries.
@@ -219,7 +232,7 @@ EXTRA_LIBS =
 #Support for newlibc-lpc (file: libnewlibc-lpc.a)
 #NEWLIBLPC = -lnewlib-lpc
 
-MATH_LIB = -lm
+MATH_LIB = #-lm
 
 # CPLUSPLUS_LIB = -lstdc++
 
