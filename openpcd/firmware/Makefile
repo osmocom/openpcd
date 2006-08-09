@@ -82,7 +82,7 @@ ifdef DEBUG
 SRCARM += lib/vsprintf.c lib/ctype.c lib/string.c
 endif
 
-#SRCARM += src/rfid_layer2_iso14443a.c
+SRCARM += src/rfid_layer2_iso14443a.c
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)
