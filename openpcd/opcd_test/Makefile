@@ -5,11 +5,15 @@ all: opcd_test
 
 clean:
 	-rm -f *.o opcd_test
+	$(MAKE) -C ausb clean
 
-opcd_test: opcd_test.o
-	$(CC) $(LDFLAGS) -o $@ $<
+ausb/libausb.a:
+	$(MAKE) -C ausb libausb.a
 
-opcd_test.o: opcd_test.c
+opcd_test: opcd_test.o opcd_usb.o ausb/libausb.a
+	$(CC) $(LDFLAGS) -o $@ $^
+
+%.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 .PHONEY: all clean
