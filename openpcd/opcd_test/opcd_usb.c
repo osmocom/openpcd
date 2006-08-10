@@ -60,7 +60,7 @@ static void opcd_dump_hdr(struct openpcd_hdr *hdr)
 {
 	printf("IRQ: cmd=0x%02x, flags=0x%02x, reg=0x%02x, val=0x%02x "
 		"len=%d, res=%d\n", hdr->cmd, hdr->flags, hdr->reg,
-		hdr->val, hdr->len);
+		hdr->val, hdr->len, hdr->res);
 }
 
 static void handle_interrupt(struct usbdevfs_urb *uurb, void *userdata)
@@ -135,8 +135,7 @@ void opcd_fini(struct opcd_handle *od)
 
 int opcd_recv_reply(struct opcd_handle *od, char *buf, int len)
 {
-	int ret, i;
-
+	int ret;
 	memset(buf, 0, sizeof(buf));
 
 	ret = ausb_bulk_read(od->hdl, OPCD_IN_EP, buf, len, 1000);
@@ -180,6 +179,7 @@ int opcd_send_command(struct opcd_handle *od, u_int8_t cmd,
 	if (ret < 0) {
 		fprintf(stderr, "bulk_write returns %d(%s)\n", ret,
 			usb_strerror());
-		return ret;
 	}
+
+	return ret;
 }
