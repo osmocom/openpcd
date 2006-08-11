@@ -6,7 +6,7 @@
 #include <sys/types.h>
 
 #include "ausb/ausb.h"
-#include "openpcd.h"
+#include "../firmware/include/openpcd.h"
 
 #include "opcd_usb.h"
 
@@ -58,9 +58,8 @@ static struct usb_device *find_opcd_handle(void)
 
 static void opcd_dump_hdr(struct openpcd_hdr *hdr)
 {
-	printf("IRQ: cmd=0x%02x, flags=0x%02x, reg=0x%02x, val=0x%02x "
-		"len=%d, res=%d\n", hdr->cmd, hdr->flags, hdr->reg,
-		hdr->val, hdr->len, hdr->res);
+	printf("IRQ: cmd=0x%02x, flags=0x%02x, reg=0x%02x, val=0x%02x\n",
+		hdr->cmd, hdr->flags, hdr->reg, hdr->val);
 }
 
 static void handle_interrupt(struct usbdevfs_urb *uurb, void *userdata)
@@ -167,7 +166,6 @@ int opcd_send_command(struct opcd_handle *od, u_int8_t cmd,
 	ohdr->cmd = cmd;
 	ohdr->reg = reg;
 	ohdr->val = val;
-	ohdr->len = len;
 	if (data && len)
 		memcpy(ohdr->data, data, len);
 	
