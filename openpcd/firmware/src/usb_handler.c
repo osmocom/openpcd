@@ -26,6 +26,8 @@ static int usb_in(struct req_ctx *rctx)
 
 	if (len < sizeof(*poh))
 		return -EINVAL;
+	
+	len -= sizeof(*poh);
 
 	memcpy(pih, poh, sizeof(*poh));
 	rctx->tx.tot_len = sizeof(*poh);
@@ -38,14 +40,14 @@ static int usb_in(struct req_ctx *rctx)
 		break;
 	case OPENPCD_CMD_READ_FIFO:
 		{
-		u_int16_t tot_len = poh->val, remain_len;
-		if (tot_len > MAX_PAYLOAD_LEN) {
-			pih->len = MAX_PAYLOAD_LEN;
-			remain_len -= pih->len;
-			rc632_fifo_read(RAH, pih->len, pih->data);
-			rctx->tx.tot_len += pih->len;
-			DEBUGP("READ FIFO(len=%u)=%s ", pih->len,
-				hexdump(pih->data, poh->val));
+		u_int16_t req_len = poh->val, remain_len, pih_len;
+		if (req_len > MAX_PAYLOAD_LEN) {
+			pih_len = MAX_PAYLOAD_LEN;
+			remain_len -= pih_len;
+			rc632_fifo_read(RAH, pih_len, pih->data);
+			rctx->tx.tot_len += pih_len;
+			DEBUGP("READ FIFO(len=%u)=%s ", req_len,
+				hexdump(pih->data, pih_len));
 			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
 			udp_refill_ep(2, rctx);
 
@@ -61,17 +63,17 @@ static int usb_in(struct req_ctx *rctx)
 			memcpy(pih, poh, sizeof(*poh));
 			rctx->tx.tot_len = sizeof(*poh);
 
-			pih->len = remain_len;
-			rc632_fifo_read(RAH, pih->len, pih->data);
-			rctx->tx.tot_len += pih->len;
-			DEBUGP("READ FIFO(len=%u)=%s ", pih->len,
-				hexdump(pih->data, poh->val));
+			pih_len = remain_len;
+			rc632_fifo_read(RAH, pih_len, pih->data);
+			rctx->tx.tot_len += pih_len;
+			DEBUGP("READ FIFO(len=%u)=%s ", pih_len,
+				hexdump(pih->data, pih_lenl));
 			/* don't set state of second rctx, main function
 			 * body will do this after switch statement */
 		} else {
-			pih->len = poh->val;
+			pih_len = poh->val;
 			rc632_fifo_read(RAH, poh->val, pih->data);
-			rctx->tx.tot_len += pih->len;
+			rctx->tx.tot_len += pih_len;
 			DEBUGP("READ FIFO(len=%u)=%s ", poh->val,
 				hexdump(pih->data, poh->val));
 		}
@@ -83,10 +85,10 @@ static int usb_in(struct req_ctx *rctx)
 		rc632_reg_write(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_WRITE_FIFO:
-		DEBUGP("WRITE FIFO(len=%u) ", poh->len);
-		if (len - sizeof(*poh) < poh->len)
+		DEBUGP("WRITE FIFO(len=%d) ", len);
+		if (len <= 0)
 			return -EINVAL;
-		rc632_fifo_write(RAH, poh->len, poh->data, 0);
+		rc632_fifo_write(RAH, len, poh->data, 0);
 		break;
 	case OPENPCD_CMD_READ_VFIFO:
 		DEBUGP("READ VFIFO ");
@@ -94,7 +96,9 @@ static int usb_in(struct req_ctx *rctx)
 		goto respond;
 		break;
 	case OPENPCD_CMD_WRITE_VFIFO:
-		DEBUGP("WRITE VFIFO ");
+		DEBUGP("WRITE VFIFO(len=%d) ", len);
+		if (len <= 0)
+			return -EINVAL;
 		DEBUGP("NOT IMPLEMENTED YET ");
 		break;
 	case OPENPCD_CMD_REG_BITS_CLEAR:

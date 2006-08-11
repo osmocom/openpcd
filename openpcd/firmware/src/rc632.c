@@ -19,14 +19,14 @@
 #include "pcd_enumerate.h"
 #include "rc632.h"
 
-#define NOTHING {}
+#define NOTHING  do {} while(0)
 
 #if 0
 #define DEBUGPSPI DEBUGP
 #define DEBUGPSPIIRQ DEBUGP
 #else
 #define	DEBUGPSPI(x, args ...)  NOTHING
-#define DEBUGPSPIIRQ		NOTHING
+#define DEBUGPSPIIRQ(x, args...) NOTHING
 #endif
 
 #if 0
@@ -336,7 +336,6 @@ static void rc632_irq(void)
 	irq_opcdh->cmd = OPENPCD_CMD_IRQ;
 	irq_opcdh->flags = 0x00;
 	irq_opcdh->reg = 0x07;
-	irq_opcdh->len = 0x00;
 	irq_opcdh->val = cause;
 	
 	req_ctx_set_state(irq_rctx, RCTX_STATE_UDP_EP3_PENDING);

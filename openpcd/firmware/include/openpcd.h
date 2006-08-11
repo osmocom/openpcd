@@ -10,8 +10,6 @@ struct openpcd_hdr {
 	u_int8_t flags;
 	u_int8_t reg;		/* register */
 	u_int8_t val;		/* value (in case of write *) */
-	u_int16_t len;
-	u_int16_t res;
 	u_int8_t data[0];
 } __attribute__ ((packed));
 
