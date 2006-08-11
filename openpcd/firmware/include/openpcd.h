@@ -13,6 +13,8 @@ struct openpcd_hdr {
 	u_int8_t data[0];
 } __attribute__ ((packed));
 
+#define OPENPCD_REG_MAX			0x3f
+
 #define OPENPCD_CMD_WRITE_REG		0x01
 #define OPENPCD_CMD_WRITE_FIFO		0x02
 #define OPENPCD_CMD_WRITE_VFIFO		0x03
