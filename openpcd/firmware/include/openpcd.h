@@ -20,6 +20,8 @@ enum openpcd_cmd_class {
 	OPENPCD_CMD_CLS_PWM		= 0x4,
 };
 
+#define OPENPC_REG_MAX	0x3f
+
 #define OPENPCD_CMD_CLS(x)	(x >> 4)
 #define OPENPCD_CMD(x)		(x & 0xf)
 
