@@ -1,8 +1,8 @@
 #!/usr/bin/make
-LDFLAGS=-lusb
+LDFLAGS=-lusb -lcrypt #-lzebvty -Lzebvty/
 CFLAGS=-Wall
 
-all: opcd_test
+all: opcd_test opcd_sh
 
 clean:
 	-rm -f *.o opcd_test
@@ -13,6 +13,10 @@ ausb/libausb.a:
 
 opcd_test: opcd_test.o opcd_usb.o ausb/libausb.a
 	$(CC) $(LDFLAGS) -o $@ $^
+
+opcd_sh: opcd_sh.o opcd_usb.o ausb/libausb.a zebvty/libzebvty.a
+	$(CC) $(LDFLAGS) -o $@ $^
+	
 
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
