@@ -15,7 +15,7 @@ struct iso14443b_atqb {
 			      adc:2,
 			      fwi:4;
 	} protocol_info;
-};
+} __attribute__((packed));
 
 struct iso14443b_attrib_hdr {
 	unsigned char one_d;
@@ -40,7 +40,7 @@ struct iso14443b_attrib_hdr {
 		unsigned char cid:4,
 			      rfu:4;
 	} param4;
-};
+} __attribute__((packed));
 
 struct iso14443b_handle {
 	unsigned int tcl_capable; /* do we support T=CL */
