@@ -165,7 +165,7 @@ int udp_refill_ep(int ep, struct req_ctx *rctx)
 	DEBUGP("refilling EP%u ", ep);
 
 	/* FIXME: state machine to handle two banks of FIFO memory, etc */
-	if (atomic_read(&upcd.ep[ep].pkts_in_transit) >= 2)
+	if (atomic_read(&upcd.ep[ep].pkts_in_transit) >= 1)
 		return -EBUSY;
 		
 	/* fill FIFO/DPR */

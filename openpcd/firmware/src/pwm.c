@@ -8,6 +8,9 @@
 #include <AT91SAM7.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <openpcd.h>
+#include "usb_handler.h"
+#include "pcd_enumerate.h"
 #include "dbgu.h"
 #include "openpcd.h"
 
@@ -100,6 +103,46 @@ void pwm_duty_set_percent(int channel, u_int16_t duty)
 	AT91F_PWMC_UpdateChannel(AT91C_BASE_PWMC, channel, tmp);
 }
 
+static int pwm_usb_in(struct req_ctx *rctx)
+{
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	u_int32_t *freq;
+
+	switch (poh->cmd) {
+	case OPENPCD_CMD_PWM_ENABLE:
+		if (poh->val)
+			pwm_start(0);
+		else
+			pwm_stop(0);
+		break;
+	case OPENPCD_CMD_PWM_DUTY_SET:
+		pwm_duty_set_percent(0, poh->val);
+		break;
+	case OPENPCD_CMD_PWM_DUTY_GET:
+		goto respond;
+		break;
+	case OPENPCD_CMD_PWM_FREQ_SET:
+		if (rctx->rx.tot_len < sizeof(*poh)+4)
+			break;
+		freq = (void *) poh + sizeof(*poh);
+		pwm_freq_set(0, *freq);
+		break;
+	case OPENPCD_CMD_PWM_FREQ_GET:
+		goto respond;
+		break;
+	default:
+		break;
+	}
+
+	req_ctx_put(rctx);
+	return 0;
+respond:
+	req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+	udp_refill_ep(2, rctx);
+	return 1;
+}
+
 void pwm_init(void)
 {
 	/* IMPORTANT: Disable PA17 (SSC TD) output */
@@ -110,9 +153,12 @@ void pwm_init(void)
 
 	/* Enable Clock for PWM controller */
 	AT91F_PWMC_CfgPMC();
+
+	usb_hdlr_register(&pwm_usb_in, OPENPCD_CMD_CLS_PWM);
 }
 
 void pwm_fini(void)
 {
+	usb_hdlr_unregister(OPENPCD_CMD_CLS_PWM);
 	AT91F_PMC_DisablePeriphClock(AT91C_BASE_PMC, (1 << AT91C_ID_PWMC));
 }

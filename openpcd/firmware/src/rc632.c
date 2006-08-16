@@ -9,7 +9,7 @@
  * */
 
 #include <string.h>
-
+#include <errno.h>
 #include <lib_AT91SAM7.h>
 #include <cl_rc632.h>
 #include <openpcd.h>
@@ -17,6 +17,7 @@
 #include "fifo.h"
 #include "dbgu.h"
 #include "pcd_enumerate.h"
+#include "usb_handler.h"
 #include "rc632.h"
 
 #define NOTHING  do {} while(0)
@@ -379,6 +380,107 @@ void rc632_reset(void)
 	rc632_reg_write(RAH, RC632_REG_PAGE0, 0x00);
 }
 
+static int rc632_usb_in(struct req_ctx *rctx)
+{
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	u_int16_t len = rctx->rx.tot_len;
+
+	switch (poh->cmd) {
+	case OPENPCD_CMD_READ_REG:
+		rc632_reg_read(RAH, poh->reg, &pih->val);
+		DEBUGP("READ REG(0x%02x)=0x%02x ", poh->reg, pih->val);
+		goto respond;
+		break;
+	case OPENPCD_CMD_READ_FIFO:
+		{
+		u_int16_t req_len = poh->val, remain_len, pih_len;
+		if (req_len > MAX_PAYLOAD_LEN) {
+			pih_len = MAX_PAYLOAD_LEN;
+			remain_len -= pih_len;
+			rc632_fifo_read(RAH, pih_len, pih->data);
+			rctx->tx.tot_len += pih_len;
+			DEBUGP("READ FIFO(len=%u)=%s ", req_len,
+				hexdump(pih->data, pih_len));
+			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+			udp_refill_ep(2, rctx);
+
+			/* get and initialize second rctx */
+			rctx = req_ctx_find_get(RCTX_STATE_FREE,
+						RCTX_STATE_MAIN_PROCESSING);
+			if (!rctx) {
+				DEBUGPCRF("FATAL_NO_RCTX!!!\n");
+				break;
+			}
+			poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+			pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+			memcpy(pih, poh, sizeof(*poh));
+			rctx->tx.tot_len = sizeof(*poh);
+
+			pih_len = remain_len;
+			rc632_fifo_read(RAH, pih->val, pih->data);
+			rctx->tx.tot_len += pih_len;
+			DEBUGP("READ FIFO(len=%u)=%s ", pih_len,
+				hexdump(pih->data, pih_len));
+			/* don't set state of second rctx, main function
+			 * body will do this after switch statement */
+		} else {
+			pih->val = poh->val;
+			rc632_fifo_read(RAH, poh->val, pih->data);
+			rctx->tx.tot_len += pih_len;
+			DEBUGP("READ FIFO(len=%u)=%s ", poh->val,
+				hexdump(pih->data, poh->val));
+		}
+		goto respond;
+		break;
+		}
+	case OPENPCD_CMD_WRITE_REG:
+		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
+		rc632_reg_write(RAH, poh->reg, poh->val);
+		break;
+	case OPENPCD_CMD_WRITE_FIFO:
+		DEBUGP("WRITE FIFO(len=%u) ", len-sizeof(*poh));
+		rc632_fifo_write(RAH, len, poh->data, 0);
+		break;
+	case OPENPCD_CMD_READ_VFIFO:
+		DEBUGP("READ VFIFO ");
+		DEBUGP("NOT IMPLEMENTED YET ");
+		goto respond;
+		break;
+	case OPENPCD_CMD_WRITE_VFIFO:
+		DEBUGP("WRITE VFIFO ");
+		DEBUGP("NOT IMPLEMENTED YET ");
+		break;
+	case OPENPCD_CMD_REG_BITS_CLEAR:
+		DEBUGP("CLEAR BITS ");
+		pih->val = rc632_clear_bits(RAH, poh->reg, poh->val);
+		break;
+	case OPENPCD_CMD_REG_BITS_SET:
+		DEBUGP("SET BITS ");
+		pih->val = rc632_set_bits(RAH, poh->reg, poh->val);
+		break;
+	case OPENPCD_CMD_DUMP_REGS:
+		DEBUGP("DUMP REGS ");
+		DEBUGP("NOT IMPLEMENTED YET ");
+		goto respond;
+		break;
+	default:
+		DEBUGP("UNKNOWN ");
+		return -EINVAL;
+	}
+
+	req_ctx_put(rctx);
+	return 0;
+
+respond:
+	req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+	/* FIXME: we could try to send this immediately */
+	udp_refill_ep(2, rctx);
+	DEBUGPCR("");
+
+	return 1;
+}
+
 void rc632_init(void)
 {
 	//fifo_init(&rc632.fifo, 256, NULL, &rc632);
@@ -437,11 +539,13 @@ void rc632_init(void)
 	/* configure AUX to test signal four */
 	rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, 0x04);
 
+	usb_hdlr_register(&rc632_usb_in, OPENPCD_CMD_CLS_RC632);
 };
 
 #if 0
 void rc632_exit(void)
 {
+	usb_hdlr_unregister(OPENPCD_CMD_CLS_RC632);
 	AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 	AT91F_AIC_DisableIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 	AT91F_SPI_Disable(pSPI);

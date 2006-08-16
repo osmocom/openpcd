@@ -11,7 +11,9 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <lib_AT91SAM7.h>
+#include <openpcd.h>
 
+#include "usb_handler.h"
 #include "openpcd.h"
 #include "dbgu.h"
 
@@ -23,6 +25,15 @@ struct ssc_state {
 };
 
 static struct ssc_state ssc_state;
+
+static struct openpcd_hdr opcd_ssc_hdr = {
+	.cmd	= OPENPCD_CMD_SSC_READ,
+};
+
+static inline void init_opcdhdr(struct req_ctx *rctx)
+{
+	memcpy(&rctx->tx.data[0], rctx, sizeof(rctx));
+}
 
 /* Try to refill RX dma descriptors. Return values:
  *  0) no dma descriptors empty
@@ -42,6 +53,7 @@ static int8_t ssc_rx_refill(void)
 	}
 
 	if (AT91F_PDC_IsRxEmpty(rx_pdc)) {
+		init_opcdhdr(rctx);
 		DEBUGPCRF("filling primary SSC RX dma ctx");
 		AT91F_PDC_SetRx(rx_pdc, &rctx->rx.data[MAX_HDRSIZE],
 				MAX_REQSIZE);
@@ -58,6 +70,7 @@ static int8_t ssc_rx_refill(void)
 
 	if (AT91F_PDC_IsNextRxEmpty(rx_pdc)) {
 		DEBUGPCRF("filling secondary SSC RX dma ctx");
+		init_opcdhdr(rctx);
 		AT91F_PDC_SetNextRx(rx_pdc, &rctx->rx.data[MAX_HDRSIZE],
 				    MAX_REQSIZE);
 		ssc_state.rx_ctx[1] = rctx;
@@ -131,6 +144,23 @@ void ssc_tx_init(void)
 			    0);
 }
 
+static int ssc_usb_in(struct req_ctx *rctx)
+{
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+
+	/* FIXME: implement this */
+	switch (poh->cmd) {
+	case OPENPCD_CMD_SSC_READ:
+		break;
+	case OPENPCD_CMD_SSC_WRITE:
+		break;
+	}
+
+	req_ctx_put(rctx);
+	return -EINVAL;
+}
+
 void ssc_rx_init(void)
 {
 	rx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
@@ -156,10 +186,13 @@ void ssc_rx_init(void)
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN |
 			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
 	AT91F_PDC_EnableRx(rx_pdc);
+
+	usb_hdlr_register(&ssc_usb_in, OPENPCD_CMD_CLS_SSC);
 }
 
 void ssc_fini(void)
 {
+	usb_hdlr_unregister(OPENPCD_CMD_CLS_SSC);
 	AT91F_PDC_DisableRx(rx_pdc);
 	AT91F_SSC_DisableTx(ssc);
 	AT91F_SSC_DisableRx(ssc);

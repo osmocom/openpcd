@@ -28,7 +28,7 @@ void _init_func(void)
 	DEBUGPCRF("initializing 14443A operation");
 	rc632_iso14443a_init(RAH);
 	/* Switch to 848kBps (1subcp / bit) */
-	rc632_clear_bits(RAH, RC632_REG_RX_CONTROL1, RC632_RXCTRL1_SUBCP_MASK);
+	//rc632_clear_bits(RAH, RC632_REG_RX_CONTROL1, RC632_RXCTRL1_SUBCP_MASK);
 }
 
 int _main_dbgu(char key)

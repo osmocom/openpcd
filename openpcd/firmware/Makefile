@@ -155,7 +155,7 @@ CSTANDARD = -std=gnu99
 CDEFS =  -D$(RUN_MODE) -D__MS_types__ -D__LIBRFID__ 
 
 ifdef DEBUG
-CDEF += -DDEBUG 
+CDEFS += -DDEBUG 
 endif
 
 ifdef OLIMEX
