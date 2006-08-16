@@ -25,6 +25,8 @@
 #include "openpcd.h"
 #include "dbgu.h"
 
+//#define DEBUG_UDP_IRQ
+
 #define AT91C_EP_OUT 1
 #define AT91C_EP_OUT_SIZE 0x40
 #define AT91C_EP_IN  2
@@ -184,16 +186,22 @@ int udp_refill_ep(int ep, struct req_ctx *rctx)
 	return 0;
 }
 
+#ifdef DEBUG_UDP_IRQ
+#define DEBUGI(x, args ...)	DEBUGP(x, ## args)
+#else
+#define DEBUGI(x, args ...)	do { } while (0)
+#endif
+
 static void udp_irq(void)
 {
 	u_int32_t csr;
 	AT91PS_UDP pUDP = upcd.pUdp;
 	AT91_REG isr = pUDP->UDP_ISR;
 
-	DEBUGP("udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
+	DEBUGI("udp_irq(imr=0x%04x, isr=0x%04x): ", pUDP->UDP_IMR, isr);
 
 	if (isr & AT91C_UDP_ENDBUSRES) {
-		DEBUGP("ENDBUSRES ");
+		DEBUGI("ENDBUSRES ");
 		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
 		pUDP->UDP_IER = AT91C_UDP_EPINT0;
 		/* reset all endpoints */
@@ -207,24 +215,24 @@ static void udp_irq(void)
 	}
 
 	if (isr & AT91C_UDP_EPINT0) {
-		DEBUGP("EP0INT(Control) ");
+		DEBUGI("EP0INT(Control) ");
 		udp_ep0_handler();
 	}
 	if (isr & AT91C_UDP_EPINT1) {
 		u_int32_t cur_rcv_bank = upcd.cur_rcv_bank;
 		csr = pUDP->UDP_CSR[1];
-		DEBUGP("EP1INT(Out, CSR=0x%08x) ", csr);
+		DEBUGI("EP1INT(Out, CSR=0x%08x) ", csr);
 		if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK1)
-			DEBUGP("cur_bank=1 ");
+			DEBUGI("cur_bank=1 ");
 		else if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
-			DEBUGP("cur_bank=0 ");
+			DEBUGI("cur_bank=0 ");
 		else
-			DEBUGP("cur_bank INVALID ");
+			DEBUGI("cur_bank INVALID ");
 
 		if (csr & AT91C_UDP_RX_DATA_BK1)
-			DEBUGP("BANK1 ");
+			DEBUGI("BANK1 ");
 		if (csr & AT91C_UDP_RX_DATA_BK0)
-			DEBUGP("BANK0 ");
+			DEBUGI("BANK0 ");
 
 		if (csr & cur_rcv_bank) {
 			u_int16_t pkt_recv = 0;
@@ -243,7 +251,7 @@ static void udp_irq(void)
 					cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
 				upcd.cur_rcv_bank = cur_rcv_bank;
 				req_ctx_set_state(rctx, RCTX_STATE_UDP_RCV_DONE);
-				DEBUGP("RCTX=%u ", req_ctx_num(rctx));
+				DEBUGI("RCTX=%u ", req_ctx_num(rctx));
 			} else {
 				/* disable interrupts for now */
 				pUDP->UDP_IDR = AT91C_UDP_EPINT1;
@@ -253,11 +261,11 @@ static void udp_irq(void)
 	}
 	if (isr & AT91C_UDP_EPINT2) {
 		csr = pUDP->UDP_CSR[2];
-		DEBUGP("EP2INT(In, CSR=0x%08x) ", csr);
+		DEBUGI("EP2INT(In, CSR=0x%08x) ", csr);
 		if (csr & AT91C_UDP_TXCOMP) {
 			struct req_ctx *rctx;
 
-			DEBUGP("ACK_TX_COMP ");
+			DEBUGI("ACK_TX_COMP ");
 			/* acknowledge TX completion */
 			pUDP->UDP_CSR[2] &= ~AT91C_UDP_TXCOMP;
 			while (pUDP->UDP_CSR[2] & AT91C_UDP_TXCOMP) ;
@@ -279,36 +287,36 @@ static void udp_irq(void)
 	}
 	if (isr & AT91C_UDP_EPINT3) {
 		csr = pUDP->UDP_CSR[3];
-		DEBUGP("EP3INT(Interrupt, CSR=0x%08x) ", csr);
+		DEBUGI("EP3INT(Interrupt, CSR=0x%08x) ", csr);
 		/* Transmit has completed, re-fill from pending rcts for EP3 */
 	}
 
 	if (isr & AT91C_UDP_RXSUSP) {
 		pUDP->UDP_ICR = AT91C_UDP_RXSUSP;
-		DEBUGP("RXSUSP ");
+		DEBUGI("RXSUSP ");
 		/* FIXME: implement suspend/resume */
 	}
 	if (isr & AT91C_UDP_RXRSM) {
 		pUDP->UDP_ICR = AT91C_UDP_RXRSM;
-		DEBUGP("RXRSM ");
+		DEBUGI("RXRSM ");
 		/* FIXME: implement suspend/resume */
 	}
 	if (isr & AT91C_UDP_EXTRSM) {
 		pUDP->UDP_ICR = AT91C_UDP_EXTRSM;
-		DEBUGP("EXTRSM ");
+		DEBUGI("EXTRSM ");
 		/* FIXME: implement suspend/resume */
 	}
 	if (isr & AT91C_UDP_SOFINT) {
 		pUDP->UDP_ICR = AT91C_UDP_SOFINT;
-		DEBUGP("SOFINT ");
+		DEBUGI("SOFINT ");
 	}
 	if (isr & AT91C_UDP_WAKEUP) {
 		pUDP->UDP_ICR = AT91C_UDP_WAKEUP;
-		DEBUGP("WAKEUP ");
+		DEBUGI("WAKEUP ");
 		/* FIXME: implement suspend/resume */
 	}
 
-	DEBUGP("END\r\n");
+	DEBUGI("END\r\n");
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 }
 
@@ -630,6 +638,7 @@ static void udp_ep0_handler(void)
 				/* free all currently transmitting contexts */
 				while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP2_BUSY,
 							       RCTX_STATE_FREE)) {}
+				atomic_set(&upcd.ep[wIndex].pkts_in_transit, 0);
 			}
 			else if (wIndex == 3) {
 				pUDP->UDP_CSR[3] =
@@ -641,6 +650,7 @@ static void udp_ep0_handler(void)
 				/* free all currently transmitting contexts */
 				while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP3_BUSY,
 							       RCTX_STATE_FREE)) {}
+				atomic_set(&upcd.ep[wIndex].pkts_in_transit, 0);
 			}
 			udp_ep0_send_zlp(pUDP);
 		} else
