@@ -384,7 +384,7 @@ static int rc632_usb_in(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
 	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
-	u_int16_t len = rctx->rx.tot_len;
+	u_int16_t len = rctx->rx.tot_len-sizeof(*poh);
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_READ_REG:
@@ -439,7 +439,8 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		rc632_reg_write(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_WRITE_FIFO:
-		DEBUGP("WRITE FIFO(len=%u) ", len-sizeof(*poh));
+		DEBUGP("WRITE FIFO(len=%u): %s ", len,
+			hexdump(poh->data, len));
 		rc632_fifo_write(RAH, len, poh->data, 0);
 		break;
 	case OPENPCD_CMD_READ_VFIFO:
@@ -469,7 +470,12 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		return -EINVAL;
 	}
 
+#ifdef ALWAYS_RESPND
+	goto respond;
+#endif
+
 	req_ctx_put(rctx);
+	DEBUGPCR("");
 	return 0;
 
 respond:
