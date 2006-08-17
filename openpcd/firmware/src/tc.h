@@ -21,4 +21,8 @@ extern void tc_cdiv_print(void);
 extern void tc_cdiv_init(void);
 extern void tc_cdiv_fini(void);
 
+#ifdef CONFIG_PICCSIM
+extern void tc_fdt_set(u_int16_t count);
+#endif
+
 #endif

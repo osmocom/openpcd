@@ -3,7 +3,17 @@
  *
  * This idea of this code is to feed the 13.56MHz carrier clock of RC632
  * into TCLK1, which is routed to XC1.  Then configure TC0 to divide this
- * clock by 
+ * clock by a configurable divider.
+ *
+ * PICC Simulator Side:
+ * In order to support responding to synchronous frames (REQA/WUPA/ANTICOL),
+ * we need a second Timer/Counter (TC1).  This unit is reset by an external
+ * event (rising edge of modulation pause PCD->PICC) connected to TIOB2, and
+ * counts up to a configurable number of carrier clock cycles (RA). Once the
+ * RA value is reached, TIOA2 will see a rising edge.  This rising edge will
+ * be interconnected to TF (Tx Frame) of the SSC to start transmitting our
+ * synchronous response.
+ *
  */
 
 #include <lib_AT91SAM7.h>
@@ -35,6 +45,13 @@ void tc_cdiv_phase_add(int16_t inc)
 	}
 }
 
+#ifdef CONFIG_PICCSIM
+void tc_fdt_set(u_int16_t count)
+{
+	tcb->TC_TC2.TC_RA = count;
+}
+#endif
+
 void tc_cdiv_init(void)
 {
 	/* Cfg PA28(TCLK1), PA0(TIOA0), PA1(TIOB0), PA20(TCLK2) as Periph B */
@@ -65,6 +82,22 @@ void tc_cdiv_init(void)
 			      AT91C_TC_EEVT_XC2 | AT91C_TC_ETRGEDG_RISING;
 
 	tc_cdiv_set_divider(128);
+
+#ifdef CONFIG_PICCSIM
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA15_TF,
+			    AT91C_PA26_TIOA2, AT91C_PA17_TIOB2);
+	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC,
+				    ((unsigned int) 1 << AT91C_ID_TC2));
+	/* Clock XC1, Wave Mode, No automatic reset on RC comp
+	 * TIOA2 in RA comp = set, TIOA2 on RC comp = clear,
+	 * TIOB2 as input, EEVT = TIOB2, Reset/Trigger on EEVT */
+	tcb->TCB_TC2.TC_CMR = AT91C_TC_CLKS_XC1 | AT91C_TC_WAVE |
+			      AT91C_TC_WAVESEL_UP |
+			      AT91C_TC_ACPA_SET | AT91C_ACPC_CLEAR |
+			      AT91C_TC_BEEVT_NONE | AT91C_TC_BCPB_NONE |
+			      AT91C_TC_EEVT_TIOB | AT91C_TC_ETRGEDG_RISING |
+			      AT91C_TC_ENETRG ;
+#endif
 
 	/* Reset to start timers */
 	tcb->TCB_BCR = 1;
