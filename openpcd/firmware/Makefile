@@ -105,7 +105,8 @@ ASRC =
 ASRCLIB = lib/changebit.S lib/clearbit.S lib/setbit.S lib/testchangebit.S \
 	  lib/testclearbit.S lib/testsetbit.S 
 ifdef DEBUG
-ASRCLIB += lib/memcpy.S lib/memset.S lib/lib1funcs.S lib/div64.S
+#ASRCLIB += lib/memcpy.S lib/memset.S lib/lib1funcs.S lib/div64.S
+ASRCLIB += lib/lib1funcs.S lib/div64.S
 endif
 
 # List Assembler source files here which must be assembled in ARM-Mode..
