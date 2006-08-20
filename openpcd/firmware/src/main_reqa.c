@@ -35,8 +35,11 @@ void _init_func(void)
 #define MODE_REQA	0x01
 #define MODE_WUPA	0x02
 #define MODE_ANTICOL	0x03
+#define MODE_14443A	0x04
 
 static volatile int mode = MODE_REQA;
+
+static const char frame_14443a[] = { 0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
 
 static void reg_inc(u_int8_t reg)
 {
@@ -56,10 +59,12 @@ static void reg_dec(u_int8_t reg)
 
 static u_int8_t ana_out_sel;
 static u_int8_t mfout_sel;
+static u_int8_t speed_idx;
 
 static void help(void)
 {
 	DEBUGPCR("r: REQA         w: WUPA        a: ANTICOL\r\n"
+		 "A: 14443A       +: inc speed   -: dec speed\r\n"
 		 "y: inc cw cond  x: dec cond    c: inc mod cond");
 	DEBUGPCR("v: dec mod cond o: dec ana_out p: dec ana_out\r\n"
 		 "h: trigger high l: trigger low u: dec MFOUT mode");
@@ -84,13 +89,15 @@ int _main_dbgu(char key)
 	case 'w':
 		mode = MODE_WUPA;
 		break;
+	case 'A':
+		mode = MODE_14443A;
+		break;
 	case 'a':
 		mode = MODE_ANTICOL;
 		break;
 		/* Those below don't work as long as 
 		 * iso14443a_init() is called before
 		 * every cycle */
-
 	case 'y':
 		reg_inc(RC632_REG_CW_CONDUCTANCE);
 		break;
@@ -157,6 +164,14 @@ int _main_dbgu(char key)
 			cdiv_idx++;
 		tc_cdiv_set_divider(cdivs[cdiv_idx]);
 		break;
+	case '-':
+		if (speed_idx > 0)
+			speed_idx--;
+		break;
+	case '+':
+		if (speed_idx < 3)
+			speed_idx++;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -208,11 +223,24 @@ void _main_func(void)
 			DEBUGPCRF("received WUPA: %s", hexdump((char *)&atqa, sizeof(atqa)));
 		break;
 	case MODE_ANTICOL:
-		status = iso14443a_anticol(&l2h);
+		status = rfid_layer2_iso14443a.fn.open(&l2h);
 		if (status < 0)
 			DEBUGPCR("error during anticol");
 		else
 			DEBUGPCR("Anticol OK");
+		break;
+	case MODE_14443A:
+		{
+			char rx_buf[4];
+			int rx_len = sizeof(rx_buf);
+			rfid_layer2_iso14443a.fn.setopt(&l2h, RFID_OPT_14443A_SPEED_RX,
+					 &speed_idx, sizeof(speed_idx));
+			rfid_layer2_iso14443a.fn.setopt(&l2h, RFID_OPT_14443A_SPEED_TX,
+					 &speed_idx, sizeof(speed_idx));
+			rfid_layer2_iso14443a.fn.transceive(&l2h, RFID_14443A_FRAME_REGULAR, 
+					    &frame_14443a, sizeof(frame_14443a),
+					    &rx_buf, &rx_len, 1, 0);
+		}
 		break;
 	}
 

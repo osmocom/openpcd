@@ -96,7 +96,7 @@ set_bit_in_field(unsigned char *bitfield, unsigned int bit)
 	DEBUGP("%p = 0x%02x\n", (bitfield+byte_count), *(bitfield+byte_count));
 }
 
-int
+static int
 iso14443a_anticol(struct rfid_layer2_handle *handle)
 {
 	int ret;
