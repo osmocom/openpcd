@@ -1,5 +1,6 @@
 /* main_reqa - OpenPCD firmware for generating an endless loop of
- * ISO 14443-A REQA packets.
+ * ISO 14443-A REQA packets.  Alternatively we can send WUPA, or
+ * perform a full ISO14443A anti-collision loop.
  *
  * If a response is received from the PICC, LED1 (Red) will be switched
  * on.  If no valid response has been received within the timeout of the
