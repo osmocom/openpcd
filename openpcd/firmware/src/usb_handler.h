@@ -1,6 +1,8 @@
 #ifndef _USB_HANDLER_H
 #define _USB_HANDLER_H
 
+#include "openpcd.h"
+
 #define MAX_PAYLOAD_LEN	(64 - sizeof(struct openpcd_hdr))
 
 typedef int usb_cmd_fn(struct req_ctx *rctx);

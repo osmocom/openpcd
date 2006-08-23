@@ -48,6 +48,8 @@ static int usb_in(struct req_ctx *rctx)
 		DEBUGPCR("no handler for this class\n");
 }
 
+/* Process all pending request contexts that want to Tx on either
+ * IN or INTERRUPT endpoint */
 void usb_out_process(void)
 {
 	struct req_ctx *rctx;
@@ -67,6 +69,8 @@ void usb_out_process(void)
 	}
 }
 
+/* process incoming USB packets (OUT pipe) that have already been 
+ * put into request contexts by the UDP IRQ handler */
 void usb_in_process(void)
 {
 	struct req_ctx *rctx;
