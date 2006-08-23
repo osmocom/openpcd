@@ -841,7 +841,8 @@ typedef struct _AT91S_SSC {
 	AT91_REG	 Reserved1[2]; 	// 
 	AT91_REG	 SSC_RSHR; 	// Receive Sync Holding Register
 	AT91_REG	 SSC_TSHR; 	// Transmit Sync Holding Register
-	AT91_REG	 Reserved2[2]; 	// 
+	AT91_REG	 SSC_RC0R; 	// Receive Compare 0 Register
+	AT91_REG	 SSC_RC1R; 	// Receive Compare 1 Register
 	AT91_REG	 SSC_SR; 	// Status Register
 	AT91_REG	 SSC_IER; 	// Interrupt Enable Register
 	AT91_REG	 SSC_IDR; 	// Interrupt Disable Register
@@ -904,6 +905,7 @@ typedef struct _AT91S_SSC {
 // -------- SSC_TCMR : (SSC Offset: 0x18) SSC Transmit Clock Mode Register -------- 
 // -------- SSC_TFMR : (SSC Offset: 0x1c) SSC Transmit Frame Mode Register -------- 
 #define AT91C_SSC_DATDEF      ((unsigned int) 0x1 <<  5) // (SSC) Data Default Value
+#define AT91C_SSC_MSBF	      ((unsigned int) 0x1 <<  7) // (SSC) MSB First
 #define AT91C_SSC_FSDEN       ((unsigned int) 0x1 << 23) // (SSC) Frame Sync Data Enable
 // -------- SSC_SR : (SSC Offset: 0x40) SSC Status Register -------- 
 #define AT91C_SSC_TXRDY       ((unsigned int) 0x1 <<  0) // (SSC) Transmit Ready
@@ -914,6 +916,8 @@ typedef struct _AT91S_SSC {
 #define AT91C_SSC_OVRUN       ((unsigned int) 0x1 <<  5) // (SSC) Receive Overrun
 #define AT91C_SSC_ENDRX       ((unsigned int) 0x1 <<  6) // (SSC) End of Reception
 #define AT91C_SSC_RXBUFF      ((unsigned int) 0x1 <<  7) // (SSC) Receive Buffer Full
+#define AT91C_SSC_CP0         ((unsigned int) 0x1 <<  8) // (SSC) Compare 0
+#define AT91C_SSC_CP1         ((unsigned int) 0x1 <<  9) // (SSC) Compare 1
 #define AT91C_SSC_TXSYN       ((unsigned int) 0x1 << 10) // (SSC) Transmit Sync
 #define AT91C_SSC_RXSYN       ((unsigned int) 0x1 << 11) // (SSC) Receive Sync
 #define AT91C_SSC_TXENA       ((unsigned int) 0x1 << 16) // (SSC) Transmit Enable
