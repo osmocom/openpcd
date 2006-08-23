@@ -71,7 +71,7 @@ static int led_usb_rx(struct req_ctx *rctx)
 	}
 	req_ctx_put(rctx);
 	return 1;
-};
+}
 
 void led_init(void)
 {
