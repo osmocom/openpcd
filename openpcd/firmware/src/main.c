@@ -30,5 +30,6 @@ int main(void)
 	while (1) {
 		/* Call application specific main idle function */
 		_main_func();
+		dbgu_rb_flush();
 	}
 }
