@@ -495,7 +495,7 @@ static void udp_ep0_handler(void)
 
 	if (csr & AT91C_UDP_RX_DATA_BK0) {
 		DEBUGP("ACK_BANK0 ");
-		pUDP->UDP_CSR[0] = ~AT91C_UDP_RX_DATA_BK0;
+		pUDP->UDP_CSR[0] &= ~AT91C_UDP_RX_DATA_BK0;
 	}
 
 	if (!(csr & AT91C_UDP_RXSETUP)) {
