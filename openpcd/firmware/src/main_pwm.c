@@ -39,7 +39,7 @@ static void rc632_modulate_mfin()
 #define COND_MANT(x)	(x & 0x0f)
 #define COND_EXP(x)	((x & 0x30) >> 4)
 
-static u_int16_t rsrel_expfact[] = { 1000, 1925, 3706, 7133 };
+static const u_int16_t rsrel_expfact[] = { 1000, 1925, 3706, 7133 };
 
 static u_int32_t calc_conduct_rel(u_int8_t inp)
 {
@@ -51,14 +51,14 @@ static u_int32_t calc_conduct_rel(u_int8_t inp)
 	return cond_rel;
 }
 
-static u_int8_t rsrel_table[] = {
+static const u_int8_t rsrel_table[] = {
 	0, 16, 32, 48, 1, 17, 2, 3, 33, 18, 4, 5, 19, 6, 7, 49, 34, 20,
 	8, 9, 21, 10, 11, 35, 22, 12, 13, 23, 14, 50, 36, 15, 24, 25,
 	37, 26, 27, 51, 38, 28, 29, 39, 30, 52, 31, 40, 41, 53, 42, 43,
 	54, 44, 45, 55, 46, 47, 56, 57, 58, 59, 60, 61, 62, 63 };
 
 
-static u_int16_t cdivs[] = { 128, 64, 32, 16 };
+static const u_int16_t cdivs[] = { 128, 64, 32, 16 };
 static int cdiv_idx = 0;
 
 static void help(void)
@@ -69,7 +69,8 @@ static void help(void)
 		 "v: decrease mod_cond b: increase mod_cond\r\n"
 		 "g: decrease cw_cond  h: increase cw_cond");
 	DEBUGPCR("u: PA23 const 1      y: PA23 const 0\r\n"
-		 "t: PA23 PWM0         f: toggle Force100ASK");
+		 "t: PA23 PWM0         f: toggle Force100ASK\r\n"
+		 "{: decrease cdiv_idx }: increse cdiv idx");
 }
 
 void _init_func(void)
@@ -217,12 +218,16 @@ int _main_dbgu(char key)
 	case 's':
 		ssc_rx_start();
 		break;
+	case 'S':
+		ssc_rx_stop();
+		break;
 	default:
 		return -EINVAL;
 	}
 
-	DEBUGPCRF("pwm_freq=%u, duty_percent=%u, mod_conductance=%u, cw_conductance=%u", 
-		  pwm_freq[pwm_freq_idx], duty_percent, mod_conductance, cw_conductance);
+	DEBUGPCR("pwm_freq=%u, duty_percent=%u, mod_cond=%u, cw_cond=%u tc_cdiv=%u", 
+		 pwm_freq[pwm_freq_idx], duty_percent, mod_conductance, cw_conductance,
+		 cdivs[cdiv_idx]);
 	
 	return 0;
 }
