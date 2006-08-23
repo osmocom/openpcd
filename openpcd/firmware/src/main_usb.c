@@ -15,28 +15,8 @@
 #include "pcd_enumerate.h"
 #include "usb_handler.h"
 
-static char usb_buf1[64];
-static char usb_buf2[64];
-static struct req_ctx dummy_rctx1;
-
-
 static void help(void)
 {
-}
-
-void _init_func(void)
-{
-	DEBUGPCR("\r\n===> main_usb <===\r\n");
-	help();
-
-	udp_init();
-
-	memset(usb_buf1, '1', sizeof(usb_buf1));
-	memset(usb_buf2, '2', sizeof(usb_buf2));
-
-	dummy_rctx1.tx.tot_len = sizeof(usb_buf1);
-	memcpy(dummy_rctx1.tx.data, usb_buf1, sizeof(usb_buf1));
-
 }
 
 int _main_dbgu(char key)
@@ -49,21 +29,21 @@ int _main_dbgu(char key)
 	return 0;
 }
 
+void _init_func(void)
+{
+	udp_init();
+	usbtest_init();
+}
+
 void _main_func(void)
 {
 	/* first we try to get rid of pending to-be-sent stuff */
 	//usb_out_process();
 
 	/* next we deal with incoming reqyests from USB EP1 (OUT) */
-	//usb_in_process();
+	usb_in_process();
 
 	/* try unthrottling sources since we now are [more] likely to
 	 * have empty request contexts */
-	//udp_unthrottle();
-
-	while (udp_refill_ep(2, &dummy_rctx1) < 0) ;
-
-	DEBUGP("S");
-
-	//led_toggle(2);
+	udp_unthrottle();
 }
