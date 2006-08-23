@@ -26,6 +26,7 @@
 #include "dbgu.h"
 
 //#define DEBUG_UDP_IRQ
+//#ifdef DEBUG_UDP_EP0
 
 #define AT91C_EP_OUT 1
 #define AT91C_EP_OUT_SIZE 0x40
@@ -41,7 +42,6 @@ struct ep_ctx {
 struct udp_pcd {
 	AT91PS_UDP pUdp;
 	unsigned char cur_config;
-	unsigned char cur_connection;
 	unsigned int  cur_rcv_bank;
 	struct ep_ctx ep[4];
 };
@@ -159,27 +159,27 @@ int udp_refill_ep(int ep, struct req_ctx *rctx)
 	u_int16_t i;
 	AT91PS_UDP pUDP = upcd.pUdp;
 
+	if (!upcd.cur_config)
+		return -ENXIO;
+	
 	if (rctx->tx.tot_len > AT91C_EP_IN_SIZE) {
-		DEBUGPCRF("TOO LARGE!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		DEBUGPCRF("TOO LARGE!!!!!!!!!!!!!!!!!!!!!!!!!!! (%d > %d)",
+			  rctx->tx.tot_len, AT91C_EP_IN_SIZE);
 		return -EINVAL;
 	}
 
-	DEBUGP("refilling EP%u ", ep);
-
-	/* FIXME: state machine to handle two banks of FIFO memory, etc */
-	if (atomic_read(&upcd.ep[ep].pkts_in_transit) >= 1)
+	if (atomic_read(&upcd.ep[ep].pkts_in_transit) == 2)
 		return -EBUSY;
 		
 	/* fill FIFO/DPR */
 	for (i = 0; i < rctx->tx.tot_len; i++) 
 		pUDP->UDP_FDR[ep] = rctx->tx.data[i];
 
-	if (atomic_read(&upcd.ep[ep].pkts_in_transit) == 0) {
-		/* start transmit */
+	if (atomic_inc_return(&upcd.ep[ep].pkts_in_transit) == 1) {
+		/* not been transmitting before, start transmit */
 		pUDP->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
-		atomic_inc(&upcd.ep[ep].pkts_in_transit);
 	}
-	
+
 	/* return rctx to pool of free contexts */
 	req_ctx_put(rctx);
 
@@ -280,9 +280,7 @@ static void udp_irq(void)
 			if (rctx)
 				udp_refill_ep(2, rctx);
 			else
-				DEBUGP("NO_RCTX_pending ");
-
-			/* FIXME: re-fill second packet into DPR */
+				DEBUGI("NO_RCTX_pending ");
 		}
 	}
 	if (isr & AT91C_UDP_EPINT3) {
@@ -326,7 +324,6 @@ static int udp_open(AT91PS_UDP pUdp)
 	DEBUGPCRF("entering");
 	upcd.pUdp = pUdp;
 	upcd.cur_config = 0;
-	upcd.cur_connection = 0;
 	upcd.cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
@@ -420,13 +417,19 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t le
 }
 #endif
 
+#ifdef DEBUG_UDP_EP0
+#define DEBUGE(x, args ...)	DEBUGP(x, ## args)
+#else
+#define DEBUGE(x, args ...)	do { } while (0)
+#endif
+
 /* Send Data through the control endpoint */
 static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t length)
 {
 	u_int32_t cpt = 0;
 	AT91_REG csr;
 
-	DEBUGP("send_data: %u bytes ", length);
+	DEBUGE("send_data: %u bytes ", length);
 
 	do {
 		cpt = MIN(length, 8);
@@ -447,7 +450,7 @@ static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t leng
 			/* Data IN stage has been stopped by a status OUT */
 			if (csr & AT91C_UDP_RX_DATA_BK0) {
 				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
-				DEBUGP("stopped by status out ");
+				DEBUGE("stopped by status out ");
 				return;
 			}
 		} while (!(csr & AT91C_UDP_TXCOMP));
@@ -486,20 +489,26 @@ static void udp_ep0_handler(void)
 	u_int16_t wValue, wIndex, wLength, wStatus;
 	u_int32_t csr = pUDP->UDP_CSR[0];
 
-	DEBUGP("CSR=0x%04x ", csr);
+	DEBUGE("CSR=0x%04x ", csr);
 
 	if (csr & AT91C_UDP_STALLSENT) {
-		DEBUGP("ACK_STALLSENT ");
+		DEBUGE("ACK_STALLSENT ");
 		pUDP->UDP_CSR[0] = ~AT91C_UDP_STALLSENT;
 	}
 
 	if (csr & AT91C_UDP_RX_DATA_BK0) {
-		DEBUGP("ACK_BANK0 ");
+		DEBUGE("ACK_BANK0 ");
 		pUDP->UDP_CSR[0] &= ~AT91C_UDP_RX_DATA_BK0;
 	}
 
 	if (!(csr & AT91C_UDP_RXSETUP)) {
-		DEBUGP("no setup packet ");
+		DEBUGE("no setup packet ");
+		return;
+	}
+
+	DEBUGE("len=%d ", csr >> 16);
+	if (csr >> 16  == 0) {
+		DEBUGE("empty packet ");
 		return;
 	}
 
@@ -512,7 +521,10 @@ static void udp_ep0_handler(void)
 	wLength = (pUDP->UDP_FDR[0] & 0xFF);
 	wLength |= (pUDP->UDP_FDR[0] << 8);
 
+	DEBUGE("bmRequestType=0x%2x ", bmRequestType);
+
 	if (bmRequestType & 0x80) {
+		DEBUGE("DATA_IN=1 ");
 		pUDP->UDP_CSR[0] |= AT91C_UDP_DIR;
 		while (!(pUDP->UDP_CSR[0] & AT91C_UDP_DIR)) ;
 	}
@@ -520,10 +532,10 @@ static void udp_ep0_handler(void)
 	while ((pUDP->UDP_CSR[0] & AT91C_UDP_RXSETUP)) ;
 
 	/* Handle supported standard device request Cf Table 9-3 in USB
-	 * specification Rev 1.1 */
+	 * speciication Rev 1.1 */
 	switch ((bRequest << 8) | bmRequestType) {
 	case STD_GET_DESCRIPTOR:
-		DEBUGP("GET_DESCRIPTOR ");
+		DEBUGE("GET_DESCRIPTOR ");
 		if (wValue == 0x100)	/* Return Device Descriptor */
 			udp_ep0_send_data(pUDP, (const char *) &dev_descriptor,
 					   MIN(sizeof(dev_descriptor), wLength));
@@ -534,15 +546,15 @@ static void udp_ep0_handler(void)
 			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_ADDRESS:
-		DEBUGP("SET_ADDRESS ");
+		DEBUGE("SET_ADDRESS ");
 		udp_ep0_send_zlp(pUDP);
 		pUDP->UDP_FADDR = (AT91C_UDP_FEN | wValue);
 		pUDP->UDP_GLBSTATE = (wValue) ? AT91C_UDP_FADDEN : 0;
 		break;
 	case STD_SET_CONFIGURATION:
-		DEBUGP("SET_CONFIG ");
+		DEBUGE("SET_CONFIG ");
 		if (wValue)
-			DEBUGP("VALUE!=0 ");
+			DEBUGE("VALUE!=0 ");
 		upcd.cur_config = wValue;
 		udp_ep0_send_zlp(pUDP);
 		pUDP->UDP_GLBSTATE =
@@ -558,22 +570,22 @@ static void udp_ep0_handler(void)
 				 AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
 		break;
 	case STD_GET_CONFIGURATION:
-		DEBUGP("GET_CONFIG ");
+		DEBUGE("GET_CONFIG ");
 		udp_ep0_send_data(pUDP, (char *)&(upcd.cur_config),
 				   sizeof(upcd.cur_config));
 		break;
 	case STD_GET_STATUS_ZERO:
-		DEBUGP("GET_STATUS_ZERO ");
+		DEBUGE("GET_STATUS_ZERO ");
 		wStatus = 0;
 		udp_ep0_send_data(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_INTERFACE:
-		DEBUGP("GET_STATUS_INTERFACE ");
+		DEBUGE("GET_STATUS_INTERFACE ");
 		wStatus = 0;
 		udp_ep0_send_data(pUDP, (char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_ENDPOINT:
-		DEBUGP("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
+		DEBUGE("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
 		wStatus = 0;
 		wIndex &= 0x0F;
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex <= 3)) {
@@ -591,15 +603,15 @@ static void udp_ep0_handler(void)
 			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_FEATURE_ZERO:
-		DEBUGP("SET_FEATURE_ZERO ");
+		DEBUGE("SET_FEATURE_ZERO ");
 		udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_FEATURE_INTERFACE:
-		DEBUGP("SET_FEATURE_INTERFACE ");
+		DEBUGE("SET_FEATURE_INTERFACE ");
 		udp_ep0_send_zlp(pUDP);
 		break;
 	case STD_SET_FEATURE_ENDPOINT:
-		DEBUGP("SET_FEATURE_ENDPOINT ");
+		DEBUGE("SET_FEATURE_ENDPOINT ");
 		udp_ep0_send_zlp(pUDP);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
@@ -609,7 +621,7 @@ static void udp_ep0_handler(void)
 			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ZERO:
-		DEBUGP("CLEAR_FEATURE_ZERO ");
+		DEBUGE("CLEAR_FEATURE_ZERO ");
 		udp_ep0_send_stall(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_INTERFACE:
@@ -617,7 +629,7 @@ static void udp_ep0_handler(void)
 		udp_ep0_send_zlp(pUDP);
 		break;
 	case STD_CLEAR_FEATURE_ENDPOINT:
-		DEBUGP("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
+		DEBUGE("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
 			struct req_ctx *rctx;
@@ -657,11 +669,11 @@ static void udp_ep0_handler(void)
 			udp_ep0_send_stall(pUDP);
 		break;
 	case STD_SET_INTERFACE:
-		DEBUGP("SET INTERFACE ");
+		DEBUGE("SET INTERFACE ");
 		udp_ep0_send_stall(pUDP);
 		break;
 	default:
-		DEBUGP("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
+		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
 		udp_ep0_send_stall(pUDP);
 		break;
 	}
