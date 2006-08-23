@@ -1,10 +1,13 @@
 #ifndef _OPENPCD_H
 #define _OPENPCD_H
 
+#include <openpcd.h>
+
 #ifdef OLIMEX
 #define OPENPCD_PIO_LED2	AT91C_PIO_PA17
 #define OPENPCD_PIO_LED1	AT91C_PIO_PA18
-#define OPENPCD_PIO_UDP_PUP	AT91C_PIO_PA25
+#define OPENPCD_PIO_UDP_CNX	AT91C_PIO_PA24
+#define OPENPCD_PIO_UDP_PUP	AT91C_PIO_PA16
 #else
 #define OPENPCD_PIO_UDP_CNX	AT91C_PIO_PA15
 #define OPENPCD_PIO_UDP_PUP	AT91C_PIO_PA16
@@ -30,8 +33,8 @@
 #define OPENPCD_IRQ_PRIO_UDP	(AT91C_AIC_PRIOR_LOWEST+1)
 #define OPENPCD_IRQ_PRIO_RC632	AT91C_AIC_PRIOR_LOWEST
 
-#define MAX_REQSIZE	64
-#define MAX_HDRSIZE	8
+#define MAX_HDRSIZE	sizeof(struct openpcd_hdr)
+#define MAX_REQSIZE	(64-MAX_HDRSIZE)
 
 #define req_buf_payload(x)	(x->data[x->hdr_len])
 #define req_buf_hdr(x)		(x->data[0])
@@ -41,7 +44,7 @@
 struct req_buf {
 	u_int16_t hdr_len;
 	u_int16_t tot_len;
-	u_int8_t data[MAX_REQSIZE+MAX_HDRSIZE];
+	u_int8_t data[64];
 };
 
 struct req_ctx {
