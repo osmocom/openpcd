@@ -20,6 +20,8 @@
 #include "usb_handler.h"
 #include "rc632.h"
 
+#define ALWAYS_RESPOND
+
 #define NOTHING  do {} while(0)
 
 #if 0
@@ -470,7 +472,7 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		return -EINVAL;
 	}
 
-#ifdef ALWAYS_RESPND
+#ifdef ALWAYS_RESPOND
 	goto respond;
 #endif
 
