@@ -320,5 +320,7 @@ void debugp(const char *format, ...)
 	//AT91F_DBGU_Printk(dbg_buf);
 	dbgu_rb_append(dbg_buf, strlen(dbg_buf));
 }
-
+#else
+void dbgu_rb_flush(void) {}
+void dbgu_rb_init(void) {}
 #endif
