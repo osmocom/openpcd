@@ -57,6 +57,7 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 			    AT91C_SSC_CP0 | AT91C_SSC_CP1);
 
 	switch (ssc_mode) {
+#ifdef CONFIG_PICCSIM
 	case SSC_MODE_14443A_SHORT:
 		start_cond = AT91C_SSC_START_0;
 		sync_len = ISO14443A_SOF_LEN;
@@ -75,6 +76,9 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		/* start sampling at first falling data edge */
 		//start_cond = 
 		break;
+#endif /* CONFIG_PICCSIM */
+	default:
+		return;
 	}
 	ssc->SSC_RFMR = (data_len-1) & 0x1f |
 			(((num_data-1) & 0x0f) << 8) | 
@@ -103,6 +107,7 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 		       AT91C_SSC_TXBUFE | AT91C_SSC_TXSYN;
 
 	switch (ssc_mode) {
+#ifdef CONFIG_PICCSIM
 	case SSC_MODE_14443A_SHORT:
 		start_cond = AT91C_SSC_START_RISE_RF;
 		sync_len = ISO14443A_SOF_LEN;
@@ -116,6 +121,7 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 		data_len = 1;
 		num_data = 1;	/* FIXME */
 		break;
+#endif /* CONFIG_PICCSIM */
 	}
 	ssc->SSC_TFMR = (data_len-1) & 0x1f |
 			(((num_data-1) & 0x0f) << 8) | 
@@ -224,6 +230,7 @@ static void ssc_irq(void)
 		DEBUGP("RX OVERRUN ");
 
 	switch (ssc_state.mode) {
+#ifdef CONFIG_PICCSIM
 	case SSC_MODE_14443A_SHORT:
 		if (ssc_sr & AT91C_SSC_RXSYN)
 			DEBUGP("RXSYN ");
@@ -267,6 +274,7 @@ static void ssc_irq(void)
 						    AT91C_SSC_OVRUN);
 		}
 		break;
+#endif /* CONFIG_PICCSIM */
 	}
 }
 
