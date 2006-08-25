@@ -18,12 +18,137 @@
 
      .equ   IRQ_Stack_Size,     0x00000400
 
-/* #include "AT91SAM7S64_inc.h"	  */
-
 	.equ AIC_IVR,         (256) 
 	.equ AIC_FVR,         (260) 
 	.equ AIC_EOICR,       (304)
+	.equ AIC_MCR_RCR,     (0xf00)
 	.equ AT91C_BASE_AIC,  (0xFFFFF000)
+
+/* #include "AT91SAM7S64_inc.h"	  */
+
+/* Exception Vectors in RAM */
+
+	.text
+	.arm
+	.section	.vectram, "ax"
+resetvecR:	B	resetvecR
+undefvecR:	B	undefvecR
+swivecR:	B	swivecR
+pabtvecR:	B	pabtvecR
+dabtvecR:	B	dabtvecR
+rsvdvecR:	B	rsvdvecR
+irqvecR:	B	IRQ_Handler_EntryR
+fiqvecR:	
+
+FIQ_Handler_EntryR:
+
+/*- Switch in SVC/User Mode to allow User Stack access for C code 	*/
+/* because the FIQ is not yet acknowledged*/
+
+/*- Save and r0 in FIQ_Register */
+            mov         r9,r0
+	        ldr         r0 , [r8, #AIC_FVR]
+            msr         CPSR_c,#I_BIT | F_BIT | ARM_MODE_SVC
+
+/*- Save scratch/used registers and LR in User Stack */
+            stmfd       sp!, { r1-r3, r12, lr}
+
+/*- Branch to the routine pointed by the AIC_FVR */
+            mov         r14, pc
+            bx          r0
+
+/*- Restore scratch/used registers and LR from User Stack */
+            ldmia       sp!, { r1-r3, r12, lr}
+
+/*- Leave Interrupts disabled and switch back in FIQ mode */
+            msr         CPSR_c, #I_BIT | F_BIT | ARM_MODE_FIQ
+
+/*- Restore the R0 ARM_MODE_SVC register */
+            mov         r0,r9
+
+/*- Restore the Program Counter using the LR_fiq directly in the PC */
+            subs        pc,lr,#4
+
+        .global IRQ_Handler_EntryR
+        .func   IRQ_Handler_EntryR
+
+IRQ_Handler_EntryR:
+
+/*- Manage Exception Entry  */
+/*- Adjust and save LR_irq in IRQ stack  */
+            sub         lr, lr, #4
+            stmfd       sp!, {lr}
+
+/*- Save SPSR need to be saved for nested interrupt */
+            mrs         r14, SPSR
+            stmfd       sp!, {r14}
+
+/*- Save and r0 in IRQ stack  */
+            stmfd       sp!, {r0}
+
+/*- Write in the IVR to support Protect Mode  */
+/*- No effect in Normal Mode  */
+/*- De-assert the NIRQ and clear the source in Protect Mode */
+            ldr         r14, =AT91C_BASE_AIC
+	    ldr         r0 , [r14, #AIC_IVR]
+	    str         r14, [r14, #AIC_IVR]
+
+/*- Enable Interrupt and Switch in Supervisor Mode */
+            msr         CPSR_c, #ARM_MODE_SVC
+
+/*- Save scratch/used registers and LR in User Stack */
+            stmfd       sp!, { r1-r3, r12, r14}
+
+/*- Branch to the routine pointed by the AIC_IVR  */
+            mov         r14, pc
+            bx          r0
+/*- Restore scratch/used registers and LR from User Stack*/
+            ldmia       sp!, { r1-r3, r12, r14}
+
+/*- Disable Interrupt and switch back in IRQ mode */
+            msr         CPSR_c, #I_BIT | ARM_MODE_IRQ
+
+/*- Mark the End of Interrupt on the AIC */
+            ldr         r14, =AT91C_BASE_AIC
+            str         r14, [r14, #AIC_EOICR]
+
+/*- Restore SPSR_irq and r0 from IRQ stack */
+            ldmia       sp!, {r0}
+
+/*- Restore SPSR_irq and r0 from IRQ stack */
+            ldmia       sp!, {r14}
+            msr         SPSR_cxsf, r14
+
+/*- Restore adjusted  LR_irq from IRQ stack directly in the PC */
+            ldmia       sp!, {pc}^
+	
+        .size   IRQ_Handler_EntryR, . - IRQ_Handler_EntryR
+        .endfunc
+
+	.global remap
+	.func	remap
+_remap:
+# Remap RAM to 0x00000000 for DFU 
+		ldr	r1, =AT91C_BASE_AIC
+		mov	r2, #0x01
+		str	r2, [r1, #AIC_MCR_RCR]
+
+		mov	r0, #0	/* argc = 0 */
+		ldr	lr,=exit
+		ldr	r10,=main
+		bx	r10
+	.size	remap, . - remap
+	.endfunc
+
+/* "exit" dummy added by mthomas to avoid sbrk write read etc. needed
+   by the newlib default "exit" */
+        .global exit
+        .func   exit
+exit:
+        b    .
+		.size   exit, . - exit
+        .endfunc
+
 
 #;------------------------------------------------------------------------------
 #;- Section Definition
@@ -70,42 +195,9 @@ dabtvec:
 rsvdvec:
                 B           rsvdvec             /* 0x14 reserved  */
 irqvec:
-                B           IRQ_Handler_Entry   /* 0x18 IRQ	 */
-fiqvec:               			            	/* 0x1c FIQ	*/
-/*------------------------------------------------------------------------------
-//*- Function             : FIQ_Handler_Entry
-//*- Treatments           : FIQ Controller Interrupt Handler.
-//*- Called Functions     : AIC_FVR[interrupt] 
-//*------------------------------------------------------------------------------*/
-
-FIQ_Handler_Entry:
-
-/*- Switch in SVC/User Mode to allow User Stack access for C code 	*/
-/* because the FIQ is not yet acknowledged*/
-
-/*- Save and r0 in FIQ_Register */
-            mov         r9,r0
-	        ldr         r0 , [r8, #AIC_FVR]
-            msr         CPSR_c,#I_BIT | F_BIT | ARM_MODE_SVC
-
-/*- Save scratch/used registers and LR in User Stack */
-            stmfd       sp!, { r1-r3, r12, lr}
-
-/*- Branch to the routine pointed by the AIC_FVR */
-            mov         r14, pc
-            bx          r0
-
-/*- Restore scratch/used registers and LR from User Stack */
-            ldmia       sp!, { r1-r3, r12, lr}
-
-/*- Leave Interrupts disabled and switch back in FIQ mode */
-            msr         CPSR_c, #I_BIT | F_BIT | ARM_MODE_FIQ
-
-/*- Restore the R0 ARM_MODE_SVC register */
-            mov         r0,r9
-
-/*- Restore the Program Counter using the LR_fiq directly in the PC */
-            subs        pc,lr,#4
+                B           irqvec		/* 0x18 IRQ	 */
+fiqvec:               		  
+		B	    fiqvec          	/* 0x1c FIQ	*/
 	.align 0
 .RAM_TOP:
 	.word	Top_Stack
@@ -169,8 +261,6 @@ InitReset:
                 msr     CPSR_c, #ARM_MODE_SVC
                 mov     r13, r0                     /* Init stack Sup */
 
-/*- Enable interrupt & Set up Supervisor Mode and set Supervisor Mode Stack*/
-
 # Relocate .data section (Copy from ROM to RAM)
                 LDR     R1, =_etext
                 LDR     R2, =_data
@@ -188,87 +278,12 @@ LoopZI:         CMP     R1, R2
                 STRLO   R0, [R1], #4
                 BLO     LoopZI
 
-		ldr	lr,=exit
-		ldr	r0,=main
+		ldr	r0, =_remap
 		bx	r0
-		
+
         .size   _startup, . - _startup
         .endfunc
 		
-/* "exit" dummy added by mthomas to avoid sbrk write read etc. needed
-   by the newlib default "exit" */
-        .global exit
-        .func   exit
-exit:
-        b    .
-		.size   exit, . - exit
-        .endfunc
-		
-/*------------------------------------------------------------------------------
-//*- Manage exception
-//*---------------
-//*- This module The exception must be ensure in ARM mode
-//*------------------------------------------------------------------------------
-//*------------------------------------------------------------------------------
-//*- Function             : IRQ_Handler_Entry
-//*- Treatments           : IRQ Controller Interrupt Handler.
-//*- Called Functions     : AIC_IVR[interrupt] 
-//*------------------------------------------------------------------------------*/
-        .global IRQ_Handler_Entry
-        .func   IRQ_Handler_Entry
-
-IRQ_Handler_Entry:
-
-/*- Manage Exception Entry  */
-/*- Adjust and save LR_irq in IRQ stack  */
-            sub         lr, lr, #4
-            stmfd       sp!, {lr}
-
-/*- Save SPSR need to be saved for nested interrupt */
-            mrs         r14, SPSR
-            stmfd       sp!, {r14}
-
-/*- Save and r0 in IRQ stack  */
-            stmfd       sp!, {r0}
-
-/*- Write in the IVR to support Protect Mode  */
-/*- No effect in Normal Mode  */
-/*- De-assert the NIRQ and clear the source in Protect Mode */
-            ldr         r14, =AT91C_BASE_AIC
-	    ldr         r0 , [r14, #AIC_IVR]
-	    str         r14, [r14, #AIC_IVR]
-
-/*- Enable Interrupt and Switch in Supervisor Mode */
-            msr         CPSR_c, #ARM_MODE_SVC
-
-/*- Save scratch/used registers and LR in User Stack */
-            stmfd       sp!, { r1-r3, r12, r14}
-
-/*- Branch to the routine pointed by the AIC_IVR  */
-            mov         r14, pc
-            bx          r0
-/*- Restore scratch/used registers and LR from User Stack*/
-            ldmia       sp!, { r1-r3, r12, r14}
-
-/*- Disable Interrupt and switch back in IRQ mode */
-            msr         CPSR_c, #I_BIT | ARM_MODE_IRQ
-
-/*- Mark the End of Interrupt on the AIC */
-            ldr         r14, =AT91C_BASE_AIC
-            str         r14, [r14, #AIC_EOICR]
-
-/*- Restore SPSR_irq and r0 from IRQ stack */
-            ldmia       sp!, {r0}
-
-/*- Restore SPSR_irq and r0 from IRQ stack */
-            ldmia       sp!, {r14}
-            msr         SPSR_cxsf, r14
-
-/*- Restore adjusted  LR_irq from IRQ stack directly in the PC */
-            ldmia       sp!, {pc}^
-	
-        .size   IRQ_Handler_Entry, . - IRQ_Handler_Entry
-        .endfunc
 /*---------------------------------------------------------------
 //* ?EXEPTION_VECTOR
 //* This module is only linked if needed for closing files.

@@ -82,8 +82,11 @@ SECTIONS
   .data : AT (_etext)
   {
     _data = . ;
+    KEEP(*(.vectram))
     *(.data)
     SORT(CONSTRUCTORS)
+    . = ALIGN(4);
+    *(.fastrun)
   } >DATA
   . = ALIGN(4);
 
