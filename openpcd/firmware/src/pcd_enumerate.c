@@ -22,11 +22,14 @@
 #include <openpcd.h>
 
 #include "pcd_enumerate.h"
+#include "dfu.h"
 #include "openpcd.h"
 #include "dbgu.h"
 
-//#define DEBUG_UDP_IRQ
-//#ifdef DEBUG_UDP_EP0
+#define DEBUG_UDP_IRQ
+#define DEBUG_UDP_EP0
+
+#define CONFIG_DFU
 
 #define AT91C_EP_OUT 1
 #define AT91C_EP_OUT_SIZE 0x40
@@ -34,24 +37,10 @@
 #define AT91C_EP_IN_SIZE 0x40
 #define AT91C_EP_INT  3
 
-struct ep_ctx {
-	atomic_t pkts_in_transit;
-	void *ctx;
-};
-
-struct udp_pcd {
-	AT91PS_UDP pUdp;
-	unsigned char cur_config;
-	unsigned int  cur_rcv_bank;
-	struct ep_ctx ep[4];
-};
-
 
 static struct udp_pcd upcd;
 
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-
-struct usb_device_descriptor dev_descriptor = {
+const struct usb_device_descriptor dev_descriptor = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
 	.bcdUSB = 0x0200,
@@ -72,6 +61,10 @@ struct _desc {
 	struct usb_config_descriptor ucfg;
 	struct usb_interface_descriptor uif;
 	struct usb_endpoint_descriptor ep[3];
+#ifdef CONFIG_DFU
+	struct usb_interface_descriptor uif_dfu;
+	struct usb_dfu_func_descriptor func_dfu;
+#endif
 };
 
 const struct _desc cfg_descriptor = {
@@ -79,8 +72,16 @@ const struct _desc cfg_descriptor = {
 		 .bLength = USB_DT_CONFIG_SIZE,
 		 .bDescriptorType = USB_DT_CONFIG,
 		 .wTotalLength = USB_DT_CONFIG_SIZE +
-		 USB_DT_INTERFACE_SIZE + 3 * USB_DT_ENDPOINT_SIZE,
+#ifdef CONFIG_DFU
+		 		 2 * USB_DT_INTERFACE_SIZE + 
+				 3 * USB_DT_ENDPOINT_SIZE +
+				 USB_DT_DFU_SIZE,
+		 .bNumInterfaces = 2,
+#else
+		 		 1 * USB_DT_INTERFACE_SIZE + 
+				 3 * USB_DT_ENDPOINT_SIZE,
 		 .bNumInterfaces = 1,
+#endif
 		 .bConfigurationValue = 1,
 		 .iConfiguration = 0,
 		 .bmAttributes = USB_CONFIG_ATT_ONE,
@@ -121,30 +122,18 @@ const struct _desc cfg_descriptor = {
 			  .bInterval = 0xff,	/* FIXME */
 		  },
 	},
+#ifdef CONFIG_DFU
+	.uif_dfu = DFU_RT_IF_DESC,
+	.func_dfu = DFU_FUNC_DESC,
+#endif
 };
 
-/* USB standard request code */
+static struct usb_string_descriptor string0 = {
+	.bLength = sizeof(string0),
+	.bDescriptorType = USB_DT_STRING,
+	.wData[0] = 0x0409,	/* English */
+};
 
-#define STD_GET_STATUS_ZERO           0x0080
-#define STD_GET_STATUS_INTERFACE      0x0081
-#define STD_GET_STATUS_ENDPOINT       0x0082
-
-#define STD_CLEAR_FEATURE_ZERO        0x0100
-#define STD_CLEAR_FEATURE_INTERFACE   0x0101
-#define STD_CLEAR_FEATURE_ENDPOINT    0x0102
-
-#define STD_SET_FEATURE_ZERO          0x0300
-#define STD_SET_FEATURE_INTERFACE     0x0301
-#define STD_SET_FEATURE_ENDPOINT      0x0302
-
-#define STD_SET_ADDRESS               0x0500
-#define STD_GET_DESCRIPTOR            0x0680
-#define STD_SET_DESCRIPTOR            0x0700
-#define STD_GET_CONFIGURATION         0x0880
-#define STD_SET_CONFIGURATION         0x0900
-#define STD_GET_INTERFACE             0x0A81
-#define STD_SET_INTERFACE             0x0B01
-#define STD_SYNCH_FRAME               0x0C82
 
 static void udp_ep0_handler(void);
 
@@ -212,6 +201,11 @@ static void udp_irq(void)
 		/* Configure endpoint 0 */
 		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
 		upcd.cur_config = 0;
+		
+		if (dfu_state == DFU_STATE_appDETACH) {
+			/* now we need to switch to DFU mode */
+			dfu_switch();
+		}
 	}
 
 	if (isr & AT91C_UDP_EPINT0) {
@@ -325,7 +319,7 @@ static int udp_open(AT91PS_UDP pUdp)
 	upcd.pUdp = pUdp;
 	upcd.cur_config = 0;
 	upcd.cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
-
+	
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
 			      OPENPCD_IRQ_PRIO_UDP,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, udp_irq);
@@ -355,67 +349,15 @@ void udp_init(void)
 	udp_open(AT91C_BASE_UDP);
 }
 
-#if 0
-/* Test if the device is configured and handle enumeration */
-u_int8_t udp_is_configured(void)
+void udp_reset(void)
 {
-	return upcd.cur_config;
+	volatile int i;
+
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	for (i = 0; i < 0xffff; i++)
+		;
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 }
-
-/* Send data through endpoint 2/3 */
-u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t length)
-{
-	AT91PS_UDP pUdp = upcd.pUdp;
-	u_int32_t cpt = 0;
-	u_int8_t ep;
-
-	DEBUGPCRF("enter(irq=%u, len=%u)", irq, length);
-
-	if (irq)
-		ep = 3;
-	else
-		ep = 2;
-
-	/* Send the first packet */
-	cpt = MIN(length, AT91C_EP_IN_SIZE);
-	length -= cpt;
-	while (cpt--)
-		pUdp->UDP_FDR[ep] = *pData++;
-	DEBUGPCRF("sending first packet");
-	pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
-
-	while (length) {
-		DEBUGPCRF("sending further packet");
-		/* Fill the second bank */
-		cpt = MIN(length, AT91C_EP_IN_SIZE);
-		length -= cpt;
-		while (cpt--)
-			pUdp->UDP_FDR[ep] = *pData++;
-		DEBUGPCRF("waiting for end of further packet");
-		/* Wait for the the first bank to be sent */
-		while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
-			if (!udp_is_configured()) {
-				DEBUGPCRF("return(!configured)");
-				return length;
-			}
-		pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
-		while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
-		pUdp->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
-	}
-	/* Wait for the end of transfer */
-	DEBUGPCRF("waiting for end of transfer");
-	while (!(pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP))
-		if (!udp_is_configured()) {
-			DEBUGPCRF("return(!configured)");
-			return length;
-		}
-	pUdp->UDP_CSR[ep] &= ~(AT91C_UDP_TXCOMP);
-	while (pUdp->UDP_CSR[ep] & AT91C_UDP_TXCOMP) ;
-
-	DEBUGPCRF("return(normal, len=%u)", length);
-	return length;
-}
-#endif
 
 #ifdef DEBUG_UDP_EP0
 #define DEBUGE(x, args ...)	DEBUGP(x, ## args)
@@ -424,8 +366,9 @@ u_int32_t AT91F_UDP_Write(u_int8_t irq, const unsigned char *pData, u_int32_t le
 #endif
 
 /* Send Data through the control endpoint */
-static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t length)
+void __ramfunc udp_ep0_send_data(const char *pData, u_int32_t length)
 {
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
 	u_int32_t cpt = 0;
 	AT91_REG csr;
 
@@ -464,8 +407,9 @@ static void udp_ep0_send_data(AT91PS_UDP pUdp, const char *pData, u_int32_t leng
 }
 
 /* Send zero length packet through the control endpoint */
-static void udp_ep0_send_zlp(AT91PS_UDP pUdp)
+void __ramfunc udp_ep0_send_zlp(void)
 {
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
 	pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
 	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP)) ;
 	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
@@ -473,8 +417,9 @@ static void udp_ep0_send_zlp(AT91PS_UDP pUdp)
 }
 
 /* Stall the control endpoint */
-static void udp_ep0_send_stall(AT91PS_UDP pUdp)
+void __ramfunc udp_ep0_send_stall(void)
 {
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
 	pUdp->UDP_CSR[0] |= AT91C_UDP_FORCESTALL;
 	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_ISOERROR)) ;
 	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_FORCESTALL | AT91C_UDP_ISOERROR);
@@ -536,18 +481,58 @@ static void udp_ep0_handler(void)
 	switch ((bRequest << 8) | bmRequestType) {
 	case STD_GET_DESCRIPTOR:
 		DEBUGE("GET_DESCRIPTOR ");
-		if (wValue == 0x100)	/* Return Device Descriptor */
-			udp_ep0_send_data(pUDP, (const char *) &dev_descriptor,
+		if (wValue == 0x100) {
+			/* Return Device Descriptor */
+#ifdef CONFIG_DFU
+			if (dfu_state != DFU_STATE_appIDLE)
+				udp_ep0_send_data((const char *) 
+						  &dfu_dev_descriptor,
+						  MIN(sizeof(dfu_dev_descriptor),
+						      wLength));
+			else
+#endif
+			udp_ep0_send_data((const char *) &dev_descriptor,
 					   MIN(sizeof(dev_descriptor), wLength));
-		else if (wValue == 0x200)	/* Return Configuration Descriptor */
-			udp_ep0_send_data(pUDP, (const char *) &cfg_descriptor,
+		} else if (wValue == 0x200) {
+			/* Return Configuration Descriptor */
+#ifdef CONFIG_DFU
+			if (dfu_state != DFU_STATE_appIDLE)
+				udp_ep0_send_data((const char *)
+						  &dfu_cfg_descriptor,
+						  MIN(sizeof(dfu_cfg_descriptor),
+						      wLength));
+			else
+#endif
+			udp_ep0_send_data((const char *) &cfg_descriptor,
 					   MIN(sizeof(cfg_descriptor), wLength));
-		else
-			udp_ep0_send_stall(pUDP);
+		} else if (wValue == 0x300) {
+			/* Return String descriptor */
+			switch (wIndex) {
+			case 0:
+				udp_ep0_send_data((const char *) &string0,
+						  MIN(sizeof(string0), wLength));
+				break;
+			default:
+				/* FIXME: implement this */
+				udp_ep0_send_stall();
+				break;
+			}
+#if 0
+		} else if (wValue == 0x400) {
+			/* Return Interface descriptor */
+			if (wIndex != 0x01)
+				udp_ep0_send_stall();
+			udp_ep0_send_data((const char *) 
+					  &dfu_if_descriptor,
+					  MIN(sizeof(dfu_if_descriptor),
+					      wLength));
+#endif
+		} else
+			udp_ep0_send_stall();
 		break;
 	case STD_SET_ADDRESS:
 		DEBUGE("SET_ADDRESS ");
-		udp_ep0_send_zlp(pUDP);
+		udp_ep0_send_zlp();
 		pUDP->UDP_FADDR = (AT91C_UDP_FEN | wValue);
 		pUDP->UDP_GLBSTATE = (wValue) ? AT91C_UDP_FADDEN : 0;
 		break;
@@ -556,7 +541,7 @@ static void udp_ep0_handler(void)
 		if (wValue)
 			DEBUGE("VALUE!=0 ");
 		upcd.cur_config = wValue;
-		udp_ep0_send_zlp(pUDP);
+		udp_ep0_send_zlp();
 		pUDP->UDP_GLBSTATE =
 		    (wValue) ? AT91C_UDP_CONFG : AT91C_UDP_FADDEN;
 		pUDP->UDP_CSR[1] =
@@ -571,18 +556,18 @@ static void udp_ep0_handler(void)
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGE("GET_CONFIG ");
-		udp_ep0_send_data(pUDP, (char *)&(upcd.cur_config),
+		udp_ep0_send_data((char *)&(upcd.cur_config),
 				   sizeof(upcd.cur_config));
 		break;
 	case STD_GET_STATUS_ZERO:
 		DEBUGE("GET_STATUS_ZERO ");
 		wStatus = 0;
-		udp_ep0_send_data(pUDP, (char *)&wStatus, sizeof(wStatus));
+		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_INTERFACE:
 		DEBUGE("GET_STATUS_INTERFACE ");
 		wStatus = 0;
-		udp_ep0_send_data(pUDP, (char *)&wStatus, sizeof(wStatus));
+		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus));
 		break;
 	case STD_GET_STATUS_ENDPOINT:
 		DEBUGE("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
@@ -591,42 +576,42 @@ static void udp_ep0_handler(void)
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex <= 3)) {
 			wStatus =
 			    (pUDP->UDP_CSR[wIndex] & AT91C_UDP_EPEDS) ? 0 : 1;
-			udp_ep0_send_data(pUDP, (char *)&wStatus,
+			udp_ep0_send_data((char *)&wStatus,
 					   sizeof(wStatus));
 		} else if ((pUDP->UDP_GLBSTATE & AT91C_UDP_FADDEN)
 			   && (wIndex == 0)) {
 			wStatus =
 			    (pUDP->UDP_CSR[wIndex] & AT91C_UDP_EPEDS) ? 0 : 1;
-			udp_ep0_send_data(pUDP, (char *)&wStatus,
+			udp_ep0_send_data((char *)&wStatus,
 					   sizeof(wStatus));
 		} else
-			udp_ep0_send_stall(pUDP);
+			udp_ep0_send_stall();
 		break;
 	case STD_SET_FEATURE_ZERO:
 		DEBUGE("SET_FEATURE_ZERO ");
-		udp_ep0_send_stall(pUDP);
+		udp_ep0_send_stall();
 		break;
 	case STD_SET_FEATURE_INTERFACE:
 		DEBUGE("SET_FEATURE_INTERFACE ");
-		udp_ep0_send_zlp(pUDP);
+		udp_ep0_send_zlp();
 		break;
 	case STD_SET_FEATURE_ENDPOINT:
 		DEBUGE("SET_FEATURE_ENDPOINT ");
-		udp_ep0_send_zlp(pUDP);
+		udp_ep0_send_zlp();
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
 			pUDP->UDP_CSR[wIndex] = 0;
-			udp_ep0_send_zlp(pUDP);
+			udp_ep0_send_zlp();
 		} else
-			udp_ep0_send_stall(pUDP);
+			udp_ep0_send_stall();
 		break;
 	case STD_CLEAR_FEATURE_ZERO:
 		DEBUGE("CLEAR_FEATURE_ZERO ");
-		udp_ep0_send_stall(pUDP);
+		udp_ep0_send_stall();
 		break;
 	case STD_CLEAR_FEATURE_INTERFACE:
 		DEBUGP("CLEAR_FEATURE_INTERFACE ");
-		udp_ep0_send_zlp(pUDP);
+		udp_ep0_send_zlp();
 		break;
 	case STD_CLEAR_FEATURE_ENDPOINT:
 		DEBUGE("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
@@ -664,17 +649,29 @@ static void udp_ep0_handler(void)
 							       RCTX_STATE_FREE)) {}
 				atomic_set(&upcd.ep[wIndex].pkts_in_transit, 0);
 			}
-			udp_ep0_send_zlp(pUDP);
+			udp_ep0_send_zlp();
 		} else
-			udp_ep0_send_stall(pUDP);
+			udp_ep0_send_stall();
 		break;
 	case STD_SET_INTERFACE:
 		DEBUGE("SET INTERFACE ");
-		udp_ep0_send_stall(pUDP);
+		udp_ep0_send_stall();
 		break;
+#ifdef CONFIG_DFU
+	case USB_TYPE_DFU<<8|USB_REQ_DFU_DETACH:
+		DEBUGE("DFU_DETACH ");
+		/* if USB reset occurs within wValue milliseconds, switch to DFU */
+		break;
+#endif
 	default:
 		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
-		udp_ep0_send_stall(pUDP);
+#ifdef CONFIG_DFU
+		if ((bmRequestType & 0x3f) == USB_TYPE_DFU) {
+			dfu_ep0_handler(bmRequestType, bRequest, wValue, wLength);
+		} else
+#endif
+		udp_ep0_send_stall();
 		break;
 	}
 }
+

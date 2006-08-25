@@ -1,31 +1,59 @@
-#ifndef _USB_DFU_H
-#define _USB_DFU_H
+#ifndef _DFU_H
+#define _DFU_H
 
-#define USB_DT_DFU			0x21
+/* USB Device Firmware Update Implementation for OpenPCD
+ * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
+ *
+ * This ought to be compliant to the USB DFU Spec 1.0 as available from
+ * http://www.usb.org/developers/devclass_docs/usbdfu10.pdf
+ *
+ */
 
-struct usb_dfu_func_descriptor {
-	__u8		bLength;
-	__u8		bDescriptorType;
-	__u8		bmAttributs;
-#define USB_DFU_CAN_DOWNLOAD	(1 << 0)
-#define USB_DFU_CAN_UPLOAD	(1 << 1)
-#define USB_DFU_MANIFEST_TOL	(1 << 2)
-#define USB_DFU_WILL_DETACH	(1 << 3)
-	__le16		wDetachTimeOut;
-	__le16		wTransferSize;
-	__le16		bcdDFUVersion;
-} __attribute__ ((packed));
+#include <sys/types.h>
+#include <usb_ch9.h>
+#include <usb_dfu.h>
 
-#define USB_DT_DFU_SIZE			9
+#include "dbgu.h"
 
+/* USB DFU functional descriptor */
+#define DFU_FUNC_DESC  {						\
+	.bLength		= USB_DT_DFU_SIZE,			\
+	.bDescriptorType	= USB_DT_DFU,				\
+	.bmAttributes		= USB_DFU_CAN_UPLOAD | USB_DFU_CAN_DOWNLOAD, \
+	.wDetachTimeOut		= 0xff00,				\
+	.wTransferSize		= AT91C_IFLASH_PAGE_SIZE,		\
+	.bcdDFUVersion		= 0x0100,				\
+}
 
-/* DFU class-specific requests (Section 3, DFU Rev 1.1) */
-#define USB_REQ_DFU_DETACH	0x00
-#define USB_REQ_DFU_DNLOAD	0x01
-#define USB_REQ_DFU_UPLOAD	0x02
-#define USB_REQ_DFU_GETSTATUS	0x03
-#define USB_REQ_DFU_CLRSTATUS	0x04
-#define USB_REQ_DFU_GETSTATE	0x05
-#define USB_REQ_DFU_ABORT	0x06
+/* USB Interface descriptor in Runtime mode */
+#define DFU_RT_IF_DESC	{						\
+	.bLength		= USB_DT_INTERFACE_SIZE,		\
+	.bDescriptorType	= USB_DT_INTERFACE,			\
+	.bInterfaceNumber	= 0x01,					\
+	.bAlternateSetting	= 0x00,					\
+	.bNumEndpoints		= 0x00,					\
+	.bInterfaceClass	= 0xfe,					\
+	.bInterfaceSubClass	= 0x01,					\
+	.bInterfaceProtocol	= 0x01,					\
+	.iInterface		= 1,					\
+}
 
-#endif /* _USB_DFU_H
+struct udp_pcd;
+
+extern struct usb_device_descriptor dfu_dev_descriptor;
+
+struct _dfu_desc {
+	struct usb_config_descriptor ucfg;
+	struct usb_interface_descriptor uif[2];
+	struct usb_dfu_func_descriptor func_dfu;
+};
+
+extern struct _dfu_desc dfu_cfg_descriptor;
+
+extern void dfu_switch(void);
+extern int __ramfunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
+				     u_int16_t val, u_int16_t len);
+
+extern enum dfu_state dfu_state;
+	
+#endif /* _DFU_H */
