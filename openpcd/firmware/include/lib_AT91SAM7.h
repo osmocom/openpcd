@@ -40,7 +40,7 @@
 #ifndef lib_AT91SAM7S64_H
 #define lib_AT91SAM7S64_H
 
-#include <include/AT91SAM7.h>
+#include <AT91SAM7.h>
 
 /* *****************************************************************************
                 SOFTWARE API FOR AIC
@@ -3470,5 +3470,7 @@ static inline void AT91F_PWMC_CfgPMC (void)
 		AT91C_BASE_PMC, // PIO controller base address
 		((unsigned int) 1 << AT91C_ID_PWMC));
 }
+
+#define __ramfunc __attribute__ ((long_call, section (".fastrun")))
 
 #endif // lib_AT91SAM7S64_H
