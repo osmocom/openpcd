@@ -99,8 +99,6 @@ static void DBGU_irq_handler(void)
 	case '7':
 		rc632_dump();
 		break;
-	case '8':
-		break;
 	default:
 		if (_main_dbgu(value) < 0)
 			AT91F_DBGU_Printk("\n\r");
