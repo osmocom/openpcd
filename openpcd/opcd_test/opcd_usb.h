@@ -19,5 +19,6 @@ extern int opcd_recv_reply(struct opcd_handle *od, char *buf, int len);
 extern int opcd_send_command(struct opcd_handle *od, u_int8_t cmd, 
 			     u_int8_t reg, u_int8_t val, u_int16_t len,
 			     const unsigned char *data);
+extern int opcd_usbperf(struct opcd_handle *od, unsigned int frames);
 
 #endif

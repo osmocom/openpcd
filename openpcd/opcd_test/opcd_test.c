@@ -74,6 +74,7 @@ static struct option opts[] = {
 	{ "fifo-read", 1, 0, 'R' },
 	{ "set-bits", 1, 0, 's' },
 	{ "clear-bits", 1, 0, 'c' },
+	{ "usb-perf", 1, 0, 'u' },
 	{ "help", 0, 0, 'h'},
 };	
 
@@ -91,7 +92,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?", opts,
+		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?u:", opts,
 				&option_index);
 
 		if (c == -1)
@@ -148,6 +149,11 @@ int main(int argc, char **argv)
 			if (get_number(argv[optind], 0x00, 0xff, &j) < 0)
 				exit(2);
 			opcd_send_command(od, OPENPCD_CMD_REG_BITS_CLEAR, i, j, 0, NULL);
+			break;
+		case 'u':
+			if (get_number(optarg, 1, 255, &i) < 0)
+				exit(2);
+			opcd_usbperf(od, i);
 			break;
 		case 'h':
 		case '?':

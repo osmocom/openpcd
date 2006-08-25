@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include <sys/types.h>
 
@@ -198,4 +200,36 @@ int opcd_send_command(struct opcd_handle *od, u_int8_t cmd,
 	}
 
 	return ret;
+}
+
+int opcd_usbperf(struct opcd_handle *od, unsigned int frames)
+{
+	int i;
+	char buf[256*64];
+	struct timeval tv_start, tv_stop;
+	unsigned int num_xfer = 0;
+	unsigned int diff_msec;
+	unsigned int transfers = 255;
+
+	printf("starting DATA IN performance test (%u frames of 64 bytes)\n",
+		frames);
+	opcd_send_command(od, OPENPCD_CMD_USBTEST_IN, transfers, frames, 0, NULL);
+	gettimeofday(&tv_start, NULL);
+	for (i = 0; i < transfers; i++) {
+		int ret;
+		ret = ausb_bulk_read(od->hdl, OPCD_IN_EP, buf, sizeof(buf), 0);
+		if (ret < 0) {
+			fprintf(stderr, "error receiving data in transaction\n");
+			return ret;
+		}
+		num_xfer += ret;
+	}
+	gettimeofday(&tv_stop, NULL);
+	diff_msec = (tv_stop.tv_sec - tv_start.tv_sec)*1000;
+	diff_msec += (tv_stop.tv_usec - tv_start.tv_usec)/1000;
+
+	printf("%u transfers (total %u bytes) in %u miliseconds => %u bytes/sec\n",
+		i, num_xfer, diff_msec, (num_xfer*1000)/diff_msec);
+	
+	return 0;
 }
