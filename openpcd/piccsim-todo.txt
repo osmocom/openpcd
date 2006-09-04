@@ -1,0 +1,34 @@
+- code to control digital potentiometers via SPI [MM]
+	- chip select not SPI CS
+
+- idea: use comparator to determine voltage range, then reconfigure amplifier
+	- later
+
+- problem: capacitance of digital poti
+	- idea 1: 
+	- idea 2: logarithmic amplifier using transistor
+
+- ADC driver
+	- core [MM]
+		- trigger function (we want to read all values ASAP)
+		- callback function (once new values are available)
+		- init function (initialize ADC)
+	- USB integration [HW]
+		- simple READ_ADC command
+		- one reply packet with all ADC channels
+
+- OS timer 
+	- how often?
+
+- 'load modulation' driver
+	- set PA2/PA3 to binary 0..3 
+
+- add IO definitions for
+	- PLL INHIBIT			low
+	- SPI_SS1_GAIN		
+	- SPI_SS2_DATA_THRESHOLD
+	- BOOTLDR
+
+- sampled data continuous output into file / stdout
+	- trigger sampling by raising/falling edge (configurable)
+	- sample only one buffer
