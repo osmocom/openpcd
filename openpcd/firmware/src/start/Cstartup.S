@@ -149,6 +149,32 @@ exit:
 		.size   exit, . - exit
         .endfunc
 
+/*---------------------------------------------------------------
+//* ?EXEPTION_VECTOR
+//* This module is only linked if needed for closing files.
+//*---------------------------------------------------------------*/
+        .global AT91F_Default_FIQ_handler
+        .func   AT91F_Default_FIQ_handler
+AT91F_Default_FIQ_handler:
+            b     AT91F_Default_FIQ_handler
+        .size   AT91F_Default_FIQ_handler, . - AT91F_Default_FIQ_handler
+        .endfunc
+
+        .global AT91F_Default_IRQ_handler
+        .func   AT91F_Default_IRQ_handler
+AT91F_Default_IRQ_handler:
+            b     AT91F_Default_IRQ_handler
+        .size   AT91F_Default_IRQ_handler, . - AT91F_Default_IRQ_handler
+        .endfunc
+
+        .global AT91F_Spurious_handler
+        .func   AT91F_Spurious_handler
+AT91F_Spurious_handler:
+            b     AT91F_Spurious_handler
+        .size   AT91F_Spurious_handler, . - AT91F_Spurious_handler
+        .endfunc
+
+
 
 #;------------------------------------------------------------------------------
 #;- Section Definition
@@ -284,30 +310,5 @@ LoopZI:         CMP     R1, R2
         .size   _startup, . - _startup
         .endfunc
 		
-/*---------------------------------------------------------------
-//* ?EXEPTION_VECTOR
-//* This module is only linked if needed for closing files.
-//*---------------------------------------------------------------*/
-        .global AT91F_Default_FIQ_handler
-        .func   AT91F_Default_FIQ_handler
-AT91F_Default_FIQ_handler:
-            b     AT91F_Default_FIQ_handler
-        .size   AT91F_Default_FIQ_handler, . - AT91F_Default_FIQ_handler
-        .endfunc
-
-        .global AT91F_Default_IRQ_handler
-        .func   AT91F_Default_IRQ_handler
-AT91F_Default_IRQ_handler:
-            b     AT91F_Default_IRQ_handler
-        .size   AT91F_Default_IRQ_handler, . - AT91F_Default_IRQ_handler
-        .endfunc
-
-        .global AT91F_Spurious_handler
-        .func   AT91F_Spurious_handler
-AT91F_Spurious_handler:
-            b     AT91F_Spurious_handler
-        .size   AT91F_Spurious_handler, . - AT91F_Spurious_handler
-        .endfunc
-
         .end
 

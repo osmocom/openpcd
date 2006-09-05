@@ -9,11 +9,7 @@
 
 struct req_ctx;
 
-extern void __ramfunc udp_ep0_send_data(const char *data, u_int32_t length);
-extern void __ramfunc udp_ep0_send_zlp(void);
-extern void __ramfunc udp_ep0_send_stall(void);
-
-extern void udp_init(void);
+extern void udp_open(void);
 extern int udp_refill_ep(int ep, struct req_ctx *rctx);
 extern void udp_unthrottle(void);
 extern void udp_reset(void);

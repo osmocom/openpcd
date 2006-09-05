@@ -27,11 +27,88 @@
 #define DEBUGI(x, args ...)
 #endif
 
+/* this is only called once before DFU mode, no __dfufunc required */
+void udp_init(void)
+{
+	/* Set the PLL USB Divider */
+	AT91C_BASE_CKGR->CKGR_PLLR |= AT91C_CKGR_USBDIV_1;
+
+	/* Enables the 48MHz USB clock UDPCK and System Peripheral USB Clock */
+	AT91C_BASE_PMC->PMC_SCER = AT91C_PMC_UDP;
+	AT91C_BASE_PMC->PMC_PCER = (1 << AT91C_ID_UDP);
+
+	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the corresponding PIO
+	 * Set in PIO mode and Configure in Output */
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+}
+
+/* Send Data through the control endpoint */
+static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
+{
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
+	u_int32_t cpt = 0;
+	AT91_REG csr;
+
+	DEBUGE("send_data: %u bytes ", length);
+
+	do {
+		cpt = MIN(length, 8);
+		length -= cpt;
+
+		while (cpt--)
+			pUdp->UDP_FDR[0] = *pData++;
+
+		if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
+			pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
+			while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
+		}
+
+		pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
+		do {
+			csr = pUdp->UDP_CSR[0];
+
+			/* Data IN stage has been stopped by a status OUT */
+			if (csr & AT91C_UDP_RX_DATA_BK0) {
+				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
+				DEBUGE("stopped by status out ");
+				return;
+			}
+		} while (!(csr & AT91C_UDP_TXCOMP));
+
+	} while (length);
+
+	if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
+		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
+		while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
+	}
+}
+
+/* Send zero length packet through the control endpoint */
+static void __dfufunc udp_ep0_send_zlp(void)
+{
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
+	pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
+	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP)) ;
+	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
+	while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
+}
+
+/* Stall the control endpoint */
+static void __dfufunc udp_ep0_send_stall(void)
+{
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
+	pUdp->UDP_CSR[0] |= AT91C_UDP_FORCESTALL;
+	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_ISOERROR)) ;
+	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_FORCESTALL | AT91C_UDP_ISOERROR);
+	while (pUdp->UDP_CSR[0] & (AT91C_UDP_FORCESTALL | AT91C_UDP_ISOERROR)) ;
+}
+
+
 static u_int8_t status;
 static u_int8_t *ptr;
-enum dfu_state dfu_state;
+static u_int8_t dfu_state;
 
-static int __ramfunc handle_dnload(u_int16_t val, u_int16_t len)
+static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 {
 	volatile u_int32_t *p = (volatile u_int32_t *)ptr;
 
@@ -67,7 +144,7 @@ static int __ramfunc handle_dnload(u_int16_t val, u_int16_t len)
 	return 0;
 }
 
-static __ramfunc int handle_upload(u_int16_t val, u_int16_t len)
+static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 {
 	DEBUGE("upload ");
 	if (len > AT91C_IFLASH_PAGE_SIZE
@@ -88,7 +165,7 @@ static __ramfunc int handle_upload(u_int16_t val, u_int16_t len)
 	return len;
 }
 
-static __ramfunc void handle_getstatus(void)
+static __dfufunc void handle_getstatus(void)
 {
 	struct dfu_status dstat;
 
@@ -101,7 +178,7 @@ static __ramfunc void handle_getstatus(void)
 	udp_ep0_send_data(&dstat, sizeof(dstat));
 }
 
-static void __ramfunc handle_getstate(void)
+static void __dfufunc handle_getstate(void)
 {
 	u_int8_t u8 = dfu_state;
 	DEBUGE("getstate ");
@@ -109,7 +186,7 @@ static void __ramfunc handle_getstate(void)
 }
 
 /* callback function for DFU requests */
-int __ramfunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
+int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 		    u_int16_t val, u_int16_t len)
 {
 	int rc;
@@ -290,7 +367,7 @@ send_zlp:
 static u_int8_t cur_config;
 
 /* USB DFU Device descriptor in DFU mode */
-struct usb_device_descriptor dfu_dev_descriptor = {
+__dfustruct struct usb_device_descriptor dfu_dev_descriptor = {
 	.bLength		= USB_DT_DEVICE_SIZE,
 	.bDescriptorType	= USB_DT_DEVICE,
 	.bcdUSB			= 0x0100,
@@ -308,7 +385,7 @@ struct usb_device_descriptor dfu_dev_descriptor = {
 };
 
 /* USB DFU Config descriptor in DFU mode */
-struct _dfu_desc dfu_cfg_descriptor = {
+__dfustruct struct _dfu_desc dfu_cfg_descriptor = {
 	.ucfg = {
 		.bLength = USB_DT_CONFIG_SIZE,
 		.bDescriptorType = USB_DT_CONFIG,
@@ -349,7 +426,7 @@ struct _dfu_desc dfu_cfg_descriptor = {
 
 
 /* minimal USB EP0 handler in DFU mode */
-static __ramfunc void dfu_udp_ep0_handler(void)
+static __dfufunc void dfu_udp_ep0_handler(void)
 {
 	AT91PS_UDP pUDP = AT91C_BASE_UDP;
 	u_int8_t bmRequestType, bRequest;
@@ -524,7 +601,7 @@ static __ramfunc void dfu_udp_ep0_handler(void)
 }
 
 /* minimal USB IRQ handler in DFU mode */
-static __ramfunc void dfu_udp_irq(void)
+static __dfufunc void dfu_udp_irq(void)
 {
 	AT91PS_UDP pUDP = AT91C_BASE_UDP;
 	AT91_REG isr = pUDP->UDP_ISR;
@@ -550,7 +627,8 @@ static __ramfunc void dfu_udp_irq(void)
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 }
 
-void dfu_switch(void)
+/* this is only called once before DFU mode, no __dfufunc required */
+static void dfu_switch(void)
 {
 	AT91PS_AIC pAic = AT91C_BASE_AIC;
 
@@ -559,3 +637,42 @@ void dfu_switch(void)
 	pAic->AIC_SVR[AT91C_ID_UDP] = (unsigned int) &dfu_udp_irq;
 	dfu_state = DFU_STATE_dfuIDLE;
 }
+
+void __dfufunc dfu_main(void)
+{
+	/*
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
+			      OPENPCD_IRQ_PRIO_UDP,
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, dfu_udp_irq);
+	*/
+
+	AT91PS_AIC pAic = AT91C_BASE_AIC;
+	pAic->AIC_IDCR = 1 << AT91C_ID_UDP;
+	pAic->AIC_SVR[AT91C_ID_UDP] = (unsigned int) &dfu_udp_irq;
+	pAic->AIC_SMR[AT91C_ID_UDP] = AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL | 
+					OPENPCD_IRQ_PRIO_UDP;
+	pAic->AIC_ICCR = 1 << AT91C_ID_UDP;
+
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_UDP);
+
+	/* End-of-Bus-Reset is always enabled */
+
+	/* Clear for set the Pull up resistor */
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+
+	/* do nothing, since all of DFU is interrupt driven */
+	while (1) ;
+}
+
+struct dfuapi __dfufunctab dfu_api = {
+	.ep0_send_data		= &udp_ep0_send_data,
+	.ep0_send_zlp		= &udp_ep0_send_zlp,
+	.ep0_send_stall		= &udp_ep0_send_stall,
+	.dfu_ep0_handler	= &dfu_ep0_handler,
+	.dfu_switch		= &dfu_switch,
+	.dfu_state		= &dfu_state,
+	.dfu_dev_descriptor	= &dfu_dev_descriptor,
+	.dfu_cfg_descriptor	= &dfu_cfg_descriptor,
+};
+
+int foo = 12345;

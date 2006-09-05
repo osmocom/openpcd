@@ -52,6 +52,9 @@ RUN_MODE=RUN_FROM_ROM
 ## Create RAM-Image (debugging) - not used in this example
 #RUN_MODE=RUN_FROM_RAM
 
+## We want to produce a full-flash image, but including DFU 
+IMGTYPE=-dfu-fullimage
+
 # with / at end
 PATH_TO_LINKSCRIPTS=link/
 
@@ -254,7 +257,7 @@ LDFLAGS += $(patsubst %,-l%,$(EXTRA_LIBS))
 ifeq ($(RUN_MODE),RUN_FROM_RAM)
 LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-RAM.ld
 else 
-LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-ROM.ld
+LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-ROM$(IMGTYPE).ld
 endif
 
 

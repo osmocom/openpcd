@@ -37,6 +37,15 @@
 #define AT91C_EP_IN_SIZE 0x40
 #define AT91C_EP_INT  3
 
+#ifdef CONFIG_DFU
+#define DFU_API_LOCATION	((const struct dfuapi *) 0x1f00)
+static const struct dfuapi *dfu = DFU_API_LOCATION;
+#define udp_ep0_send_data	dfu->ep0_send_data
+#define udp_ep0_send_zlp	dfu->ep0_send_zlp
+#define udp_ep0_send_stall	dfu->ep0_send_stall
+#else
+#error non-DFU builds currently not supported (yet) again
+#endif
 
 static struct udp_pcd upcd;
 
@@ -128,7 +137,7 @@ const struct _desc cfg_descriptor = {
 #endif
 };
 
-static struct usb_string_descriptor string0 = {
+static const struct usb_string_descriptor string0 = {
 	.bLength = sizeof(string0),
 	.bDescriptorType = USB_DT_STRING,
 	.wData[0] = 0x0409,	/* English */
@@ -202,10 +211,12 @@ static void udp_irq(void)
 		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
 		upcd.cur_config = 0;
 		
-		if (dfu_state == DFU_STATE_appDETACH) {
+#ifdef CONFIG_DFU
+		if (*dfu->dfu_state == DFU_STATE_appDETACH) {
 			/* now we need to switch to DFU mode */
-			dfu_switch();
+			dfu->dfu_switch();
 		}
+#endif
 	}
 
 	if (isr & AT91C_UDP_EPINT0) {
@@ -313,13 +324,13 @@ static void udp_irq(void)
 }
 
 /* Open USB Device Port  */
-static int udp_open(AT91PS_UDP pUdp)
+void udp_open(void)
 {
 	DEBUGPCRF("entering");
-	upcd.pUdp = pUdp;
+	upcd.pUdp = AT91C_BASE_UDP;
 	upcd.cur_config = 0;
 	upcd.cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
-	
+
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
 			      OPENPCD_IRQ_PRIO_UDP,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, udp_irq);
@@ -327,26 +338,8 @@ static int udp_open(AT91PS_UDP pUdp)
 
 	/* End-of-Bus-Reset is always enabled */
 
-	return 0;
-}
-
-void udp_init(void)
-{
-	/* Set the PLL USB Divider */
-	AT91C_BASE_CKGR->CKGR_PLLR |= AT91C_CKGR_USBDIV_1;
-
-	/* Enables the 48MHz USB clock UDPCK and System Peripheral USB Clock */
-	AT91C_BASE_PMC->PMC_SCER = AT91C_PMC_UDP;
-	AT91C_BASE_PMC->PMC_PCER = (1 << AT91C_ID_UDP);
-
-	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the corresponding PIO
-	 * Set in PIO mode and Configure in Output */
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
-	/* Clear for set the Pul up resistor */
+	/* Clear for set the Pull up resistor */
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
-
-	/* CDC Open by structure initialization */
-	udp_open(AT91C_BASE_UDP);
 }
 
 void udp_reset(void)
@@ -364,67 +357,6 @@ void udp_reset(void)
 #else
 #define DEBUGE(x, args ...)	do { } while (0)
 #endif
-
-/* Send Data through the control endpoint */
-void __ramfunc udp_ep0_send_data(const char *pData, u_int32_t length)
-{
-	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	u_int32_t cpt = 0;
-	AT91_REG csr;
-
-	DEBUGE("send_data: %u bytes ", length);
-
-	do {
-		cpt = MIN(length, 8);
-		length -= cpt;
-
-		while (cpt--)
-			pUdp->UDP_FDR[0] = *pData++;
-
-		if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
-			pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
-			while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
-		}
-
-		pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
-		do {
-			csr = pUdp->UDP_CSR[0];
-
-			/* Data IN stage has been stopped by a status OUT */
-			if (csr & AT91C_UDP_RX_DATA_BK0) {
-				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
-				DEBUGE("stopped by status out ");
-				return;
-			}
-		} while (!(csr & AT91C_UDP_TXCOMP));
-
-	} while (length);
-
-	if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
-		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
-		while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
-	}
-}
-
-/* Send zero length packet through the control endpoint */
-void __ramfunc udp_ep0_send_zlp(void)
-{
-	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
-	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP)) ;
-	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
-	while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
-}
-
-/* Stall the control endpoint */
-void __ramfunc udp_ep0_send_stall(void)
-{
-	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	pUdp->UDP_CSR[0] |= AT91C_UDP_FORCESTALL;
-	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_ISOERROR)) ;
-	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_FORCESTALL | AT91C_UDP_ISOERROR);
-	while (pUdp->UDP_CSR[0] & (AT91C_UDP_FORCESTALL | AT91C_UDP_ISOERROR)) ;
-}
 
 /* Handle requests on the USB Control Endpoint */
 static void udp_ep0_handler(void)
@@ -484,10 +416,10 @@ static void udp_ep0_handler(void)
 		if (wValue == 0x100) {
 			/* Return Device Descriptor */
 #ifdef CONFIG_DFU
-			if (dfu_state != DFU_STATE_appIDLE)
+			if (*dfu->dfu_state != DFU_STATE_appIDLE)
 				udp_ep0_send_data((const char *) 
-						  &dfu_dev_descriptor,
-						  MIN(sizeof(dfu_dev_descriptor),
+						  dfu->dfu_dev_descriptor,
+						  MIN(dfu->dfu_dev_descriptor->bLength,
 						      wLength));
 			else
 #endif
@@ -496,10 +428,10 @@ static void udp_ep0_handler(void)
 		} else if (wValue == 0x200) {
 			/* Return Configuration Descriptor */
 #ifdef CONFIG_DFU
-			if (dfu_state != DFU_STATE_appIDLE)
+			if (*dfu->dfu_state != DFU_STATE_appIDLE)
 				udp_ep0_send_data((const char *)
-						  &dfu_cfg_descriptor,
-						  MIN(sizeof(dfu_cfg_descriptor),
+						  dfu->dfu_cfg_descriptor,
+						  MIN(dfu->dfu_cfg_descriptor->ucfg.wTotalLength,
 						      wLength));
 			else
 #endif
@@ -667,7 +599,7 @@ static void udp_ep0_handler(void)
 		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
 #ifdef CONFIG_DFU
 		if ((bmRequestType & 0x3f) == USB_TYPE_DFU) {
-			dfu_ep0_handler(bmRequestType, bRequest, wValue, wLength);
+			dfu->dfu_ep0_handler(bmRequestType, bRequest, wValue, wLength);
 		} else
 #endif
 		udp_ep0_send_stall();
