@@ -15,9 +15,9 @@
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
 
-#include "usb_handler.h"
-#include "openpcd.h"
-#include "dbgu.h"
+#include <os/usb_handler.h>
+#include <os/dbgu.h>
+#include "../openpcd.h"
 
 /* definitions for four-times oversampling */
 #define REQA	0x10410441
@@ -27,9 +27,11 @@ static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
 
 enum ssc_mode {
+	SSC_MODE_NONE,
 	SSC_MODE_14443A_SHORT,
 	SSC_MODE_14443A_STANDARD,
 	SSC_MODE_14443B,
+	SSC_MODE_EDGE_ONE_SHOT,
 };
 
 struct ssc_state {
@@ -57,7 +59,6 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 			    AT91C_SSC_CP0 | AT91C_SSC_CP1);
 
 	switch (ssc_mode) {
-#ifdef CONFIG_PICCSIM
 	case SSC_MODE_14443A_SHORT:
 		start_cond = AT91C_SSC_START_0;
 		sync_len = ISO14443A_SOF_LEN;
@@ -76,7 +77,12 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		/* start sampling at first falling data edge */
 		//start_cond = 
 		break;
-#endif /* CONFIG_PICCSIM */
+	case SSC_MODE_EDGE_ONE_SHOT:
+		start_cond = AT91C_SSC_START_EDGE_RF;
+		sync_len = 0;
+		data_len = 8;
+		num_data = 50;
+		break;
 	default:
 		return;
 	}
@@ -107,7 +113,6 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 		       AT91C_SSC_TXBUFE | AT91C_SSC_TXSYN;
 
 	switch (ssc_mode) {
-#ifdef CONFIG_PICCSIM
 	case SSC_MODE_14443A_SHORT:
 		start_cond = AT91C_SSC_START_RISE_RF;
 		sync_len = ISO14443A_SOF_LEN;
@@ -121,7 +126,6 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 		data_len = 1;
 		num_data = 1;	/* FIXME */
 		break;
-#endif /* CONFIG_PICCSIM */
 	}
 	ssc->SSC_TFMR = (data_len-1) & 0x1f |
 			(((num_data-1) & 0x0f) << 8) | 
@@ -169,7 +173,7 @@ static char dmabuf2[512];
  */
 static int8_t ssc_rx_refill(void)
 {
-#if 0
+#if 1
 	struct req_ctx *rctx;
 	
 	rctx = req_ctx_find_get(RCTX_STATE_FREE, RCTX_STATE_SSC_RX_BUSY);
@@ -230,7 +234,6 @@ static void ssc_irq(void)
 		DEBUGP("RX OVERRUN ");
 
 	switch (ssc_state.mode) {
-#ifdef CONFIG_PICCSIM
 	case SSC_MODE_14443A_SHORT:
 		if (ssc_sr & AT91C_SSC_RXSYN)
 			DEBUGP("RXSYN ");
@@ -274,7 +277,6 @@ static void ssc_irq(void)
 						    AT91C_SSC_OVRUN);
 		}
 		break;
-#endif /* CONFIG_PICCSIM */
 	}
 }
 
