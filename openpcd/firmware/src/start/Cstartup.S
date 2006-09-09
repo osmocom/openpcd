@@ -16,6 +16,41 @@
 //*- 1.1 01/Apr/05 JPP    : save SPSR 
 //*-----------------------------------------------------------------------------*/
 
+//#define DEBUG_LL
+
+#ifdef DEBUG_LL
+#define PIOA_PER	0xFFFFF400
+#define PIOA_OER	0xFFFFF410
+#define PIOA_SODR	0xFFFFF430
+#define PIOA_CODR	0xFFFFF434
+#define LED1		25
+	.macro	led1on
+		ldr	r2, =PIOA_CODR
+		mov	r1, #(1 << LED1)
+		str	r1, [r2]
+	.endm
+	.macro	led1off
+		ldr	r2, =PIOA_SODR
+		mov	r1, #(1 << LED1)
+		str	r1, [r2]
+	.endm
+	.macro	ledinit
+		ldr	r2, =PIOA_PER
+		mov	r1, #(1 << LED1)
+		str	r1, [r2]
+		ldr	r2, =PIOA_OER
+		str	r1, [r2]
+		led1off
+	.endm
+#else
+	.macro ledinit
+	.endm
+	.macro led1on
+	.endm
+	.macro led1off
+	.endm
+#endif
+
      .equ   IRQ_Stack_Size,     0x00000400
 
 	.equ AIC_IVR,         (256) 
@@ -128,6 +163,7 @@ IRQ_Handler_EntryR:
 	.global remap
 	.func	remap
 _remap:
+#		led1on
 # Remap RAM to 0x00000000 for DFU 
 		ldr	r1, =AT91C_BASE_AIC
 		mov	r2, #0x01
@@ -236,11 +272,12 @@ InitReset:
 /*- minumum C initialization */
 /*- call  AT91F_LowLevelInit( void) */
 
-            ldr     r13,.RAM_TOP            /* temporary stack in internal RAM */
+	ldr	r13,.RAM_TOP            /* temporary stack in internal RAM */
 /*--Call Low level init function in ABSOLUTE through the Interworking	*/
-	        ldr	    r0,=AT91F_LowLevelInit
-            mov     lr, pc
-	        bx	    r0
+        ldr	r0,=AT91F_LowLevelInit
+	mov	lr, pc
+	bx	r0
+	ledinit
 /*------------------------------------------------------------------------------
 //*- Stack Sizes Definition
 //*------------------------
@@ -287,6 +324,15 @@ InitReset:
                 msr     CPSR_c, #ARM_MODE_SVC
                 mov     r13, r0                     /* Init stack Sup */
 
+/*- Relocate DFU .data section (Copy from ROM to RAM)*/
+		ldr	r1, =_etext_dfu
+		ldr	r2, =_data_dfu
+		ldr	r3, =_edata_dfu
+LoopRelDFU:	cmp	r2, r3
+		ldrlo	r0, [r1], #4
+		strlo	r0, [r2], #4
+                blo	LoopRelDFU
+
 # Relocate .data section (Copy from ROM to RAM)
                 LDR     R1, =_etext
                 LDR     R2, =_data
@@ -303,6 +349,8 @@ LoopRel:        CMP     R2, R3
 LoopZI:         CMP     R1, R2
                 STRLO   R0, [R1], #4
                 BLO     LoopZI
+
+		led1on
 
 		ldr	r0, =_remap
 		bx	r0

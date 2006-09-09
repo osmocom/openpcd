@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <asm/bitops.h>
+#include <os/dbgu.h>
+#include <os/req_ctx.h>
 
-#include "openpcd.h"
-#include "dbgu.h"
+#include "../openpcd.h"
 
 /* FIXME: locking, FIFO order processing */
 

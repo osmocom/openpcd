@@ -7,15 +7,15 @@
 #include <errno.h>
 #include <string.h>
 #include <lib_AT91SAM7.h>
-#include "openpcd.h"
+#include "../openpcd.h"
 #include "rc632.h"
-#include "dbgu.h"
-#include "led.h"
+#include <os/dbgu.h>
+#include <os/led.h>
 #include "pwm.h"
 #include "tc.h"
 #include "ssc.h"
-#include "pcd_enumerate.h"
-#include "usb_handler.h"
+#include <os/pcd_enumerate.h>
+#include <os/usb_handler.h>
 
 static u_int8_t force_100ask = 1;
 static u_int8_t mod_conductance = 0x3f;

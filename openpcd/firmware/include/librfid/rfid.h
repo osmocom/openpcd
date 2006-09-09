@@ -1,7 +1,7 @@
 #ifndef _RFID_H
 #define _RFID_H
 
-#include "dbgu.h"
+#include <os/dbgu.h>
 
 #define rfid_hexdump hexdump
 

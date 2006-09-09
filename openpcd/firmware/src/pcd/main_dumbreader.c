@@ -1,13 +1,13 @@
 #include <errno.h>
 #include <include/lib_AT91SAM7.h>
 #include <include/openpcd.h>
-#include "dbgu.h"
+#include <os/dbgu.h>
 #include "rc632.h"
-#include "led.h"
-#include "pcd_enumerate.h"
-#include "usb_handler.h"
-#include "openpcd.h"
-#include "main.h"
+#include <os/led.h>
+#include <os/pcd_enumerate.h>
+#include <os/usb_handler.h>
+#include "../openpcd.h"
+#include <os/main.h>
 
 void _init_func(void)
 {

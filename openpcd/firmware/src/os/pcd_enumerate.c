@@ -21,10 +21,11 @@
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
 
-#include "pcd_enumerate.h"
-#include "dfu.h"
-#include "openpcd.h"
-#include "dbgu.h"
+#include <os/pcd_enumerate.h>
+#include <os/req_ctx.h>
+#include <os/dfu.h>
+#include "../openpcd.h"
+#include <os/dbgu.h>
 
 #define DEBUG_UDP_IRQ
 #define DEBUG_UDP_EP0

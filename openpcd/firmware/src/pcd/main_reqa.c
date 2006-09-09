@@ -13,11 +13,16 @@
 #include <lib_AT91SAM7.h>
 #include <librfid/rfid_layer2_iso14443a.h>
 #include "rc632.h"
-#include "dbgu.h"
-#include "led.h"
-#include "pcd_enumerate.h"
-#include "trigger.h"
+#include <os/dbgu.h>
+#include <os/led.h>
+#include <os/pcd_enumerate.h>
+#include <os/trigger.h>
+
+#include "../openpcd.h"
+
+#ifdef WITH_TC
 #include "tc.h"
+#endif
 
 void _init_func(void)
 {
@@ -25,8 +30,10 @@ void _init_func(void)
 	trigger_init();
 	DEBUGPCRF("enabling RC632");
 	rc632_init();
+#ifdef WITH_TC
 	DEBUGPCRF("enabling TC");
 	tc_cdiv_init();
+#endif
 	DEBUGPCRF("turning on RF");
 	rc632_turn_on_rf(RAH);
 	DEBUGPCRF("initializing 14443A operation");
@@ -149,6 +156,7 @@ int _main_dbgu(char key)
 	case 'l':
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_TRIGGER);
 		break;
+#ifdef WITH_TC
 	case '<':
 		tc_cdiv_phase_inc();
 		break;
@@ -165,6 +173,7 @@ int _main_dbgu(char key)
 			cdiv_idx++;
 		tc_cdiv_set_divider(cdivs[cdiv_idx]);
 		break;
+#endif
 	case '-':
 		if (speed_idx > 0)
 			speed_idx--;
@@ -206,7 +215,9 @@ void _main_func(void)
 	rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
 	for (i = 0; i < 0x3ffff; i++) {}
 	//rc632_dump();
+#ifdef WITH_TC
 	tc_cdiv_print();
+#endif
 
 	switch (mode) {
 	case MODE_REQA:

@@ -1,5 +1,5 @@
 
-#include <librfdi/rfid_layer2_iso14443a.h>
+#include <librfid/rfid_layer2_iso14443a.h>
 
 struct piccsim_state {
 	enum rfid_layer2_id l2prot;

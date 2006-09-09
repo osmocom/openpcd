@@ -15,11 +15,10 @@
 
 // Include Standard files
 #include <board.h>
-#include "dbgu.h"
-#include "rc632.h"
-#include "openpcd.h"
-#include "led.h"
-#include "main.h"
+#include <os/dbgu.h>
+#include "../openpcd.h"
+#include <os/led.h>
+#include <os/main.h>
 #include <asm/system.h>
 
 #define USART_SYS_LEVEL 4
@@ -79,6 +78,7 @@ static void DBGU_irq_handler(void)
 		AT91F_DBGU_Printk("Toggling LED 2\n\r");
 		led_toggle(2);
 		break;
+#if 0
 	case '4':
 		AT91F_DBGU_Printk("Testing RC632 : ");
 		if (rc632_test(RAH) == 0)
@@ -99,6 +99,7 @@ static void DBGU_irq_handler(void)
 	case '7':
 		rc632_dump();
 		break;
+#endif
 	default:
 		if (_main_dbgu(value) < 0)
 			AT91F_DBGU_Printk("\n\r");

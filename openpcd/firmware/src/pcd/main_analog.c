@@ -11,11 +11,11 @@
 #include <string.h>
 #include <librfid/rfid_layer2_iso14443a.h>
 #include "rc632.h"
-#include "dbgu.h"
-#include "led.h"
-#include "trigger.h"
-#include "pcd_enumerate.h"
-#include "main.h"
+#include <os/dbgu.h>
+#include <os/led.h>
+#include <os/trigger.h>
+#include <os/pcd_enumerate.h>
+#include <os/main.h>
 
 void _init_func(void)
 {

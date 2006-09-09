@@ -9,10 +9,11 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <openpcd.h>
-#include "usb_handler.h"
-#include "pcd_enumerate.h"
-#include "dbgu.h"
-#include "openpcd.h"
+#include <os/usb_handler.h>
+#include <os/pcd_enumerate.h>
+#include <os/req_ctx.h>
+#include <os/dbgu.h>
+#include "../openpcd.h"
 
 #define Hz
 #define	kHz	*1000 Hz

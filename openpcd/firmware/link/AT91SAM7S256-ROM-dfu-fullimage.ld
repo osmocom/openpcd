@@ -41,82 +41,79 @@ MEMORY
 
 SECTIONS
 {
-  . = 0x00000000;
-  /* first section is .text which is used for code */
-  .text : { 
-  	src/start/Cstartup*.o (.text) 
-	*(.dfu.func)
-	*(.dfu.struct)
-  } >FLASH
-  _etext_dfu = . ;
+	. = 0x00000000;
+	/* first section is .text which is used for code */
+	.dfu.text 0x00100000: AT ( 0x00000000 ) { 
+  		src/start/Cstartup*.o (.text)
+		*(.dfu.func)
+		*(.dfu.struct)
+  		. = ALIGN(4);
+  	} >FLASH
 
-  .data : AT (_etext_dfu) {
-  	_data_dfu = . ;
-    	KEEP(*(.vectram))
-  	src/dfu.o (.data)
+  	_etext_dfu = . ;
+
+	.dfu.data 0x00200000: AT ( ADDR(.dfu.text) + SIZEOF(.dfu.text) - ADDR(.dfu.text) ) {
+  		_data_dfu = . ;
+		*(.vectram)
+  		src/os/dfu.o (.data)
+  		. = ALIGN(4);
+  	} >DATA
+
   	_edata_dfu = . ;
-  } >DATA
 	
-  .text : {
-  	. = 0x00002000;
-  	*(.dfu.functab)
+	.dfu.functab 0x00102100: AT ( ADDR(.dfu.functab) - ADDR(.dfu.text) ) {
+  		*(.dfu.functab)
+  		. = ALIGN(4);
+  	} >FLASH
 
-    	. = 0x00002100;
-	*(.text)                   /* remaining code */
+  	.text 0x00102200: AT ( ADDR(.text) - ADDR(.dfu.text) ) {
+		*(.text)                   /* remaining code */
+		*(.glue_7t) *(.glue_7)
+		. = ALIGN(4);
+  	} >FLASH
 
-    *(.glue_7t) *(.glue_7)
 
-  } >FLASH
+	/* .rodata section which is used for read-only data (constants) */
+	.rodata : AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.dfu.text) ) {
+  		*(.rodata*)
+		. = ALIGN(4);
+  	} >FLASH
 
-  . = ALIGN(4);
+  	_etext = . ;
+	PROVIDE (etext = .);
 
-  /* .rodata section which is used for read-only data (constants) */
+	/* .data section which is used for initialized data */
+	.data : AT ( ADDR(.rodata) + SIZEOF(.rodata) - ADDR(.dfu.text) ) {
+		_data = . ;
+		*(.data)
+		SORT(CONSTRUCTORS)
+		. = ALIGN(4);
+		*(.fastrun)
+		. = ALIGN(4);
+	} >DATA
 
-  .rodata :
-  {
-    *(.rodata)
-  } >FLASH
+	_edata = . ;
+	PROVIDE (edata = .);
 
-  . = ALIGN(4);
+	/* .bss section which is used for uninitialized data */
+	.bss : {
+		__bss_start = . ;
+		__bss_start__ = . ;
+		*(.bss)
+		*(COMMON)
+	} >DATA
 
-  _etext = . ;
-  PROVIDE (etext = .);
+	. = ALIGN(4);
+	__bss_end__ = . ;
+	__bss_end__ = . ;
+	_end = . ;
 
-  /* .data section which is used for initialized data */
+	. = ALIGN(4);
+	.int_data : { 
+		*(.internal_ram_top) 
+   	} >STACK 
 
-  .data : AT (_etext)
-  {
-    _data = . ;
-    *(.data)
-    SORT(CONSTRUCTORS)
-    . = ALIGN(4);
-    *(.fastrun)
-  } >DATA
-  . = ALIGN(4);
-
-  _edata = . ;
-   PROVIDE (edata = .);
-
-  /* .bss section which is used for uninitialized data */
-
-  .bss :
-  {
-    __bss_start = . ;
-    __bss_start__ = . ;
-    *(.bss)
-    *(COMMON)
-  } 
-  . = ALIGN(4);
-  __bss_end__ = . ;
-  __bss_end__ = . ;
-  _end = .;
-    . = ALIGN(4);
-   .int_data :  
-   { 
-   *(.internal_ram_top) 
-   }> STACK 
-
-  PROVIDE (end = .);
+	PROVIDE (end = .);
 
   /* Stabs debugging sections.  */
   .stab          0 : { *(.stab) }

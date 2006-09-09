@@ -11,13 +11,14 @@
 #include <usb_dfu.h>
 #include <lib_AT91SAM7.h>
 
-#include "dfu.h"
-#include "pcd_enumerate.h"
-#include "openpcd.h"
+#include <os/dfu.h>
+#include <os/pcd_enumerate.h>
+#include <os/req_ctx.h>
+#include "../openpcd.h"
 
 /* If debug is enabled, we need to access debug functions from flash
  * and therefore have to omit flashing */
-#define DEBUG_DFU
+//#define DEBUG_DFU
 
 #ifdef DEBUG_DFU
 #define DEBUGE DEBUGP

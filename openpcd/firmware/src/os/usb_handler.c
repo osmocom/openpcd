@@ -8,12 +8,13 @@
 
 #include <openpcd.h>
 
-#include "pcd_enumerate.h"
-#include "usb_handler.h"
-#include "openpcd.h"
-#include "rc632.h"
-#include "led.h"
-#include "dbgu.h"
+#include <os/pcd_enumerate.h>
+#include <os/usb_handler.h>
+#include <os/req_ctx.h>
+#include <os/led.h>
+#include <os/dbgu.h>
+
+#include "../openpcd.h"
 
 static usb_cmd_fn *cmd_hdlrs[16];
 

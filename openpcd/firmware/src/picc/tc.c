@@ -17,8 +17,9 @@
  */
 
 #include <lib_AT91SAM7.h>
-#include "openpcd.h"
-#include "dbgu.h"
+#include <os/dbgu.h>
+
+#include "../openpcd.h"
 #include "tc.h"
 
 static AT91PS_TCB tcb = AT91C_BASE_TCB;

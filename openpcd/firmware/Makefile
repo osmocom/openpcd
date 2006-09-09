@@ -75,17 +75,32 @@ SRC =
 
 # List C source files here which must be compiled in ARM-Mode.
 # use file-extension c for "c-only"-files
+
+# First, build library ...
 SRCARM  = lib/lib_AT91SAM7.c 
-SRCARM += src/pcd_enumerate.c src/fifo.c src/dbgu.c \
-	  src/led.c src/rc632.c src/rc632_highlevel.c src/req_ctx.c \
-	  src/trigger.c src/main.c src/syscalls.c src/pwm.c src/tc.c \
-	  src/usb_handler.c src/ssc.c src/usb_benchmark.c src/dfu.c \
-	  src/$(TARGET).c src/start/Cstartup_SAM7.c 
 ifdef DEBUG
 SRCARM += lib/vsprintf.c lib/ctype.c lib/string.c
 endif
 
-SRCARM += src/rfid_layer2_iso14443a.c
+# then, OS ...
+SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
+	  src/os/led.c src/os/req_ctx.c src/os/trigger.c \
+	  src/os/main.c src/os/syscalls.c src/os/usb_handler.c \
+	  src/os/usb_benchmark.c src/os/dfu.c src/start/Cstartup_SAM7.c
+
+ifdef PCD
+# PCD support code
+SRCARM += src/pcd/rc632.c src/pcd/rc632_highlevel.c \
+	  src/pcd/pwm.c src/pcd/rfid_layer2_iso14443a.c
+# finally, the actual main application 
+SRCARM += src/pcd/$(TARGET).c 
+else
+# PICC support code
+SRCARM += src/picc/tc.c src/picc/ssc.c 
+# finally, the actual main application 
+SRCARM += src/picc/$(TARGET).c 
+endif
+
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)

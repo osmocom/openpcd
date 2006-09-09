@@ -1,9 +1,9 @@
 #include <errno.h>
 #include <string.h>
 #include <include/lib_AT91SAM7.h>
-#include "dbgu.h"
-#include "led.h"
-#include "openpcd.h"
+#include <os/dbgu.h>
+#include <os/led.h>
+#include "../openpcd.h"
 
 int main(void)
 {

@@ -13,11 +13,12 @@
 #include <lib_AT91SAM7.h>
 #include <cl_rc632.h>
 #include <openpcd.h>
-#include "openpcd.h"
-#include "fifo.h"
-#include "dbgu.h"
-#include "pcd_enumerate.h"
-#include "usb_handler.h"
+#include "../openpcd.h"
+#include <os/fifo.h>
+#include <os/dbgu.h>
+#include <os/pcd_enumerate.h>
+#include <os/usb_handler.h>
+#include <os/req_ctx.h>
 #include "rc632.h"
 
 #define ALWAYS_RESPOND

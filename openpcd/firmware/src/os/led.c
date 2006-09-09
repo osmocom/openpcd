@@ -3,9 +3,10 @@
 #include <errno.h>
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
-#include "openpcd.h"
-#include "usb_handler.h"
-#include "dbgu.h"
+#include "../openpcd.h"
+#include <os/usb_handler.h>
+#include <os/req_ctx.h>
+#include <os/dbgu.h>
 
 static int led2port(int led)
 {

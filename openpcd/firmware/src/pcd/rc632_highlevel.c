@@ -24,7 +24,7 @@
 #include <errno.h>
 #include <cl_rc632.h>
 #include "rc632.h"
-#include "dbgu.h"
+#include <os/dbgu.h>
 #include <librfid/rfid_layer2_iso14443a.h>
 #include <librfid/rfid_protocol_mifare_classic.h>
 
@@ -837,7 +837,7 @@ struct tx_config {
 	u_int8_t	mod_width;
 };
 
-static struct rx_config rx_configs[] = {
+static const struct rx_config rx_configs[] = {
 	{
 		.subc_pulses 	= RC632_RXCTRL1_SUBCP_8,
 		.rx_coding	= RC632_DECCTRL_MANCHESTER,
@@ -864,7 +864,7 @@ static struct rx_config rx_configs[] = {
 	},
 };
 
-static struct tx_config tx_configs[] = {
+static const struct tx_config tx_configs[] = {
 	{
 		.rate 		= RC632_CDRCTRL_RATE_106K,
 		.mod_width	= 0x13,

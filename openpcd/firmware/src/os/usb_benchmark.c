@@ -1,10 +1,11 @@
 #include <errno.h>
 #include <string.h>
 #include <lib_AT91SAM7.h>
-#include "openpcd.h"
-#include "led.h"
-#include "pcd_enumerate.h"
-#include "usb_handler.h"
+#include <os/led.h>
+#include <os/pcd_enumerate.h>
+#include <os/usb_handler.h>
+#include <os/req_ctx.h>
+#include "../openpcd.h"
 
 static struct req_ctx dummy_rctx;
 static struct req_ctx empty_rctx;
