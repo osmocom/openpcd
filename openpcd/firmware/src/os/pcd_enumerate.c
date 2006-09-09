@@ -339,18 +339,19 @@ void udp_open(void)
 
 	/* End-of-Bus-Reset is always enabled */
 
-	/* Clear for set the Pull up resistor */
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	/* Set the Pull up resistor */
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 }
 
 void udp_reset(void)
 {
 	volatile int i;
 
-	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 	for (i = 0; i < 0xffff; i++)
 		;
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 }
 
 #ifdef DEBUG_UDP_EP0
