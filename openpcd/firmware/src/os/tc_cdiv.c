@@ -5,15 +5,6 @@
  * into TCLK1, which is routed to XC1.  Then configure TC0 to divide this
  * clock by a configurable divider.
  *
- * PICC Simulator Side:
- * In order to support responding to synchronous frames (REQA/WUPA/ANTICOL),
- * we need a second Timer/Counter (TC1).  This unit is reset by an external
- * event (rising edge of modulation pause PCD->PICC) connected to TIOB2, and
- * counts up to a configurable number of carrier clock cycles (RA). Once the
- * RA value is reached, TIOA2 will see a rising edge.  This rising edge will
- * be interconnected to TF (Tx Frame) of the SSC to start transmitting our
- * synchronous response.
- *
  */
 
 #include <lib_AT91SAM7.h>
