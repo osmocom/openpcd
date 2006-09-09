@@ -3,6 +3,12 @@
 
 #include <openpcd.h>
 
+#define Hz
+#define	kHz	*1000 Hz
+#define MHz	*1000 kHz
+#define MCLK	(48 MHz)
+
+
 #ifdef OLIMEX
 #define OPENPCD_PIO_LED2	AT91C_PIO_PA17
 #define OPENPCD_PIO_LED1	AT91C_PIO_PA18
@@ -10,7 +16,7 @@
 #define OPENPCD_PIO_UDP_PUP	AT91C_PIO_PA16
 #else
 #define OPENPCD_PIO_UDP_CNX	AT91C_PIO_PA15
-#define OPENPCD_PIO_UDP_PUP	AT91C_PIO_PA16
+#define OPENPCD_PIO_UDP_PUP	AT91C_PIO_PA22
 #define OPENPCD_PIO_LED1	AT91C_PIO_PA25
 #define OPENPCD_PIO_LED2	AT91C_PIO_PA26
 #endif
@@ -39,7 +45,7 @@
  * PA14	SPCK	A	O	SPI Clock
  * PA15		P	I	N/C
  *
- * PA16	PA16	P	O	UDP_PUP
+ * PA16	PA16	P	O	UDP_PUP (disabled)
  * PA17	TD	A	O	MFIN	*
  * PA18	RD	A	I	MFOUT
  * PA19	RK	A	I	CARRIER_DIV
