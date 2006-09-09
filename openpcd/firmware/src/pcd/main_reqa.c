@@ -26,7 +26,6 @@
 
 void _init_func(void)
 {
-	//udp_init();
 	trigger_init();
 	DEBUGPCRF("enabling RC632");
 	rc632_init();

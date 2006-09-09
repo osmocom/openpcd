@@ -24,8 +24,8 @@
 #define DEBUGE DEBUGP
 #define DEBUGI DEBUGP
 #else
-#define DEBUGE(x, args ...)
-#define DEBUGI(x, args ...)
+#define DEBUGE(x, args ...) do { } while (0)
+#define DEBUGI(x, args ...) do { } while (0)
 #endif
 
 /* this is only called once before DFU mode, no __dfufunc required */
@@ -160,7 +160,7 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 	if (ptr + len > AT91C_IFLASH_SIZE) 
 		len = AT91C_IFLASH_SIZE - (u_int32_t) ptr;
 		
-	udp_ep0_send_data(ptr, len);
+	udp_ep0_send_data((char *)ptr, len);
 	ptr+= len;
 
 	return len;
@@ -176,7 +176,7 @@ static __dfufunc void handle_getstatus(void)
 	dstat.bStatus = status;
 	dstat.bState = dfu_state;
 	dstat.iString = 0;
-	udp_ep0_send_data(&dstat, sizeof(dstat));
+	udp_ep0_send_data((char *)&dstat, sizeof(dstat));
 }
 
 static void __dfufunc handle_getstate(void)
@@ -368,7 +368,7 @@ send_zlp:
 static u_int8_t cur_config;
 
 /* USB DFU Device descriptor in DFU mode */
-__dfustruct struct usb_device_descriptor dfu_dev_descriptor = {
+__dfustruct const struct usb_device_descriptor dfu_dev_descriptor = {
 	.bLength		= USB_DT_DEVICE_SIZE,
 	.bDescriptorType	= USB_DT_DEVICE,
 	.bcdUSB			= 0x0100,
@@ -386,7 +386,7 @@ __dfustruct struct usb_device_descriptor dfu_dev_descriptor = {
 };
 
 /* USB DFU Config descriptor in DFU mode */
-__dfustruct struct _dfu_desc dfu_cfg_descriptor = {
+__dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 	.ucfg = {
 		.bLength = USB_DT_CONFIG_SIZE,
 		.bDescriptorType = USB_DT_CONFIG,
@@ -665,7 +665,7 @@ void __dfufunc dfu_main(void)
 	while (1) ;
 }
 
-struct dfuapi __dfufunctab dfu_api = {
+const struct dfuapi __dfufunctab dfu_api = {
 	.ep0_send_data		= &udp_ep0_send_data,
 	.ep0_send_zlp		= &udp_ep0_send_zlp,
 	.ep0_send_stall		= &udp_ep0_send_stall,

@@ -72,8 +72,8 @@ struct dfuapi {
 				     u_int16_t val, u_int16_t len);
 	void (*dfu_switch)(void);
 	u_int8_t *dfu_state;
-	struct usb_device_descriptor *dfu_dev_descriptor;
-	struct _dfu_desc *dfu_cfg_descriptor;
+	const struct usb_device_descriptor *dfu_dev_descriptor;
+	const struct _dfu_desc *dfu_cfg_descriptor;
 };
 
 

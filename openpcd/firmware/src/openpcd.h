@@ -99,7 +99,4 @@
 #define OPENPCD_IRQ_PRIO_UDP	(AT91C_AIC_PRIOR_LOWEST+1)
 #define OPENPCD_IRQ_PRIO_RC632	AT91C_AIC_PRIOR_LOWEST
 
-extern void _init_func(void);
-extern void _main_func(void);
-
 #endif /* _OPENPCD_H */

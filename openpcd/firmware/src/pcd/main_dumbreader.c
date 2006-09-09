@@ -12,8 +12,6 @@
 void _init_func(void)
 {
 	rc632_init();
-	udp_init();
-	udp_open();
 	rc632_test(RAH);
 }
 

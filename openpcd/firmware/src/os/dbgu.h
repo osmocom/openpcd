@@ -26,6 +26,7 @@ void AT91F_DBGU_Init(void);
 void AT91F_DBGU_Printk(	char *buffer);
 void AT91F_DBGU_Frame(	char *buffer);
 int AT91F_DBGU_Get( char *val);
+void dbgu_rb_flush(void);
 #ifndef __WinARM__
 void AT91F_DBGU_scanf(char * type,unsigned int * val);
 #endif

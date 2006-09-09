@@ -19,11 +19,12 @@
 //#define DEBUG_LL
 
 #ifdef DEBUG_LL
+/* Debugging macros for switching on/off LED1 (green) */
 #define PIOA_PER	0xFFFFF400
 #define PIOA_OER	0xFFFFF410
 #define PIOA_SODR	0xFFFFF430
 #define PIOA_CODR	0xFFFFF434
-#define LED1		25
+#define LED1		25		/* this only works on OpenPICC, not Olimex */
 	.macro	led1on
 		ldr	r2, =PIOA_CODR
 		mov	r1, #(1 << LED1)

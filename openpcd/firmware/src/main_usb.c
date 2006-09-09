@@ -31,7 +31,6 @@ int _main_dbgu(char key)
 
 void _init_func(void)
 {
-	udp_init();
 	usbtest_init();
 }
 

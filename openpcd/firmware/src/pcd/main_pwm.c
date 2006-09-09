@@ -95,8 +95,6 @@ void _init_func(void)
 	pwm_duty_set_percent(0, 22);	/* 22% of 9.43uS = 2.07uS */
 	rc632_modulate_mfin();
 
-	udp_init();
-
 	DEBUGPCRF("Initializing SSC RX");
 	ssc_rx_init();
 }

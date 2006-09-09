@@ -397,7 +397,7 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		break;
 	case OPENPCD_CMD_READ_FIFO:
 		{
-		u_int16_t req_len = poh->val, remain_len, pih_len;
+		u_int16_t req_len = poh->val, remain_len = req_len, pih_len;
 		if (req_len > MAX_PAYLOAD_LEN) {
 			pih_len = MAX_PAYLOAD_LEN;
 			remain_len -= pih_len;

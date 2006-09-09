@@ -19,7 +19,6 @@
 
 void _init_func(void)
 {
-	//udp_init();
 	trigger_init();
 	rc632_init();
 	DEBUGPCRF("turning on RF");

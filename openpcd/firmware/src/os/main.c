@@ -3,6 +3,9 @@
 #include <include/lib_AT91SAM7.h>
 #include <os/dbgu.h>
 #include <os/led.h>
+#include <os/dfu.h>
+#include <os/main.h>
+#include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
 int main(void)
@@ -13,6 +16,10 @@ int main(void)
 
 	/* call application specific init function */
 	_init_func();
+
+	/* initialize USB */
+	udp_init();
+	udp_open();
 
 	// Enable User Reset and set its minimal assertion to 960 us
 	AT91C_BASE_RSTC->RSTC_RMR =

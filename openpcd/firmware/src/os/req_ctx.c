@@ -31,7 +31,7 @@ struct req_ctx *req_ctx_find_get(unsigned long old_state, unsigned long new_stat
 
 u_int8_t req_ctx_num(struct req_ctx *ctx)
 {
-	return ((void *)ctx - (void *)&req_ctx[0])/sizeof(*ctx);
+	return ((char *)ctx - (char *)&req_ctx[0])/sizeof(*ctx);
 }
 
 void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state)
