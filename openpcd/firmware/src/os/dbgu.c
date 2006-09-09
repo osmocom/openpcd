@@ -78,28 +78,6 @@ static void DBGU_irq_handler(void)
 		AT91F_DBGU_Printk("Toggling LED 2\n\r");
 		led_toggle(2);
 		break;
-#if 0
-	case '4':
-		AT91F_DBGU_Printk("Testing RC632 : ");
-		if (rc632_test(RAH) == 0)
-			AT91F_DBGU_Printk("SUCCESS!\n\r");
-		else
-			AT91F_DBGU_Printk("ERROR!\n\r");
-			
-		break;
-	case '5':
-		rc632_reg_read(RAH, RC632_REG_RX_WAIT, &value);
-		DEBUGPCR("Reading RC632 Reg RxWait: 0x%02xr", value);
-
-		break;
-	case '6':
-		DEBUGPCR("Writing RC632 Reg RxWait: 0x55");
-		rc632_reg_write(RAH, RC632_REG_RX_WAIT, 0x55);
-		break;
-	case '7':
-		rc632_dump();
-		break;
-#endif
 	default:
 		if (_main_dbgu(value) < 0)
 			AT91F_DBGU_Printk("\n\r");

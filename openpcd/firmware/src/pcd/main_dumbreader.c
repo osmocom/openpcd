@@ -13,11 +13,43 @@ void _init_func(void)
 {
 	rc632_init();
 	udp_init();
+	udp_open();
 	rc632_test(RAH);
 }
 
 int _main_dbgu(char key)
 {
+	unsigned char value;
+
+	switch (key) {
+	case '4':
+		AT91F_DBGU_Printk("Testing RC632 : ");
+		if (rc632_test(RAH) == 0)
+			AT91F_DBGU_Printk("SUCCESS!\n\r");
+		else
+			AT91F_DBGU_Printk("ERROR!\n\r");
+			
+		break;
+	case '5':
+		rc632_reg_read(RAH, RC632_REG_RX_WAIT, &value);
+		DEBUGPCR("Reading RC632 Reg RxWait: 0x%02xr", value);
+
+		break;
+	case '6':
+		DEBUGPCR("Writing RC632 Reg RxWait: 0x55");
+		rc632_reg_write(RAH, RC632_REG_RX_WAIT, 0x55);
+		break;
+	case '7':
+		rc632_dump();
+		break;
+	case 'P':
+		rc632_power(1);
+		break;
+	case 'p':
+		rc632_power(0);
+		break;
+	}
+
 	return -EINVAL;
 }
 
