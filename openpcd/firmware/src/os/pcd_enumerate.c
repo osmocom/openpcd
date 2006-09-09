@@ -39,7 +39,7 @@
 #define AT91C_EP_INT  3
 
 #ifdef CONFIG_DFU
-#define DFU_API_LOCATION	((const struct dfuapi *) 0x1f00)
+#define DFU_API_LOCATION	((const struct dfuapi *) 0x00102100)
 static const struct dfuapi *dfu = DFU_API_LOCATION;
 #define udp_ep0_send_data	dfu->ep0_send_data
 #define udp_ep0_send_zlp	dfu->ep0_send_zlp
