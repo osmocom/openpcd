@@ -371,16 +371,17 @@ rc632_transceive(struct rfid_asic_handle *handle,
 	return rc632_fifo_read(handle, *rx_len, rx_buf);
 }
 
-static int
-rc632_read_eeprom(struct rfid_asic_handle *handle)
+int
+rc632_read_eeprom(struct rfid_asic_handle *handle, u_int16_t addr, u_int8_t len,
+		  u_int8_t *recvbuf)
 {
-	u_int8_t recvbuf[60];
 	u_int8_t sndbuf[3];
+	u_int8_t err;
 	int ret;
 
-	sndbuf[0] = 0x00;
-	sndbuf[1] = 0x00;
-	sndbuf[2] = 0x3c;
+	sndbuf[0] = (addr & 0xff);
+	sndbuf[1] = addr >> 8;
+	sndbuf[2] = len;
 
 	ret = rc632_fifo_write(handle, 3, sndbuf, 0x03);
 	if (ret < 0)
@@ -390,14 +391,21 @@ rc632_read_eeprom(struct rfid_asic_handle *handle)
 	if (ret < 0)
 		return ret;
 
-	usleep(20000);
+	/* usleep(20000); */
 
-	ret = rc632_fifo_read(handle, sizeof(recvbuf), recvbuf);
+	ret = rc632_reg_read(handle, RC632_REG_ERROR_FLAG, &err);
+	if (err & RC632_ERR_FLAG_ACCESS_ERR)
+		return -EPERM;
+	
+	ret = rc632_reg_read(handle, RC632_REG_FIFO_DATA, &err);
+	if (err < len)
+		len = err;
+
+	ret = rc632_fifo_read(handle, len, recvbuf);
 	if (ret < 0)
 		return ret;
 
-	// FIXME: do something with eeprom contents
-	return ret;
+	return len;
 }
 
 static int
