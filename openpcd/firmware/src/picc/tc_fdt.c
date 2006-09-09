@@ -1,13 +1,9 @@
 /* OpenPC TC (Timer / Clock) support code
  * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
  *
- * This idea of this code is to feed the 13.56MHz carrier clock of RC632
- * into TCLK1, which is routed to XC1.  Then configure TC0 to divide this
- * clock by a configurable divider.
- *
  * PICC Simulator Side:
  * In order to support responding to synchronous frames (REQA/WUPA/ANTICOL),
- * we need a second Timer/Counter (TC1).  This unit is reset by an external
+ * we need a second Timer/Counter (TC2).  This unit is reset by an external
  * event (rising edge of modulation pause PCD->PICC) connected to TIOB2, and
  * counts up to a configurable number of carrier clock cycles (RA). Once the
  * RA value is reached, TIOA2 will see a rising edge.  This rising edge will
