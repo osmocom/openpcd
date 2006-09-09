@@ -97,7 +97,9 @@ SRCARM += src/pcd/rc632.c src/pcd/rc632_highlevel.c \
 SRCARM += src/pcd/$(TARGET).c 
 else
 # PICC support code
-SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c 
+SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
+	  src/picc/decoder.c src/picc/decoder_miller.c \
+	  src/picc/decoder_nrzl.c
 # finally, the actual main application 
 SRCARM += src/picc/$(TARGET).c 
 endif

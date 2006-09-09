@@ -2,8 +2,11 @@
  * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
  */
 
+#include <errno.h>
 #include <sys/types.h>
-#include "decoder.h"
+#include <picc/decoder.h>
+
+#include <os/dbgu.h>
 
 static struct decoder_algo *decoder_algo[DECODER_NUM_ALGOS];
 
@@ -21,7 +24,7 @@ static int get_next_data(struct decoder_state *st, u_int8_t *data)
 int decoder_decode(u_int8_t algo, const char *sample_buf,
 	  	   int sample_buf_size, char *data_buf)
 {
-	int ret;
+	int i, ret;
 	struct decoder_state st;
 
 	if (algo >= DECODER_NUM_ALGOS)
@@ -45,17 +48,17 @@ int decoder_decode(u_int8_t algo, const char *sample_buf,
 	return i+1;
 }
 
-int decoder_register(int algo, struct decoder_algo *algo)
+int decoder_register(int algnum, struct decoder_algo *algo)
 {
-	if (algo >= DECODER_NUM_ALGOS)
+	if (algnum >= DECODER_NUM_ALGOS)
 		return -EINVAL;
 
-	decoder_algos[algo] = algo;
+	decoder_algo[algnum] = algo;
 
 	return 0;
 }
 
-int decoder_init(void)
+void decoder_init(void)
 {
 	decoder_register(DECODER_MILLER, &miller_decoder);
 	decoder_register(DECODER_NRZL, &nrzl_decoder);

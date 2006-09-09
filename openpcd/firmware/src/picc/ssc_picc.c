@@ -255,7 +255,7 @@ static void ssc_irq(void)
 	case SSC_MODE_14443A_STANDARD:
 
 		if (ssc_sr & (AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF)) {
-#if 0
+#if 1
 			/* Mark primary RCTX as ready to send for usb */
 			req_ctx_set_state(ssc_state.rx_ctx[0], 
 					  RCTX_STATE_UDP_EP2_PENDING);
@@ -319,6 +319,7 @@ static int ssc_usb_in(struct req_ctx *rctx)
 	/* FIXME: implement this */
 	switch (poh->cmd) {
 	case OPENPCD_CMD_SSC_READ:
+		
 		break;
 	case OPENPCD_CMD_SSC_WRITE:
 		break;

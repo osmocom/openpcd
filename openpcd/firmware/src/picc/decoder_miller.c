@@ -25,7 +25,9 @@
  */
 
 #include <sys/types.h>
-#include "decoder.h"
+
+#include <os/dbgu.h>
+#include <picc/decoder.h>
 
 
 #define OVERSAMPLING_RATE	4
@@ -47,7 +49,7 @@ static u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)
 		return 0;
 		break;
 	default:
-		DEBUGP("unknown sequence sample `%x' ", bit_sample);
+		DEBUGP("unknown sequence sample `%x' ", sampled_bit);
 		return 2;
 		break;
 	}
@@ -57,7 +59,7 @@ static u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)
 static int miller_decode_sample(u_int32_t sample, u_int8_t *data)
 {
 	u_int8_t ret = 0;
-	int err, i;
+	unsigned int i;
 
 	for (i = 0; i < sizeof(sample)/OVERSAMPLING_RATE; i++) {
 		u_int8_t bit = miller_decode_sampled_bit(sample & 0xf);
@@ -83,7 +85,6 @@ static u_int32_t get_next_bytesample(struct decoder_state *ms,
 				     u_int8_t *parity_sample)
 {
 	u_int32_t ret = 0;
-	u_int8_t parity_sample;
 
 	/* get remaining bits from the current word */
 	ret = *(ms->buf32) >> ms->bit_ofs;
@@ -91,7 +92,7 @@ static u_int32_t get_next_bytesample(struct decoder_state *ms,
 	ms->buf32++;
 
 	/* if required, get remaining bits from next word */
-	if (bit_ofs)
+	if (ms->bit_ofs)
 		ret |= *(ms->buf32) << (32 - ms->bit_ofs);
 	
 	*parity_sample = (*(ms->buf32) >> ms->bit_ofs & 0xf);

@@ -35,8 +35,10 @@
  * 
  */
 
+#include <errno.h>
 #include <sys/types.h>
-#include "decoder.h"
+#include <os/dbgu.h>
+#include <picc/decoder.h>
 
 /* currently this code will only work with oversampling_rate == 1 */
 #define OVERSAMPLING_RATE 1
@@ -64,7 +66,7 @@ static u_int32_t get_next_bytesample(struct decoder_state *st,
 	return ret & bytesample_mask;
 }
 
-static int nrzl_decode_sample(const u_int32_t sample, u_int8_t data)
+static int nrzl_decode_sample(const u_int32_t sample, u_int8_t *data)
 {
 	*data = (sample >> 1) & 0xff;
 
@@ -83,7 +85,7 @@ static int nrzl_decode_sample(const u_int32_t sample, u_int8_t data)
 static struct decoder_algo nrzl_decoder = {
 	.oversampling_rate = OVERSAMPLING_RATE,
 	.bits_per_sampled_char = 10 * OVERSAMPLING_RATE,
-	.bytesample_mask = 0x3ff;
+	.bytesample_mask = 0x3ff,
 	.decode_sample = &nrzl_decode_sample,
 	.get_next_bytesample = &get_next_bytesample,
 };

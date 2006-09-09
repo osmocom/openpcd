@@ -12,6 +12,7 @@
 void _init_func(void)
 {
 	tc_cdiv_init();
+	adc_init();
 	ssc_rx_init();
 	// ssc_tx_init();
 }

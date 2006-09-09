@@ -6,7 +6,7 @@ struct decoder_state;
 struct decoder_algo {
 	u_int8_t oversampling_rate;		
 	u_int8_t bits_per_sampled_char;
-	u_int8_t bytesample_mask;
+	u_int32_t bytesample_mask;
 	int (*decode_sample)(const u_int32_t sample, u_int8_t data);
 	u_int32_t (*get_next_bytesample)(struct decoder_state *st, u_int8_t *parity_sample);
 };
@@ -18,7 +18,7 @@ struct decoder_state {
 	const u_int32_t *buf32;
 };
 
-extern int decoder_register(int algo, struct decoder_algo *algo);
+extern int decoder_register(int algnum, struct decoder_algo *algo);
 extern int decoder_decode(u_int8_t algo, const char *sample_buf,
 		  	  int sample_buf_size, char *data_buf);
 
@@ -26,7 +26,7 @@ extern int decoder_decode(u_int8_t algo, const char *sample_buf,
 #define DECODER_NRZL		1
 #define DECODER_NUM_ALGOS 	2
 
-extern struct decoder_algo nrzl_decoder;
-extern struct decoder_algo miller_decoder;
+static struct decoder_algo nrzl_decoder;
+static struct decoder_algo miller_decoder;
 
 #endif
