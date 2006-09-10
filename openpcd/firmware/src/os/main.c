@@ -5,6 +5,7 @@
 #include <os/led.h>
 #include <os/dfu.h>
 #include <os/main.h>
+#include <os/power.h>
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
@@ -31,12 +32,15 @@ int main(void)
 #endif
 
 	/* switch on first led */
-	led_switch(1, 1);
+	led_switch(2, 1);
 
 	DEBUGPCRF("entering main (idle) loop");
 	while (1) {
 		/* Call application specific main idle function */
 		_main_func();
 		dbgu_rb_flush();
+#ifdef CONFIG_IDLE
+		//cpu_idle();
+#endif
 	}
 }
