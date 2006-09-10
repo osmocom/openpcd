@@ -591,12 +591,6 @@ static void udp_ep0_handler(void)
 		DEBUGE("SET INTERFACE ");
 		udp_ep0_send_stall();
 		break;
-#ifdef CONFIG_DFU
-	case USB_TYPE_DFU<<8|USB_REQ_DFU_DETACH:
-		DEBUGE("DFU_DETACH ");
-		/* if USB reset occurs within wValue milliseconds, switch to DFU */
-		break;
-#endif
 	default:
 		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
 #ifdef CONFIG_DFU
