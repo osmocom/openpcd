@@ -8,14 +8,17 @@
 #include <string.h>
 #include <lib_AT91SAM7.h>
 #include "../openpcd.h"
-#include "rc632.h"
+#include <pcd/rc632.h>
 #include <os/dbgu.h>
 #include <os/led.h>
-#include "pwm.h"
-#include "tc.h"
-#include "ssc.h"
+#include <os/pwm.h>
+#include <os/tc_cdiv.h>
 #include <os/pcd_enumerate.h>
 #include <os/usb_handler.h>
+
+#ifdef SSC
+#include <pcd/ssc.h>
+#endif
 
 static u_int8_t force_100ask = 1;
 static u_int8_t mod_conductance = 0x3f;
@@ -95,8 +98,10 @@ void _init_func(void)
 	pwm_duty_set_percent(0, 22);	/* 22% of 9.43uS = 2.07uS */
 	rc632_modulate_mfin();
 
+#ifdef SSC
 	DEBUGPCRF("Initializing SSC RX");
 	ssc_rx_init();
+#endif
 }
 
 int _main_dbgu(char key)
@@ -213,12 +218,14 @@ int _main_dbgu(char key)
 			cdiv_idx++;
 		tc_cdiv_set_divider(cdivs[cdiv_idx]);
 		break;
+#ifdef SSC
 	case 's':
 		ssc_rx_start();
 		break;
 	case 'S':
 		ssc_rx_stop();
 		break;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -242,7 +249,9 @@ void _main_func(void)
 	/* try unthrottling sources since we now are [more] likely to
 	 * have empty request contexts */
 	rc632_unthrottle();
+#ifdef SSC
 	ssc_rx_unthrottle();
+#endif
 
 	led_toggle(2);
 }
