@@ -31,6 +31,9 @@ void tc_fdt_init(void)
 			    AT91C_PA26_TIOA2 | AT91C_PA27_TIOB2);
 	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC,
 				    ((unsigned int) 1 << AT91C_ID_TC2));
+	/* Enable Clock for TC2 */
+	tcb->TCB_TC2.TC_CCR = AT91C_TC_CLKEN;
+
 	/* Clock XC1, Wave Mode, No automatic reset on RC comp
 	 * TIOA2 in RA comp = set, TIOA2 on RC comp = clear,
 	 * TIOB2 as input, EEVT = TIOB2, Reset/Trigger on EEVT */
