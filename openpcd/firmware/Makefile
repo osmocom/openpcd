@@ -99,7 +99,7 @@ else
 # PICC support code
 SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
 	  src/picc/decoder.c src/picc/decoder_miller.c \
-	  src/picc/decoder_nrzl.c src/picc/poti.c
+	  src/picc/decoder_nrzl.c src/picc/poti.c src/picc/pll.c
 # finally, the actual main application 
 SRCARM += src/picc/$(TARGET).c 
 endif
