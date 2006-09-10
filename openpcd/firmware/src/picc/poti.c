@@ -14,12 +14,20 @@ void poti_comp_carr(u_int8_t position)
 
 	while (!(spi->SPI_SR & AT91C_SPI_TDRE)) { }
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
-	for (i = 0; i < 0xff; i++) { }
+	//for (i = 0; i < 0xff; i++) { }
 	/* shift one left, since it is a seven-bit value written as 8 bit xfer */
-	spi->SPI_TDR = position;
+	spi->SPI_TDR = position & 0x7f;
 	while (!(spi->SPI_SR & AT91C_SPI_TDRE)) { }
 	for (i = 0; i < 0xff; i++) { }
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
+}
+
+void poti_reset(void)
+{
+	volatile int i;
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_nSLAVE_RESET);
+	for (i = 0; i < 0xff; i++) { }
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_nSLAVE_RESET);
 }
 
 void poti_init(void)
@@ -30,6 +38,10 @@ void poti_init(void)
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
+
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_nSLAVE_RESET);
+	poti_reset();
+
 #if 0
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SPI,
 			      OPENPCD_IRQ_PRIO_SPI,
@@ -38,8 +50,9 @@ void poti_init(void)
 #endif
 	AT91F_SPI_CfgMode(spi, AT91C_SPI_MSTR | 
 			  AT91C_SPI_PS_FIXED | AT91C_SPI_MODFDIS);
-	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 12 (4MHz),
-	 * DLYBS = 0, DLYBCT = 0 */
-	AT91F_SPI_CfgCs(spi, 0, AT91C_SPI_BITS_8 | AT91C_SPI_NCPHA | (24<<8));
+	/* CPOL = 0, NCPHA = 1, CSAAT = 0, BITS = 0000, SCBR = 13 (3.69MHz),
+	 * DLYBS = 6 (125nS), DLYBCT = 0 */
+	AT91F_SPI_CfgCs(spi, 0, AT91C_SPI_BITS_8 | AT91C_SPI_NCPHA |
+			(13 << 8) | (6 << 16));
 	AT91F_SPI_Enable(spi);
 }
