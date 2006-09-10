@@ -87,18 +87,19 @@ SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
 	  src/os/led.c src/os/req_ctx.c src/os/trigger.c \
 	  src/os/main.c src/os/syscalls.c src/os/usb_handler.c \
 	  src/os/usb_benchmark.c src/os/dfu.c src/start/Cstartup_SAM7.c \
-	  src/os/tc_cdiv.c src/os/pit.c
+	  src/os/tc_cdiv.c src/os/pit.c src/os/pwm.c
 
 ifdef PCD
 # PCD support code
 SRCARM += src/pcd/rc632.c src/pcd/rc632_highlevel.c \
-	  src/pcd/pwm.c src/pcd/rfid_layer2_iso14443a.c
+	  src/pcd/rfid_layer2_iso14443a.c
 # finally, the actual main application 
 SRCARM += src/pcd/$(TARGET).c 
 else
 # PICC support code
 SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
 	  src/picc/decoder.c src/picc/decoder_miller.c \
+	  src/picc/load_modulation.c \
 	  src/picc/decoder_nrzl.c src/picc/poti.c src/picc/pll.c
 # finally, the actual main application 
 SRCARM += src/picc/$(TARGET).c 
