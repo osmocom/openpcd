@@ -11,18 +11,37 @@
 
 void _init_func(void)
 {
-	tc_cdiv_init();
-	adc_init();
-	ssc_rx_init();
+	//tc_cdiv_init();
+	//adc_init();
+	//ssc_rx_init();
+	//poti_init();
 	// ssc_tx_init();
 }
 
 int _main_dbgu(char key)
 {
 	unsigned char value;
+	static u_int8_t poti = 64;
+
+	DEBUGPCRF("main_dbgu");
 
 	switch (key) {
-	#if 0
+	case 'q':
+		if (poti > 0)
+			poti--;
+		poti_comp_carr(poti);
+		DEBUGPCRF("Poti: %u", poti);
+		break;
+	case 'w':
+		if (poti < 126)
+			poti++;
+		poti_comp_carr(poti);
+		DEBUGPCRF("Poti: %u", poti);
+		break;
+	case 'e':
+		poti_init();
+		break;
+#if 0
 	case '4':
 		AT91F_DBGU_Printk("Testing RC632 : ");
 		if (rc632_test(RAH) == 0)
