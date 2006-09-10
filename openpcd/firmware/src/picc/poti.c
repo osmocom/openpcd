@@ -33,7 +33,7 @@ void poti_reset(void)
 void poti_init(void)
 {
 	AT91F_SPI_CfgPMC();
-	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA12_MISO | 
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 
 			    AT91C_PA13_MOSI | AT91C_PA14_SPCK, 0);
 
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
