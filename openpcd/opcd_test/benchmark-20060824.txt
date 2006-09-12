@@ -1,0 +1,55 @@
+laforge@rama%pts/8 (1:27) kommerz/bitmanufaktur/openpcd/opcd_test > for f in 1 2 4 8 16 32 64 128 255; do ./opcd_test -u $f; done 
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (1 frames of 64 bytes)
+TX: (4):  f1 00 ff 01
+255 transfers (total 16320 bytes) in 508 miliseconds => 32125 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (2 frames of 64 bytes)
+TX: (4):  f1 00 ff 02
+255 transfers (total 32640 bytes) in 510 miliseconds => 64000 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (4 frames of 64 bytes)
+TX: (4):  f1 00 ff 04
+255 transfers (total 65280 bytes) in 508 miliseconds => 128503 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (8 frames of 64 bytes)
+TX: (4):  f1 00 ff 08
+255 transfers (total 130560 bytes) in 510 miliseconds => 256000 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (16 frames of 64 bytes)
+TX: (4):  f1 00 ff 10
+255 transfers (total 261120 bytes) in 764 miliseconds => 341780 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (32 frames of 64 bytes)
+TX: (4):  f1 00 ff 20
+255 transfers (total 522240 bytes) in 1018 miliseconds => 513005 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (64 frames of 64 bytes)
+TX: (4):  f1 00 ff 40
+255 transfers (total 1044480 bytes) in 2038 miliseconds => 512502 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (128 frames of 64 bytes)
+TX: (4):  f1 00 ff 80
+255 transfers (total 2088960 bytes) in 3568 miliseconds => 585470 bytes/sec
+opcd_test - OpenPCD Test and Debug Program
+(C) 2006 by Harald Welte <laforge@gnumonks.org>
+
+starting DATA IN performance test (255 frames of 64 bytes)
+TX: (4):  f1 00 ff ff
+255 transfers (total 4161600 bytes) in 6119 miliseconds => 680111 bytes/sec
