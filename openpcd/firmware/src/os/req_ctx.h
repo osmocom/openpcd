@@ -37,6 +37,8 @@ struct req_ctx {
 
 #define RCTX_STATE_SSC_RX_BUSY		0x20
 
+#define RCTX_STATE_PIOIRQ_BUSY		0x80
+
 #define NUM_REQ_CTX	8
 extern struct req_ctx *req_ctx_find_get(unsigned long old_state, unsigned long new_state);
 extern struct req_ctx *req_ctx_find_busy(void);
