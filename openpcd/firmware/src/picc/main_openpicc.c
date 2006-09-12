@@ -2,7 +2,6 @@
 #include <include/lib_AT91SAM7.h>
 #include <include/openpcd.h>
 #include <os/dbgu.h>
-#include "ssc_picc.h"
 #include <os/led.h>
 #include <os/pcd_enumerate.h>
 #include <os/usb_handler.h>
@@ -10,11 +9,14 @@
 #include <os/main.h>
 #include <os/pwm.h>
 #include <os/tc_cdiv.h>
+#include <os/pio_irq.h>
+#include <picc/poti.h>
 #include <picc/pll.h>
+#include <picc/ssc_picc.h>
 #include <picc/load_modulation.h>
 
 static const u_int16_t cdivs[] = { 128, 64, 32, 16 };
-static int cdiv_idx = 0;
+static u_int8_t cdiv_idx = 0;
 
 static u_int16_t duty_percent = 22;
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -25,14 +27,18 @@ static u_int8_t load_mod = 0;
 
 void _init_func(void)
 {
+	pio_irq_init();
 	pll_init();
 	poti_init();
 	load_mod_init();
 	tc_cdiv_init();
+	//tc_fdt_init();
 	pwm_init();
-	//adc_init();
-	//ssc_rx_init();
+	adc_init();
+	ssc_rx_init();
 	// ssc_tx_init();
+
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_PIO_BOOTLDR);
 }
 
 static void help(void)
@@ -43,16 +49,20 @@ static void help(void)
 		 "k: stop pwm            l: start pwn\r\n"
 		 "n: decrease freq       m: incresae freq");
 	DEBUGPCR("u: PA23 const 1        y: PA23 const 0\r\n"
-		 "t: PA23 PWM0\r\n"
+		 "t: PA23 PWM0           L: display PLL LOCK\r\n"
 		 "{: decrease cdiv_idx   }: increse cdiv idx\r\n"
 		 "<: decrease cdiv_phase >: increase cdiv_phase");
+	DEBUGPCR("v: decrease load_mod   b: increase load_mod\r\n"
+		 "B: read button         S: toggle nSLAVE_RESET\r\n"
+		 "a: SSC stop            s: SSC start\r\n"
+		 "d: SSC mode select");
 }
 
 int _main_dbgu(char key)
 {
-	unsigned char value;
 	static u_int8_t poti = 64;
 	static u_int8_t pll_inh = 1;
+	static u_int8_t ssc_mode = 1;
 
 	DEBUGPCRF("main_dbgu");
 
@@ -77,7 +87,10 @@ int _main_dbgu(char key)
 		pll_inh++;
 		pll_inh &= 0x01;
 		pll_inhibit(pll_inh);
-		DEBUGPCRF("PLL Inhibit: %u\n", pll_inh);
+		DEBUGPCRF("PLL Inhibit: %u", pll_inh);
+		break;
+	case 'L':
+		DEBUGPCRF("PLL Lock: %u", pll_is_locked());
 		break;
 	case 'o':
 		if (duty_percent >= 1)
@@ -158,7 +171,34 @@ int _main_dbgu(char key)
 		load_mod_level(load_mod);
 		DEBUGPCR("load_mod: %u\n", load_mod);
 		break;
+	case 'B':
+		DEBUGPCRF("Button status: %u\n", 
+			  AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, AT91F_PIO_IsInputSet));
+		break;
+	case 'S':
+		if (AT91F_PIO_IsOutputSet(AT91C_BASE_PIOA, OPENPICC_PIO_nSLAVE_RESET)) {
+			AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_nSLAVE_RESET);
+			DEBUGPCRF("nSLAVE_RESET == LOW");
+		} else {
+			AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_nSLAVE_RESET);
+			DEBUGPCRF("nSLAVE_RESET == HIGH");
+		}
+		break;
+	case 'a':
+		DEBUGPCRF("SSC RX STOP");
+		ssc_rx_stop();
+		break;
+	case 's':
+		DEBUGPCRF("SSC RX START");
+		ssc_rx_start();
+		break;
+	case 'd':
+		ssc_rx_mode_set(++ssc_mode);
+		DEBUGPCRF("SSC MODE %u", ssc_mode);
+		break;
 	}
+
+	tc_cdiv_print();
 
 	return -EINVAL;
 }
@@ -171,5 +211,5 @@ void _main_func(void)
 	/* next we deal with incoming reqyests from USB EP1 (OUT) */
 	usb_in_process();
 
-	//ssc_rx_unthrottle();
+	ssc_rx_unthrottle();
 }
