@@ -68,7 +68,7 @@ static struct usb_device *find_opcd_handle(void)
 			    && dev->descriptor.iManufacturer == 0
 			    && dev->descriptor.iProduct == 0
 			    && dev->descriptor.bNumConfigurations == 1
-			    && dev->config->bNumInterfaces == 1
+			    && dev->config->bNumInterfaces == 2
 			    && dev->config->iConfiguration == 0)
 				return dev;
 		}
@@ -157,7 +157,7 @@ int opcd_recv_reply(struct opcd_handle *od, char *buf, int len)
 	int ret;
 	memset(buf, 0, sizeof(buf));
 
-	ret = ausb_bulk_read(od->hdl, OPCD_IN_EP, buf, len, 1000);
+	ret = ausb_bulk_read(od->hdl, OPCD_IN_EP, buf, len, 100000);
 
 	if (ret < 0) {
 		fprintf(stderr, "bulk_read returns %d(%s)\n", ret,
