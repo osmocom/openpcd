@@ -1,0 +1,89 @@
+- data that is needed from both app and dfu mode
+- code that is needed from both app and dfu mode
+	- function pointers
+	- copy code to RAM in case of DFU switch
+- data that is only needed in DFU mode
+	- can be overwritten in case of reset-to-application
+- data that is only needed in app mode
+	- can be overwritten with DFU data in case of DFU switch
+- code that is only needed in DFU mode
+	- has to be copied to ram in case of DFU switch
+- code that is only needed in app mode
+	- can be read from flash, no action required
+
+
+=> abandoned that complicated idea.  
+now all DFU functions are __ramfunc's and thus always present.
+
+
+interaction between app and dfu code:
+
+- dfu_switch(void)
+- dfu_status (can be put in accessor function, if required)
+- dfu_cfg_descriptor
+- dfu_dev_descriptor
+- dfu_ep0_handler()
+
+
+order of events at boot;
+
+- start at reset vector in flash
+	- AT91F_LowLevelInit()
+- setup stack for each mode
+- relocate 'data' of bootloader, including ramfunc/vectram
+- clear 'bss' of bootloader
+- call remap command
+	- call usb initialization (irq, clock)
+	- if keypress,
+		- call dfu_main()
+			- wait for ep0 / busreset interrupt
+	- else call main()
+
+
+memory layout:
+
+0: lowlevel startup code
+	Cstartup.o	0x00bc
+	Cstartup_SAM7.o	0x0100
+	dfufunc		0x1dcc
+	dfustruct	0x0038
+
+	text		text	0x0070
+data		data	0x0000
+bss		bss	0x000c
+
+flash 	= text + data  (= 8k)
+ram/rel	= data + bss (12 bytes)
+
+
+If we drop the DFU-can-flash-DFU requirement, we can leave all DFU related code
+in flash. no need for  any function to be permanently in RAM.  However, not
+preventing this feature in some future version, we shouldn't do that.
+
+
+Function			DFU	runtime
+udp_init			x	x	RAM
+udp_ep0_send_data		x	x	RAM
+udp_ep0_send_zlp		x	x	RAM
+udp_sp0_send_stall		x	x	RAM
+handle_dnload			x	-	flash/relocated
+handle_upload			x	-	flash/relocated
+handle_getstatus		x	-	flash/relocated
+handle_getstate			x	-	flash/relocated
+dfu_ep0_handler			x	x	RAM
+
+dfu_dev_descriptor		x	-	flash/relocated
+dfu_cfg_descriptor		x	-	flash/relocated
+dfu_udp_ep0_handler		x	-	flash/relocated
+dfu_udp_irq			x	-	flash/relocated
+dfu_switch			-	x	RAM
+dfu_main			x	-	flash/relocated
+vectram				x	x	flash/relocated/switched
+IRQ_Handler_EntryR		x	x	flash/relocated/switched
+_remap				x	-	flash/reloaded
+
+dfu_api				x	x	flash (const anyway)
+dfu_state			x	x	RAM
+
+
+

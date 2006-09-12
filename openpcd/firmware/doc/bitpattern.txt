@@ -1,0 +1,102 @@
+DATA CODING
+
+ISO 14443 A bit patterns PCD -> PICC direction:
+
+Sequence X	After time of 64/fC a "pause" shall occur
+Sequence Y	for the full bit duration (128/fC) no modulation shall occur
+Sequence Z	at the beginning of the bit duration a pause shall occur
+
+
+logic 1		Sequence X
+logic 0		Sequence Y with two exceptions:
+		- if there are two or more contiguous '0, Z used from the second on
+		- if the first bit after SOF is 0, sequence Z used for all contig. 0's
+SOF		Sequence Z
+EOF		Logic 0 followed by Sequence Y
+No Inform	At least two sequences Y
+
+
+
+FRAME TYPES
+
+During anti collision we have two frame types:
+
+1) REQA/WUPA (short frame)
+
+Short frame is seven bits with SOF/EOF "SOF 0 1 2 3 4 5 6 EOF"
+
+REQA	0x26	S 0101010 E	Z ZXYXYXY ZY
+WUPA	0x52	S 0100101 E	Z ZXYZXYX YY	
+REQA_t	0x35	S 1001110 E	Z XYZXXXY ZY
+
+2) ANTICOL/SELET (standard frame)
+
+Standard frame: minimum "SOF byte parity EOF", e.g.
+
+	S 01234567 P 01234567 P 01234567 P E
+
+Anticol frame: like standard frame, but
+	- frame splitted between PCD and PICC
+	- total bit length is 56
+		- length of PCD part: 16 data bits to 55 data bits
+		- length of PICC part: 1 data bit to 40 data bits
+	- split can occur at any bit position
+		- full byte: split after complete byte: Parity added after last PCD bit
+		- split byte: No Parity is added after last PCD bit
+	- each half of the split frame has its own SOF / EOF
+
+BIT TIMING
+
+One bit clock is fC/128, i.e. 105937.5 kHz, resulting in 9.43uS bit time
+
+The "pause" has to be min. 2uS, or 21.2% of the bit duration.
+
+
+SAMPLING
+
+Given the pause is only 21.2%, four samples per bit clock are not really enough
+to catch the pause under all circumstances.
+
+Given four-times and eight-times oversampling, we get:
+
+		4-over	8-over
+Sequence X	0010	00001000 (00000100)
+Sequence Y	0000	00000000
+Sequence Z	1000	10000000 (01000000)
+
+
+
+Ideas:
+- if we ignore final 'Y' sequence, DATLEN is 32 (8 clocks, four bits each), therefore
+  we can just configure SSC to sample one frame of 32 sample bits after the start condition
+  was met.
+
+
+SAMPLING DURING STANDARD FRAMES
+
+The maxiumum frame size is 256 data bytes.  We have to add two bytes CRC (=258
+bytes), plus parity (2064bits, plus 258 bits parity, equals 2322 data bits. Add
+SOF / EOF with three bit clocks, and we have 2325 total data bits for a
+maximum-sized frame.  At four-times oversampling, this is 9300 sampled bits,
+equals to 1162.5 bytes (eight-times oversampling consequently 2325 bytes).
+
+
+
+BIT SYNCHRONOUS RESPONSE IN SPLIT FRAME
+
+For some stupid reasons, the frame delay time for synchronous frames is not in
+relation to the bit clock but in relation to the last rising edge of a
+modulation pause.
+
+Therefore we need some trickery.  Every rising edge resets TC2 of the SAM7, which
+is clocked by the carrier clock.  Once RA compare is true, TIOA2 will see a
+rising edge, which is connected to TF, the SSC Tx Framer.  
+
+On The Tx side we have to run the SSC always at 847.5kHz
+
+
+
+
+thoughts:
+falling edge of demodulated signal: counter reset, TIOB set
+RB Compare: TIOB reset
