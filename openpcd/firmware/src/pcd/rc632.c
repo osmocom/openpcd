@@ -50,7 +50,7 @@
 
 #define SPI_MAX_XFER_LEN	65
 
-static AT91PS_SPI pSPI = AT91C_BASE_SPI;
+static const AT91PS_SPI pSPI = AT91C_BASE_SPI;
 
 /* SPI irq handler */
 static void spi_irq(void)
