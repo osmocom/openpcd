@@ -17,6 +17,14 @@
 #define OPENPICC_ADC_CH_FIELDSTR	AT91C_ADC_CH4
 #define OPENPICC_ADC_CH_PLL_DEM		AT91C_ADC_CH5
 
+#define DEBUG_ADC
+
+#ifdef DEBUG_ADC
+#define DEBUGADC	DEBUGP
+#else
+#define DEBUGADC	do { } while (0)
+#endif
+
 static const AT91PS_ADC adc = AT91C_BASE_ADC;
 
 enum adc_states {
@@ -33,35 +41,50 @@ struct adc_state {
 
 static struct adc_state adc_state;
 
-static void adc_int(void)
+static void adc_irq(void)
 {
 	u_int32_t sr = adc->ADC_SR;
 	struct req_ctx *rctx = adc_state.rctx;
-	u_int16_t *val = (u_int16_t *) &(rctx->tx.data[rctx->tx.tot_len]);
+
+	DEBUGADC("adc_irq(SR=0x%08x, IMR=0x%08x, state=%u): ",
+		 sr, adc->ADC_IMR, adc_state.state);
 
 	switch (adc_state.state) {
 	case ADC_NONE:
-		break;
+		//break;
 	case ADC_READ_CONTINUOUS_USB:
+		if (sr & AT91C_ADC_EOC4)
+			DEBUGADC("CDR4=0x%4x ", adc->ADC_CDR4);
+		if (sr & AT91C_ADC_EOC5)
+			DEBUGADC("CDR5=0x%4x ", adc->ADC_CDR5);
 		if (sr & AT91C_ADC_ENDRX) {
 			/* rctx full, get rid of it */
+			DEBUGADC("sending rctx (val=%s) ",
+				 hexdump(rctx->tx.data[4], 2));
+				 
 			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
 			adc_state.state = ADC_NONE;
 			adc_state.rctx = NULL;
+		
+			//AT91F_PDC_SetRx(AT91C_BASE_PDC_ADC, NULL, 0);
 
 			/* Disable EOC interrupts since we don't want to
 			 * re-start conversion any further*/
-			AT91F_ADC_DisableIt(AT91C_BASE_ADC, 
-					    AT91C_ADC_EOC4|AT91C_ADC_EOC5);
+			AT91F_ADC_DisableIt(AT91C_BASE_ADC, AT91C_ADC_ENDRX);
+					    //AT91C_ADC_EOC4|AT91C_ADC_EOC5|AT91C_ADC_ENDRX);
 			AT91F_PDC_DisableRx(AT91C_BASE_PDC_ADC);
-		}
-
-		if (sr & (AT91C_ADC_EOC4|AT91C_ADC_EOC5)) {
-			/* re-start conversion, since we need more values */
-			AT91F_ADC_StartConversion(adc);
+			DEBUGADC("disabled IT/RX ");
+		} else {
+			if (sr & (AT91C_ADC_EOC4|AT91C_ADC_EOC5)) {
+				/* re-start conversion, since we need more values */
+				AT91F_ADC_StartConversion(adc);
+			}
 		}
 		break;
 	}
+
+	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_ADC);
+	DEBUGADC("cleeared ADC IRQ in AIC\r\n");
 }
 
 #if 0
@@ -83,6 +106,7 @@ static int adc_usb_in(struct req_ctx *rctx)
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_ADC_READ:
+		DEBUGADC("ADC_READ(chan=%u, len=%u) ", poh->reg, poh->val);
 		//channel = poh->reg;
 		if (adc_state.rctx) {
 			/* FIXME: do something */
@@ -91,11 +115,14 @@ static int adc_usb_in(struct req_ctx *rctx)
 
 		adc_state.state = ADC_READ_CONTINUOUS_USB;
 		adc_state.rctx = rctx;
+		memcpy(pih, poh, sizeof(*pih));
+		rctx->tx.tot_len = sizeof(*pih) + poh->val * 2;
+		AT91F_PDC_SetRx(AT91C_BASE_PDC_ADC, rctx->rx.data, poh->val);
+		AT91F_PDC_EnableRx(AT91C_BASE_PDC_ADC);
 		AT91F_ADC_EnableChannel(AT91C_BASE_ADC, OPENPICC_ADC_CH_FIELDSTR);
 		AT91F_ADC_EnableIt(AT91C_BASE_ADC, AT91C_ADC_ENDRX |
 				   OPENPICC_ADC_CH_FIELDSTR);
-		AT91F_PDC_SetRx(AT91C_BASE_PDC_ADC, rctx->rx.data, 60 /*FIXME*/);
-		AT91F_PDC_EnableRx(AT91C_BASE_PDC_ADC);
+		AT91F_ADC_StartConversion(adc);
 		break;
 	}
 }
@@ -105,8 +132,14 @@ int adc_init(void)
 	AT91F_ADC_CfgPMC();
 	AT91F_ADC_CfgTimings(AT91C_BASE_ADC, 48 /*MHz*/, 5 /*MHz*/,
 			     20/*uSec*/, 700/*nSec*/);
+#if 0
 	AT91F_ADC_EnableChannel(AT91C_BASE_ADC, OPENPICC_ADC_CH_FIELDSTR |
 				OPENPICC_ADC_CH_PLL_DEM);
+#endif
+	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_ADC,
+			      AT91C_AIC_PRIOR_LOWEST,
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &adc_irq);
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_ADC);
 
 	usb_hdlr_register(&adc_usb_in, OPENPCD_CMD_CLS_ADC);
 }

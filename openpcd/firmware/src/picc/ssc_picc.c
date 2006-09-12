@@ -3,9 +3,9 @@
  *
  * We use SSC for both TX and RX side.
  *
- * RX side is interconnected with MFOUT of RC632
+ * RX side is interconnected with demodulated carrier 
  *
- * TX side is interconnected with MFIN of RC632
+ * TX side is interconnected with load modulation circuitry
  */
 
 #include <errno.h>
@@ -44,7 +44,7 @@ static struct ssc_state ssc_state;
 #define ISO14443A_SOF_SAMPLE	0x08
 #define ISO14443A_SOF_LEN	4
 
-static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
+void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 {
 	u_int8_t data_len, num_data, sync_len;
 	u_int32_t start_cond;
@@ -53,7 +53,7 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 	ssc->SSC_CR = AT91C_SSC_RXDIS;
 
 	/* disable all Rx related interrupt sources */
-	AT91F_SSC_DisableIt(ssc, ssc->SSC_IDR = AT91C_SSC_RXRDY | 
+	AT91F_SSC_DisableIt(ssc, AT91C_SSC_RXRDY | 
 			    AT91C_SSC_OVRUN | AT91C_SSC_ENDRX |
 			    AT91C_SSC_RXBUFF | AT91C_SSC_RXSYN |
 			    AT91C_SSC_CP0 | AT91C_SSC_CP1);
@@ -78,7 +78,8 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		//start_cond = 
 		break;
 	case SSC_MODE_EDGE_ONE_SHOT:
-		start_cond = AT91C_SSC_START_EDGE_RF;
+		//start_cond = AT91C_SSC_START_EDGE_RF;
+		start_cond = AT91C_SSC_START_CONTINOUS;
 		sync_len = 0;
 		data_len = 8;
 		num_data = 50;
@@ -91,13 +92,13 @@ static void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 			(((sync_len-1) & 0x0f) << 16);
 	ssc->SSC_RCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | start_cond;
 
+	AT91F_PDC_EnableRx(rx_pdc);
 	/* Enable RX interrupts */
-	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN);
-			   //AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
+	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN |
+			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
 
 	ssc_state.mode = ssc_mode;
 
-	AT91F_PDC_EnableRx(rx_pdc);
 }
 
 static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
@@ -228,7 +229,7 @@ static int8_t ssc_rx_refill(void)
 static void ssc_irq(void)
 {
 	u_int32_t ssc_sr = ssc->SSC_SR;
-	DEBUGP("ssc_sr=0x%08x: ", ssc_sr);
+	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 
 	if (ssc_sr & AT91C_SSC_OVRUN)
 		DEBUGP("RX OVERRUN ");
@@ -253,6 +254,7 @@ static void ssc_irq(void)
 		break;
 
 	case SSC_MODE_14443A_STANDARD:
+	case SSC_MODE_EDGE_ONE_SHOT:
 
 		if (ssc_sr & (AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF)) {
 #if 1
@@ -265,7 +267,7 @@ static void ssc_irq(void)
 #endif
 	
 			if (ssc_sr & AT91C_SSC_RXBUFF) {
-				DEBUGPCRF("RXBUFF, shouldn't happen!");
+				DEBUGP("RXBUFF, shouldn't happen! ");
 #if 0
 				req_ctx_set_state(ssc_state.rx_ctx[0],
 						  RCTX_STATE_UDP_EP2_PENDING);
@@ -278,6 +280,8 @@ static void ssc_irq(void)
 		}
 		break;
 	}
+	DEBUGPCR("");
+	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SSC);
 }
 
 
@@ -316,12 +320,15 @@ static int ssc_usb_in(struct req_ctx *rctx)
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
 	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
 
-	/* FIXME: implement this */
 	switch (poh->cmd) {
 	case OPENPCD_CMD_SSC_READ:
-		
+		/* FIXME: allow host to specify mode */
+		ssc_rx_mode_set(SSC_MODE_EDGE_ONE_SHOT);
+		ssc_rx_start();
 		break;
 	case OPENPCD_CMD_SSC_WRITE:
+		/* FIXME: implement this */
+		//ssc_tx_start()
 		break;
 	}
 
@@ -334,13 +341,16 @@ void ssc_rx_init(void)
 	rx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 
 	AT91F_SSC_CfgPMC();
+
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 
+			    OPENPCD_PIO_MFOUT_SSC_RX | OPENPCD_PIO_SSP_CKIN,
+			    0);
+
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SSC,
 			      OPENPCD_IRQ_PRIO_SSC,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &ssc_irq);
-	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SSC);
-
 	/* Reset */
-	ssc->SSC_CR = AT91C_SSC_SWRST;
+	//ssc->SSC_CR = AT91C_SSC_SWRST;
 
 	/* don't divide clock */
 	ssc->SSC_CMR = 0;
@@ -349,11 +359,15 @@ void ssc_rx_init(void)
 			AT91C_SSC_START_CONTINOUS;
 	/* Data bits per Data N = 32-1,  Data words per Frame = 15-1 (=60 byte)*/
 	ssc->SSC_RFMR = 31 | AT91C_SSC_MSBF | (14 << 8);
+	
+	ssc_rx_mode_set(SSC_MODE_EDGE_ONE_SHOT);
+
+	AT91F_PDC_EnableRx(rx_pdc);
 
 	/* Enable RX interrupts */
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN |
 			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
-	AT91F_PDC_EnableRx(rx_pdc);
+	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SSC);
 
 	usb_hdlr_register(&ssc_usb_in, OPENPCD_CMD_CLS_SSC);
 }
