@@ -77,6 +77,8 @@ static struct option opts[] = {
 	{ "usb-perf", 1, 0, 'u' },
 	{ "adc-read", 0, 0, 'a' },
 	{ "adc-loop", 0, 0, 'A' },
+	{ "ssc-read", 0, 0, 'S' },
+	{ "loop", 0, 0, 'L' },
 	{ "help", 0, 0, 'h'},
 };	
 
@@ -94,7 +96,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?u:aA", opts,
+		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?u:aASL", opts,
 				&option_index);
 
 		if (c == -1)
@@ -158,16 +160,25 @@ int main(int argc, char **argv)
 			opcd_usbperf(od, i);
 			break;
 		case 'a':
-			opcd_send_command(od, OPNPC_CMD_ADC_READ, 0, 0, 0, NULL);
+			opcd_send_command(od, OPENPCD_CMD_ADC_READ, 0, 1, 0, NULL);
 			opcd_recv_reply(od, buf, buf_len);
 			/* FIXME: interpret and print ADC result */
 			break;
 		case 'A':
 			while (1) {
-				opcd_send_command(od, OPNPC_CMD_ADC_READ, 0, 0, 0, NULL);
+				opcd_send_command(od, OPENPCD_CMD_ADC_READ, 0, 1, 0, NULL);
 				opcd_recv_reply(od, buf, buf_len);
 				/* FIXME: interpret and print ADC result */
 			}
+			break;
+		case 'S':
+			opcd_send_command(od, OPENPCD_CMD_SSC_READ, 0, 1, 0, NULL);
+			opcd_recv_reply(od, buf, buf_len);
+			/* FIXME: interpret and print ADC result */
+			break;
+		case 'L':
+			while (1) 
+				opcd_recv_reply(od, buf, buf_len);
 			break;
 		case 'h':
 		case '?':
