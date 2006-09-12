@@ -56,7 +56,7 @@ struct udp_pcd;
 #endif
 
 
-extern void udp_init(void);
+extern void __dfufunc udp_init(void);
 
 struct _dfu_desc {
 	struct usb_config_descriptor ucfg;

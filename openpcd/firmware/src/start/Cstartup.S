@@ -16,6 +16,8 @@
 //*- 1.1 01/Apr/05 JPP    : save SPSR 
 //*-----------------------------------------------------------------------------*/
 
+#define CONFIG_DFU_SWITCH
+
 //#define DEBUG_LL
 
 #ifdef DEBUG_LL
@@ -59,6 +61,13 @@
 	.equ AIC_EOICR,       (304)
 	.equ AIC_MCR_RCR,     (0xf00)
 	.equ AT91C_BASE_AIC,  (0xFFFFF000)
+	.equ AT91C_PMC_PCER,  (0xFFFFFC10)
+	.equ AT91C_BASE_PIOA, (0xFFFFF400)
+	.equ AT91C_ID_PIOA,   (2)
+	.equ PIOA_PDSR,	      (0x3c)
+	.equ PIO_BOOTLDR,     (1 << 27)
+	#.equ PIO_BOOTLDR,     (1 << 6)
+
 
 /* #include "AT91SAM7S64_inc.h"	  */
 
@@ -170,9 +179,23 @@ _remap:
 		mov	r2, #0x01
 		str	r2, [r1, #AIC_MCR_RCR]
 
+		/* prepare c function call to main */
 		mov	r0, #0	/* argc = 0 */
 		ldr	lr,=exit
 		ldr	r10,=main
+
+#ifdef CONFIG_DFU_SWITCH
+		/* check whether bootloader button is pressed */
+		ldr	r1, =AT91C_PMC_PCER
+		mov	r2, #(1 << AT91C_ID_PIOA)
+		str	r2, [r1] 
+
+		ldr 	r1, =AT91C_BASE_PIOA
+		ldr	r2, [r1, #PIOA_PDSR]
+		tst	r2, #PIO_BOOTLDR
+		ldrne	r10,=dfu_main
+#endif
+
 		bx	r10
 	.size	remap, . - remap
 	.endfunc

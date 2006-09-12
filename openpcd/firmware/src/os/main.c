@@ -15,6 +15,7 @@ int main(void)
 	led_init();
 	AT91F_DBGU_Init();
 
+	AT91F_PIOA_CfgPMC();
 	/* call application specific init function */
 	_init_func();
 

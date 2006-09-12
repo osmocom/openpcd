@@ -28,8 +28,8 @@
 #define DEBUGI(x, args ...) do { } while (0)
 #endif
 
-/* this is only called once before DFU mode, no __dfufunc required */
-void udp_init(void)
+
+void __dfufunc udp_init(void)
 {
 	/* Set the PLL USB Divider */
 	AT91C_BASE_CKGR->CKGR_PLLR |= AT91C_CKGR_USBDIV_1;
@@ -641,12 +641,13 @@ static void dfu_switch(void)
 
 void __dfufunc dfu_main(void)
 {
-	/*
+	udp_init();
+
+	/* This implements 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
 			      OPENPCD_IRQ_PRIO_UDP,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, dfu_udp_irq);
 	*/
-
 	AT91PS_AIC pAic = AT91C_BASE_AIC;
 	pAic->AIC_IDCR = 1 << AT91C_ID_UDP;
 	pAic->AIC_SVR[AT91C_ID_UDP] = (unsigned int) &dfu_udp_irq;
@@ -659,7 +660,7 @@ void __dfufunc dfu_main(void)
 	/* End-of-Bus-Reset is always enabled */
 
 	/* Clear for set the Pull up resistor */
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 
 	/* do nothing, since all of DFU is interrupt driven */
 	while (1) ;
@@ -676,4 +677,5 @@ const struct dfuapi __dfufunctab dfu_api = {
 	.dfu_cfg_descriptor	= &dfu_cfg_descriptor,
 };
 
+/* just for testing */
 int foo = 12345;
