@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <asm/atomic.h>
 #include "openpcd.h"
-#include "dfu.h"
+#include <dfu/dfu.h>
 
 struct req_ctx;
 

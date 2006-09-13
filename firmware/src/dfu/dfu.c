@@ -11,9 +11,8 @@
 #include <usb_dfu.h>
 #include <lib_AT91SAM7.h>
 
-#include <os/dfu.h>
+#include <dfu/dfu.h>
 #include <os/pcd_enumerate.h>
-#include <os/req_ctx.h>
 #include "../openpcd.h"
 
 /* If debug is enabled, we need to access debug functions from flash
@@ -29,7 +28,7 @@
 #endif
 
 
-void __dfufunc udp_init(void)
+static void __dfufunc udp_init(void)
 {
 	/* Set the PLL USB Divider */
 	AT91C_BASE_CKGR->CKGR_PLLR |= AT91C_CKGR_USBDIV_1;
@@ -107,7 +106,7 @@ static void __dfufunc udp_ep0_send_stall(void)
 
 static u_int8_t status;
 static u_int8_t *ptr;
-static u_int8_t dfu_state;
+static __dfudata u_int32_t dfu_state;
 
 static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 {
@@ -149,7 +148,7 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 {
 	DEBUGE("upload ");
 	if (len > AT91C_IFLASH_PAGE_SIZE
-	    || ptr > AT91C_IFLASH_SIZE) {
+	    || ptr > AT91C_IFLASH_SIZE - 0x1000) {
 		/* Too big */
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
@@ -226,7 +225,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			handle_dnload(val, len);
 			break;
 		case USB_REQ_DFU_UPLOAD:
-			ptr = 0;
+			ptr = 0x00101000; /* Flash base address for app */
 			dfu_state = DFU_STATE_dfuUPLOAD_IDLE;
 			handle_upload(val, len);
 			break;
@@ -667,6 +666,7 @@ void __dfufunc dfu_main(void)
 }
 
 const struct dfuapi __dfufunctab dfu_api = {
+	.udp_init		= &udp_init,
 	.ep0_send_data		= &udp_ep0_send_data,
 	.ep0_send_zlp		= &udp_ep0_send_zlp,
 	.ep0_send_stall		= &udp_ep0_send_stall,

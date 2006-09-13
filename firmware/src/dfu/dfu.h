@@ -13,8 +13,6 @@
 #include <usb_ch9.h>
 #include <usb_dfu.h>
 
-#include "dbgu.h"
-
 /* USB DFU functional descriptor */
 #define DFU_FUNC_DESC  {						\
 	.bLength		= USB_DT_DFU_SIZE,			\
@@ -38,9 +36,10 @@
 	.iInterface		= 1,					\
 }
 
-#define __dfufunc __attribute__ ((long_call, section (".dfu.func")))
-#define __dfustruct __attribute__ ((section (".dfu.struct"))) const
 #define __dfufunctab  __attribute__ ((section (".dfu.functab")))
+#define __dfudata __attribute__ ((section (".data.shared")))
+#define __dfufunc 
+#define __dfustruct const
 	
 #if 0
 extern void __dfufunc udp_ep0_send_data(const char *data, u_int32_t length);
@@ -55,9 +54,6 @@ extern static u_int8_t dfu_state;
 struct udp_pcd;
 #endif
 
-
-extern void __dfufunc udp_init(void);
-
 struct _dfu_desc {
 	struct usb_config_descriptor ucfg;
 	struct usb_interface_descriptor uif[2];
@@ -65,6 +61,7 @@ struct _dfu_desc {
 };
 
 struct dfuapi {
+	void (*udp_init)(void);
 	void (*ep0_send_data)(const char *data, u_int32_t len);
 	void (*ep0_send_zlp)(void);
 	void (*ep0_send_stall)(void);

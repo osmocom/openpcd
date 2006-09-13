@@ -12,16 +12,12 @@ USB:
 - Add DFU descriptor to host
 
 DFU:
-- implement DFU protocol for memory and flash
+- implement DFU protocol for bootloader flash partition
 - add capability to copy and execute DFU from RAM
+- Get rid of lots of constant values and replace them by proper defines
 
 Generic:
 -
-
-Later, for PICCsim:
-- Implement SSC code for sampling subcarrier
-- Implement SSC code for generating subcarrier
-- Implement Manchester coding
 
 Way Later, for librfid:
 - Implement parts (or all of) 14443 in firmware as alternative configuration

@@ -86,4 +86,46 @@ dfu_api				x	x	flash (const anyway)
 dfu_state			x	x	RAM
 
 
+preconditions:
+	- dfu code assumes to be loaded to address zero to make it work from both ram and rom
+
+startup:
+	- exception vectors (in flash)
+	- call lowlevel_init
+	- setup user/supervisor/FIQ/IRQ stack
+	- relocate dfu_state
+	- if DFU switch is pressed
+		- jump to dfu_main in flash
+			- relocate all of DFU .text/.data into ram (including exception vectors)
+			- initialize DFU .bss
+			- remap RAM to address zero
+
+	- if DFU switch is not pressed jump to entry address of app
+		- Cstartup_app.S
+			- relocate application .data
+			- initialize application .bss
+			- jump to appliction main 
+			- application uses dfu_api in flash, pointing to in-flash data
+			- application calls dfu_switch()
+				- disable all interupts but USB
+				- relocate all of DFU .text/.data into ram (including exception vectors)
+				- remap RAM to address zero
+				- check whether app has already remapped RAM before !?!
+
+memory map:
+
+load_addr	run_Addr
+0x00100000	0x00000000	exception vectors (DFU Cstartup)
+				Cstartup_SAM7
+
+		0x00200000	
+
+
+DFU constants:
+_etext:
+_data:	0x200000
+_edata:
+
+APP contants:
+_data: _edata_dfu
 

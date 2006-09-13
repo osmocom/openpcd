@@ -23,7 +23,7 @@
 
 #include <os/pcd_enumerate.h>
 #include <os/req_ctx.h>
-#include <os/dfu.h>
+#include <dfu/dfu.h>
 #include "../openpcd.h"
 #include <os/dbgu.h>
 
@@ -41,6 +41,7 @@
 #ifdef CONFIG_DFU
 #define DFU_API_LOCATION	((const struct dfuapi *) 0x00102100)
 static const struct dfuapi *dfu = DFU_API_LOCATION;
+#define udp_init		dfu->udp_init
 #define udp_ep0_send_data	dfu->ep0_send_data
 #define udp_ep0_send_zlp	dfu->ep0_send_zlp
 #define udp_ep0_send_stall	dfu->ep0_send_stall
@@ -328,6 +329,7 @@ static void udp_irq(void)
 void udp_open(void)
 {
 	DEBUGPCRF("entering");
+	udp_init();
 	upcd.pUdp = AT91C_BASE_UDP;
 	upcd.cur_config = 0;
 	upcd.cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
@@ -340,7 +342,6 @@ void udp_open(void)
 	/* End-of-Bus-Reset is always enabled */
 
 	/* Set the Pull up resistor */
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 }
 

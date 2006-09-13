@@ -3,7 +3,6 @@
 #include <include/lib_AT91SAM7.h>
 #include <os/dbgu.h>
 #include <os/led.h>
-#include <os/dfu.h>
 #include <os/main.h>
 #include <os/power.h>
 #include <os/pcd_enumerate.h>
@@ -20,7 +19,6 @@ int main(void)
 	_init_func();
 
 	/* initialize USB */
-	udp_init();
 	udp_open();
 
 	// Enable User Reset and set its minimal assertion to 960 us
