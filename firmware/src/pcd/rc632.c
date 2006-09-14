@@ -98,13 +98,11 @@ static void spi_irq(void)
 static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
 			  u_int8_t *rx_data, u_int16_t *rx_len)
 {
-	//tx_len = *rx_len = 65;
 	DEBUGPSPI("DMA Xfer tx=%s\r\n", hexdump(tx_data, tx_len));
 	if (*rx_len < tx_len) {
 		DEBUGPCRF("rx_len=%u smaller tx_len=%u\n", *rx_len, tx_len);
 		return -1;
 	}
-	//AT91F_SPI_Disable(pSPI);
 
 	AT91F_SPI_ReceiveFrame(pSPI, rx_data, tx_len, NULL, 0);
 	AT91F_SPI_SendFrame(pSPI, tx_data, tx_len, NULL, 0);
@@ -113,7 +111,6 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	AT91F_PDC_EnableTx(AT91C_BASE_PDC_SPI);
 
 	pSPI->SPI_IER = AT91C_SPI_ENDTX|AT91C_SPI_ENDRX;
-	//pSPI->SPI_IDR = AT91C_SPI_ENDTX|AT91C_SPI_ENDRX;
 
 
 	while (! (pSPI->SPI_SR & AT91C_SPI_ENDRX)) ;
@@ -211,6 +208,7 @@ int rc632_reg_write(struct rfid_asic_handle *hdl,
 int rc632_fifo_write(struct rfid_asic_handle *hdl,
 		     u_int8_t len, u_int8_t *data, u_int8_t flags)
 {
+	u_int16_t rx_len = sizeof(spi_inpuf);
 	if (len > sizeof(spi_outbuf)-1)
 		len = sizeof(spi_outbuf)-1;
 
@@ -219,7 +217,7 @@ int rc632_fifo_write(struct rfid_asic_handle *hdl,
 
 	DEBUG632("[FIFO] <= %s", hexdump(data, len));
 
-	return spi_transceive(spi_outbuf, len+1, NULL, NULL);
+	return spi_transceive(spi_outbuf, len+1, spi_inbuf, &rx_len);
 }
 
 int rc632_reg_read(struct rfid_asic_handle *hdl, 
