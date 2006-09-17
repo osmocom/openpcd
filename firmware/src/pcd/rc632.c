@@ -208,7 +208,7 @@ int rc632_reg_write(struct rfid_asic_handle *hdl,
 int rc632_fifo_write(struct rfid_asic_handle *hdl,
 		     u_int8_t len, u_int8_t *data, u_int8_t flags)
 {
-	u_int16_t rx_len = sizeof(spi_inpuf);
+	u_int16_t rx_len = sizeof(spi_inbuf);
 	if (len > sizeof(spi_outbuf)-1)
 		len = sizeof(spi_outbuf)-1;
 
