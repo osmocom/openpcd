@@ -159,6 +159,7 @@ cascade:
 	}
 
 	iso14443a_code_nvb_bits(&acf.nvb, 7*8);
+	rx_len = sizeof(sak);
 	ret = iso14443a_transceive(handle, RFID_14443A_FRAME_REGULAR,
 				   (unsigned char *)&acf, 7, 
 				   (unsigned char *) &sak, &rx_len,
