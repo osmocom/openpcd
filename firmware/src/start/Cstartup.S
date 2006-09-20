@@ -352,7 +352,7 @@ LoopZI:         CMP     R1, R2
 
 _reloc_dfu:
 		/* Relocate DFU .data section (Copy from ROM to RAM) */
-                LDR     R1, =_edata_shared
+                LDR     R1, =_data_flash
                 LDR     R2, =_data
                 LDR     R3, =_edata
 LoopRel:        CMP     R2, R3

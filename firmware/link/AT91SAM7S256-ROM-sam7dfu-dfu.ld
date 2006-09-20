@@ -31,7 +31,8 @@ SECTIONS
 		. = ALIGN(4);
 	} >DATA
 
-	_edata_shared = LOADADDR(.data.shared) + SIZEOF(.data.shared);
+	_edata_shared = . ;
+	_data_flash = LOADADDR(.data.shared) + SIZEOF(.data.shared);
 
 	/* 0x00200000 ... */
 	.data (0x00200000 + SIZEOF(.text)): AT ( LOADADDR(.text) + SIZEOF(.text) + SIZEOF(.data.shared)) {
