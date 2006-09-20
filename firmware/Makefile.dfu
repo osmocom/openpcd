@@ -160,6 +160,7 @@ CDEFS += -DPICC
 endif
 
 ifeq ($(BOARD),PCD)
+SUBMDL = AT91SAM7S128
 CDEFS += -DPCD
 endif
 
