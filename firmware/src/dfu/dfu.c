@@ -28,6 +28,7 @@
 
 #include <dfu/dfu.h>
 #include <dfu/dbgu.h>
+#include <dfu/flash.h>
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
@@ -108,15 +109,25 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 static int __dfufunc udp_ep0_recv_data(char *data, u_int32_t len)
 {
 	AT91PS_UDP pUdp = AT91C_BASE_UDP;
+	AT91_REG csr;
 	u_int16_t i, num_rcv;
 	u_int32_t num_rcv_total = 0;
 
 	do {
 		/* FIXME: do we need to check whether we've been interrupted
 		 * by a RX SETUP stage? */
-		while (!(pUdp->UDP_CSR[0] & AT91C_UDP_RX_DATA_BK0)) ;
+		do {
+			csr = pUdp->UDP_CSR[0];
+			DEBUGE("CSR=%08x ", csr);
+		} while (!(csr & AT91C_UDP_RX_DATA_BK0)) ;
 	
 		num_rcv = pUdp->UDP_CSR[0] >> 16;
+
+		/* make sure we don't read more than requested */
+		if (num_rcv_total + num_rcv > len)
+			num_rcv = num_rcv_total - len;
+
+		DEBUGE("num_rcv = %u ", num_rcv);
 		for (i = 0; i < num_rcv; i++)
 			*data++ = pUdp->UDP_FDR[0];
 		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
@@ -125,7 +136,9 @@ static int __dfufunc udp_ep0_recv_data(char *data, u_int32_t len)
 
 		/* we need to continue to pull data until we either receive 
 		 * a packet < endpoint size or == 0 */
-	} while (num_rcv == 8);
+	} while (num_rcv == 8 && num_rcv_total < len);
+
+	DEBUGE("ep0_rcv_returning(%u total) ", num_rcv_total);
 
 	return num_rcv_total;
 }
@@ -152,31 +165,13 @@ static void __dfufunc udp_ep0_send_stall(void)
 
 
 static u_int8_t status;
-static u_int8_t *ptr = AT91C_IFLASH + SAM7DFU_SIZE;
+static u_int8_t *ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 static __dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
 static u_int8_t pagebuf[AT91C_IFLASH_PAGE_SIZE];
-
-static u_int16_t page_from_ramaddr(const void *addr)
-{
-	u_int32_t ramaddr = (u_int32_t) ptr;
-	ramaddr -= (u_int32_t) AT91C_IFLASH;
-	return (ramaddr >> AT91C_IFLASH_PAGE_SHIFT);
-}
-#define PAGES_PER_LOCKREGION	(AT91C_IFLASH_LOCK_REGION_SIZE>>AT91C_IFLASH_PAGE_SHIFT)
-#define IS_FIRST_PAGE_OF_LOCKREGION(x)	((x % PAGES_PER_LOCKREGION) == 0)
-#define LOCKREGION_FROM_PAGE(x)	(x / PAGES_PER_LOCKREGION)
-
-static int is_page_locked(u_int16_t page)
-{
-	u_int16_t lockregion = LOCKREGION_FROM_PAGE(page);
-
-	return (AT91C_BASE_MC->MC_FSR & (lockregion << 16));
-}
 
 static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 {
 	volatile u_int32_t *p = (volatile u_int32_t *)ptr;
-	u_int16_t page = page_from_ramaddr(ptr);
 
 	DEBUGE("download ");
 
@@ -199,7 +194,7 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
 		return 0;
 	}
-	if (ptr + len > AT91C_IFLASH + AT91C_IFLASH_SIZE) {
+	if (ptr + len > (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE) {
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
 		udp_ep0_send_stall();
@@ -212,20 +207,14 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 
 	/* we can only access the write buffer with correctly aligned
 	 * 32bit writes ! */
-#if 0
-	for (i = 0; i < len/4; i++)
-		p[i] =
-#endif
-	
-
-	/* unlock, (erase+)write flash */
 #ifndef DEBUG_DFU
-	if (is_page_locked(page))
-		AT91F_MC_EFC_PerformCmd(AT91C_BASE_MC, AT91C_MC_FCMD_UNLOCK |
-					AT91C_MC_CORRECT_KEY | page);
-
-	AT91F_MC_EFC_PerformCmd(AT91C_BASE_MC, AT91C_MC_FCMD_START_PROG |
-				AT91C_MC_CORRECT_KEY | page);
+	for (i = 0; i < len/4; i++) {
+		*p++ = (u_int32_t *) (pagebuf[i*4]);
+		/* If we have filled a page buffer, flash it */
+		if ((p % AT91C_FLASH_PAGE_SIZE) == 0)
+			flash_page(p-4);
+	}
+	ptr = p;
 #endif
 
 	return 0;
@@ -235,7 +224,7 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 {
 	DEBUGE("upload ");
 	if (len > AT91C_IFLASH_PAGE_SIZE
-	    || ptr > AT91C_IFLASH_SIZE - 0x1000) {
+	    || ptr > (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE - SAM7DFU_SIZE) {
 		/* Too big */
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
@@ -332,12 +321,12 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 				dfu_state = DFU_STATE_dfuERROR;
 				goto send_stall;
 			}
-			ptr = AT91C_IFLASH + SAM7DFU_SIZE;
+			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 			handle_dnload(val, len);
 			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			break;
 		case USB_REQ_DFU_UPLOAD:
-			ptr = AT91C_IFLASH + SAM7DFU_SIZE;
+			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 			dfu_state = DFU_STATE_dfuUPLOAD_IDLE;
 			handle_upload(val, len);
 			break;
@@ -452,6 +441,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		case USB_REQ_DFU_CLRSTATUS:
 			dfu_state = DFU_STATE_dfuIDLE;
+			status = DFU_STATUS_OK;
 			/* no zlp? */
 			goto send_zlp;
 			break;
