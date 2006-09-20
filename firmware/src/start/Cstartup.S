@@ -312,15 +312,16 @@ InitReset:
                 msr     CPSR_c, #ARM_MODE_SVC
                 mov     r13, r0                     /* Init stack Sup */
 
-# Relocate DFU .data section (Copy from ROM to RAM)
+# Relocate DFU .data.shared section (Copy from ROM to RAM)
                 LDR     R1, =_etext
-                LDR     R2, =_data
-                LDR     R3, =_edata
-LoopRel:        CMP     R2, R3
+                LDR     R2, =_data_shared
+                LDR     R3, =_edata_shared
+LoopRelDS:      CMP     R2, R3
                 LDRLO   R0, [R1], #4
                 STRLO   R0, [R2], #4
-                BLO     LoopRel
+                BLO     LoopRelDS
 
+/*
 # Clear DFU .bss section (Zero init)
                 MOV     R0, #0
                 LDR     R1, =__bss_start__
@@ -328,6 +329,7 @@ LoopRel:        CMP     R2, R3
 LoopZI:         CMP     R1, R2
                 STRLO   R0, [R1], #4
                 BLO     LoopZI
+*/
 
 		/* prepare c function call to main */
 		mov	r0, #0	/* argc = 0 */
@@ -343,13 +345,30 @@ LoopZI:         CMP     R1, R2
 		ldr 	r1, =AT91C_BASE_PIOA
 		ldr	r2, [r1, #PIOA_PDSR]
 		tst	r2, #PIO_BOOTLDR
-		bne	_reloc_dfu_text
+		bne	_reloc_dfu
 #endif
 
 		bx	r10
 
-_reloc_dfu_text:
+_reloc_dfu:
+		/* Relocate DFU .data section (Copy from ROM to RAM) */
+                LDR     R1, =_edata_shared
+                LDR     R2, =_data
+                LDR     R3, =_edata
+LoopRel:        CMP     R2, R3
+                LDRLO   R0, [R1], #4
+                STRLO   R0, [R2], #4
+                BLO     LoopRel
 
+		/* Clear DFU .bss section (Zero init) */
+                MOV     R0, #0
+                LDR     R1, =__bss_start__
+                LDR     R2, =__bss_end__
+LoopZI:         CMP     R1, R2
+                STRLO   R0, [R1], #4
+                BLO     LoopZI
+
+		/* relocate DFU .text into RAM */
 		ldr	r1, =0x00100000
 		ldr	r2, =0x00200000
 		ldr	r3, =_etext

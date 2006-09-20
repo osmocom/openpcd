@@ -26,9 +26,13 @@ SECTIONS
 	PROVIDE (etext = .);
 
 	.data.shared (0x00200020): AT (LOADADDR(.text) + SIZEOF(.text)) {
+		_data_shared = . ;
 		* (.data.shared)
 		. = ALIGN(4);
 	} >DATA
+
+	_edata_shared = . ;
+	PROVIDE (edata_shared = .);
 
 	/* 0x00200000 ... */
 	.data (0x00200000 + SIZEOF(.text)): AT ( LOADADDR(.text) + SIZEOF(.text) + SIZEOF(.data.shared)) {
@@ -44,7 +48,7 @@ SECTIONS
 	/* dfu.functab addresses are valid as long as DFU is in flash, i.e. only while
 	 * application calls those functions.  Once executing in DFU mode, we are
 	 * re-located to ram */
-	.dfu.functab 0x00000fd0: AT ( ADDR(.dfu.functab) - ADDR(.text) ) {
+	.dfu.functab 0x00010fd0: AT ( ADDR(.dfu.functab) - ADDR(.text) ) {
   		*(.dfu.functab)
   		. = ALIGN(4096);
   	} >FLASH
