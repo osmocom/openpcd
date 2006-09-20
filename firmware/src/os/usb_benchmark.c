@@ -33,6 +33,8 @@ static void usbtest_tx_transfer(unsigned int num_pkts)
 {
 	unsigned int i;
 
+#if 0
+#warning please reimplement refill userspecified rctx 
 	for (i = 0; i < num_pkts; i++) {
 		/* send 16 packets of 64byte */
 		while (udp_refill_ep(2, &dummy_rctx) < 0) 
@@ -41,11 +43,12 @@ static void usbtest_tx_transfer(unsigned int num_pkts)
 	/* send one packet of 0 byte */
 	while (udp_refill_ep(2, &empty_rctx) < 0) 
 		;
+#endif
 }
 
 static int usbtest_rx(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 	int i;
 
 	switch (poh->cmd) {
@@ -67,10 +70,10 @@ static int usbtest_rx(struct req_ctx *rctx)
 
 void usbtest_init(void)
 {
-	dummy_rctx.tx.tot_len = 64;
-	memset(dummy_rctx.tx.data, 0x23, 64);
+	dummy_rctx.tot_len = 64;
+	memset(dummy_rctx.data, 0x23, 64);
 
-	empty_rctx.tx.tot_len = 0;
+	empty_rctx.tot_len = 0;
 
 	usb_hdlr_register(&usbtest_rx, OPENPCD_CMD_CLS_USBTEST);
 }

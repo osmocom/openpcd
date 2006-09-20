@@ -340,7 +340,7 @@ static void rc632_irq(void)
 		DEBUGP("TxComplete ");
 	
 
-	irq_rctx = req_ctx_find_get(RCTX_STATE_FREE,
+	irq_rctx = req_ctx_find_get(0, RCTX_STATE_FREE,
 				    RCTX_STATE_RC632IRQ_BUSY);
 	if (!irq_rctx) {
 		DEBUGPCRF("NO RCTX!\n");
@@ -349,7 +349,7 @@ static void rc632_irq(void)
 		return;
 	}
 
-	irq_opcdh = (struct openpcd_hdr *) &irq_rctx->tx.data[0];
+	irq_opcdh = (struct openpcd_hdr *) irq_rctx->data;
 
 	/* initialize static part of openpcd_hdr for USB IRQ reporting */
 	irq_opcdh->cmd = OPENPCD_CMD_IRQ;
@@ -400,58 +400,56 @@ void rc632_reset(void)
 
 static int rc632_usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
-	u_int16_t len = rctx->rx.tot_len-sizeof(*poh);
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
+	u_int16_t len = rctx->tot_len-sizeof(*poh);
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_READ_REG:
-		rc632_reg_read(RAH, poh->reg, &pih->val);
-		DEBUGP("READ REG(0x%02x)=0x%02x ", poh->reg, pih->val);
-		goto respond;
+		rc632_reg_read(RAH, poh->reg, &poh->val);
+		DEBUGP("READ REG(0x%02x)=0x%02x ", poh->reg, poh->val);
+		/* register read always has to provoke a response */
+		poh->flags &= OPENPCD_FLAG_RESPOND;
 		break;
 	case OPENPCD_CMD_READ_FIFO:
+		/* FIFO read always has to provoke a response */
+		poh->flags &= OPENPCD_FLAG_RESPOND;
 		{
 		u_int16_t req_len = poh->val, remain_len = req_len, pih_len;
 		if (req_len > MAX_PAYLOAD_LEN) {
 			pih_len = MAX_PAYLOAD_LEN;
 			remain_len -= pih_len;
-			rc632_fifo_read(RAH, pih_len, pih->data);
-			rctx->tx.tot_len += pih_len;
+			rc632_fifo_read(RAH, pih_len, poh->data);
+			rctx->tot_len += pih_len;
 			DEBUGP("READ FIFO(len=%u)=%s ", req_len,
-				hexdump(pih->data, pih_len));
+				hexdump(poh->data, pih_len));
 			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
-			udp_refill_ep(2, rctx);
+			udp_refill_ep(2);
 
 			/* get and initialize second rctx */
-			rctx = req_ctx_find_get(RCTX_STATE_FREE,
+			rctx = req_ctx_find_get(0, RCTX_STATE_FREE,
 						RCTX_STATE_MAIN_PROCESSING);
 			if (!rctx) {
 				DEBUGPCRF("FATAL_NO_RCTX!!!\n");
 				break;
 			}
-			poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-			pih = (struct openpcd_hdr *) &rctx->tx.data[0];
-			memcpy(pih, poh, sizeof(*poh));
-			rctx->tx.tot_len = sizeof(*poh);
+			poh = (struct openpcd_hdr *) rctx->data;
+			rctx->tot_len = sizeof(*poh);
 
 			pih_len = remain_len;
-			rc632_fifo_read(RAH, pih->val, pih->data);
-			rctx->tx.tot_len += pih_len;
+			rc632_fifo_read(RAH, pih_len, poh->data);
+			rctx->tot_len += pih_len;
 			DEBUGP("READ FIFO(len=%u)=%s ", pih_len,
-				hexdump(pih->data, pih_len));
+				hexdump(poh->data, pih_len));
 			/* don't set state of second rctx, main function
 			 * body will do this after switch statement */
 		} else {
-			pih->val = poh->val;
-			rc632_fifo_read(RAH, poh->val, pih->data);
-			rctx->tx.tot_len += pih_len;
+			rc632_fifo_read(RAH, req_len, poh->data);
+			rctx->tot_len += pih_len;
 			DEBUGP("READ FIFO(len=%u)=%s ", poh->val,
-				hexdump(pih->data, poh->val));
+				hexdump(poh->data, poh->val));
 		}
-		goto respond;
+		}
 		break;
-		}
 	case OPENPCD_CMD_WRITE_REG:
 		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
 		rc632_reg_write(RAH, poh->reg, poh->val);
@@ -463,46 +461,33 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		break;
 	case OPENPCD_CMD_READ_VFIFO:
 		DEBUGP("READ VFIFO ");
-		DEBUGP("NOT IMPLEMENTED YET ");
-		goto respond;
+		goto not_impl;
 		break;
 	case OPENPCD_CMD_WRITE_VFIFO:
 		DEBUGP("WRITE VFIFO ");
-		DEBUGP("NOT IMPLEMENTED YET ");
+		goto not_impl;
 		break;
 	case OPENPCD_CMD_REG_BITS_CLEAR:
 		DEBUGP("CLEAR BITS ");
-		pih->val = rc632_clear_bits(RAH, poh->reg, poh->val);
+		poh->val = rc632_clear_bits(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_REG_BITS_SET:
 		DEBUGP("SET BITS ");
-		pih->val = rc632_set_bits(RAH, poh->reg, poh->val);
+		poh->val = rc632_set_bits(RAH, poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_DUMP_REGS:
 		DEBUGP("DUMP REGS ");
-		DEBUGP("NOT IMPLEMENTED YET ");
-		goto respond;
+		goto not_impl;
 		break;
 	default:
 		DEBUGP("UNKNOWN ");
 		return -EINVAL;
 	}
 
-#ifdef ALWAYS_RESPOND
-	goto respond;
-#endif
-
-	req_ctx_put(rctx);
-	DEBUGPCR("");
-	return 0;
-
-respond:
-	req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
-	/* FIXME: we could try to send this immediately */
-	udp_refill_ep(2, rctx);
-	DEBUGPCR("");
-
-	return 1;
+	return (poh->flags & OPENPCD_FLAG_RESPOND) ? USB_RET_RESPOND : 0;
+not_impl:
+	DEBUGP("NOT IMPLEMENTED YET ");
+	return USB_ERR(USB_ERR_CMD_NOT_IMPL);
 }
 
 void rc632_init(void)

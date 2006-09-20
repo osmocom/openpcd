@@ -17,8 +17,6 @@
  *
  */
 
-
-
 #include <errno.h>
 #include <sys/types.h>
 #include <picc/decoder.h>

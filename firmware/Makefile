@@ -87,7 +87,7 @@ SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
 	  src/os/led.c src/os/req_ctx.c src/os/trigger.c \
 	  src/os/main.c src/os/syscalls.c src/os/usb_handler.c \
 	  src/os/usb_benchmark.c src/os/tc_cdiv.c src/os/pit.c \
-	  src/os/pwm.c src/os/pio_irq.c
+	  src/os/pwm.c src/os/pio_irq.c src/os/usbcmd_generic.c
 
 ifeq ($(BOARD), PCD)
 # PCD support code
@@ -102,7 +102,8 @@ ifeq ($(BOARD), PICC)
 SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
 	  src/picc/decoder.c src/picc/decoder_miller.c \
 	  src/picc/load_modulation.c \
-	  src/picc/decoder_nrzl.c src/picc/poti.c src/picc/pll.c
+	  src/picc/decoder_nrzl.c src/picc/poti.c src/picc/pll.c \
+	  src/picc/openpicc.c
 # finally, the actual main application 
 SRCARM += src/picc/$(TARGET).c 
 endif
@@ -144,7 +145,7 @@ FORMAT = binary
 # Optimization level, can be [0, 1, 2, 3, s]. 
 # 0 = turn off optimization. s = optimize for size.
 # (Note: 3 is not always the best optimization level. See avr-libc FAQ.)
-OPT = s
+OPT = 2
 #OPT = 0
 
 # Debugging format.
@@ -562,6 +563,7 @@ clean_list :
 	$(REMOVE) $(CPPSRCARM:.cpp=.s) 
 	$(REMOVE) $(CPPSRCARM:.cpp=.d)
 	$(REMOVE) .dep/*
+	$(REMOVE) include/compile.h
 
 .PHONY: include/compile.h
 include/compile.h: 

@@ -10,13 +10,16 @@
 struct req_ctx;
 
 extern void udp_open(void);
-extern int udp_refill_ep(int ep, struct req_ctx *rctx);
+extern int udp_refill_ep(int ep);
 extern void udp_unthrottle(void);
 extern void udp_reset(void);
 
 struct ep_ctx {
 	atomic_t pkts_in_transit;
-	void *ctx;
+	struct {
+		struct req_ctx *rctx;
+		unsigned int bytes_sent;
+	} incomplete;
 };
 
 struct udp_pcd {

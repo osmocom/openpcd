@@ -119,8 +119,7 @@ void pwm_duty_set_percent(int channel, u_int16_t duty)
 
 static int pwm_usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	/* struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0]; */
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 	u_int32_t *freq;
 
 	switch (poh->cmd) {
@@ -137,7 +136,7 @@ static int pwm_usb_in(struct req_ctx *rctx)
 		goto respond;
 		break;
 	case OPENPCD_CMD_PWM_FREQ_SET:
-		if (rctx->rx.tot_len < sizeof(*poh)+4)
+		if (rctx->tot_len < sizeof(*poh)+4)
 			break;
 		freq = (unsigned char *) poh + sizeof(*poh);
 		pwm_freq_set(0, *freq);
@@ -153,7 +152,7 @@ static int pwm_usb_in(struct req_ctx *rctx)
 	return 0;
 respond:
 	req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
-	udp_refill_ep(2, rctx);
+	udp_refill_ep(2);
 	return 1;
 }
 

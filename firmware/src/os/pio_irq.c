@@ -50,7 +50,7 @@ static void pio_irq_demux(void)
 
 	if (send_usb && !pirqs.usb_throttled) {
 		struct req_ctx *irq_rctx;
-		irq_rctx = req_ctx_find_get(RCTX_STATE_FREE,
+		irq_rctx = req_ctx_find_get(0, RCTX_STATE_FREE,
 					    RCTX_STATE_PIOIRQ_BUSY);
 		if (!irq_rctx) {
 			/* we cannot disable the interrupt, since we have
@@ -59,14 +59,14 @@ static void pio_irq_demux(void)
 		} else {
 			struct openpcd_hdr *opcdh;
 			u_int32_t *regmask;
-			opcdh = (struct openpcd_hdr *) &irq_rctx->tx.data[0];
-			regmask = (u_int32_t *) (&irq_rctx->tx.data[0] + sizeof(*opcdh));
+			opcdh = (struct openpcd_hdr *) irq_rctx->data;
+			regmask = (u_int32_t *) (irq_rctx->data + sizeof(*opcdh));
 			opcdh->cmd = OPENPCD_CMD_PIO_IRQ;
 			opcdh->reg = 0x00;
 			opcdh->flags = 0x00;
 			opcdh->val = 0x00;
 
-			irq_rctx->tx.tot_len = sizeof(*opcdh) + sizeof(u_int32_t);
+			irq_rctx->tot_len = sizeof(*opcdh) + sizeof(u_int32_t);
 			req_ctx_set_state(irq_rctx, RCTX_STATE_UDP_EP3_PENDING);
 		}
 	}
@@ -116,8 +116,7 @@ void pio_irq_unregister(u_int32_t pio)
 
 static int pio_irq_usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_PIO_IRQ:

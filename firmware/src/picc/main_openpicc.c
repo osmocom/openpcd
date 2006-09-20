@@ -47,6 +47,7 @@ static u_int8_t load_mod = 0;
 
 void _init_func(void)
 {
+	/* low-level hardware initialization */
 	pio_irq_init();
 	pll_init();
 	poti_init();
@@ -57,6 +58,10 @@ void _init_func(void)
 	adc_init();
 	ssc_rx_init();
 	// ssc_tx_init();
+	
+	/* high-level protocol */
+	decoder_init();
+	opicc_usbapi_init();
 
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_PIO_BOOTLDR);
 }

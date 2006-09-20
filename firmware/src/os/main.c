@@ -24,8 +24,17 @@
 #include <os/led.h>
 #include <os/main.h>
 #include <os/power.h>
+#include <os/usbcmd_generic.h>
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
+
+#include <compile.h>
+
+const struct openpcd_compile_version opcd_version = {
+	.svnrev = COMPILE_SVNREV,
+	.date = COMPILE_DATE,
+	.by = COMPILE_BY,
+};
 
 int main(void)
 {
@@ -34,10 +43,13 @@ int main(void)
 	AT91F_DBGU_Init();
 
 	AT91F_PIOA_CfgPMC();
+
 	/* call application specific init function */
 	_init_func();
 
 	/* initialize USB */
+	req_ctx_init();
+	usbcmd_gen_init();
 	udp_open();
 
 	// Enable User Reset and set its minimal assertion to 960 us

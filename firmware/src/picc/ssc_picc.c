@@ -166,8 +166,8 @@ static struct openpcd_hdr opcd_ssc_hdr = {
 
 static inline void init_opcdhdr(struct req_ctx *rctx)
 {
-	memcpy(&rctx->tx.data[0], &opcd_ssc_hdr, sizeof(opcd_ssc_hdr));
-	rctx->tx.tot_len = MAX_HDRSIZE + MAX_REQSIZE -1;
+	memcpy(rctx->data, &opcd_ssc_hdr, sizeof(opcd_ssc_hdr));
+	rctx->tot_len = MAX_HDRSIZE + MAX_REQSIZE -1;
 }
 
 #ifdef DEBUG_SSC_REFILL
@@ -191,7 +191,7 @@ static int8_t ssc_rx_refill(void)
 #if 1
 	struct req_ctx *rctx;
 	
-	rctx = req_ctx_find_get(RCTX_STATE_FREE, RCTX_STATE_SSC_RX_BUSY);
+	rctx = req_ctx_find_get(1, RCTX_STATE_FREE, RCTX_STATE_SSC_RX_BUSY);
 	if (!rctx) {
 		DEBUGPCRF("no rctx for refill!");
 		return -1;
@@ -200,12 +200,12 @@ static int8_t ssc_rx_refill(void)
 
 	if (AT91F_PDC_IsRxEmpty(rx_pdc)) {
 		DEBUGR("filling primary SSC RX dma ctx");
-		AT91F_PDC_SetRx(rx_pdc, &rctx->rx.data[MAX_HDRSIZE],
-				(sizeof(rctx->rx.data)-MAX_HDRSIZE)>>2);
+		AT91F_PDC_SetRx(rx_pdc, &rctx->data[MAX_HDRSIZE],
+				(rctx->size-MAX_HDRSIZE)>>2);
 		ssc_state.rx_ctx[0] = rctx;
 
 		/* If primary is empty, secondary must be empty, too */
-		rctx = req_ctx_find_get(RCTX_STATE_FREE, 
+		rctx = req_ctx_find_get(1, RCTX_STATE_FREE, 
 					RCTX_STATE_SSC_RX_BUSY);
 		if (!rctx) {
 			DEBUGPCRF("no rctx for secondary refill!");
@@ -216,8 +216,8 @@ static int8_t ssc_rx_refill(void)
 
 	if (AT91F_PDC_IsNextRxEmpty(rx_pdc)) {
 		DEBUGR("filling secondary SSC RX dma ctx");
-		AT91F_PDC_SetNextRx(rx_pdc, &rctx->rx.data[MAX_HDRSIZE],
-				    (sizeof(rctx->rx.data)-MAX_HDRSIZE)>2);
+		AT91F_PDC_SetNextRx(rx_pdc, &rctx->data[MAX_HDRSIZE],
+				    (rctx->size-MAX_HDRSIZE)>2);
 		ssc_state.rx_ctx[1] = rctx;
 		return 2;
 	} else {
@@ -331,8 +331,7 @@ void ssc_tx_init(void)
 
 static int ssc_usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_SSC_READ:
@@ -366,7 +365,7 @@ void ssc_rx_init(void)
 	/* Reset */
 	//ssc->SSC_CR = AT91C_SSC_SWRST;
 
-	/* don't divide clock */
+	/* don't divide clock inside SSC, we do that in tc_cdiv */
 	ssc->SSC_CMR = 0;
 
 	ssc->SSC_RCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE |

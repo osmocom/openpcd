@@ -6,19 +6,29 @@
 #include <sys/types.h>
 
 struct openpcd_hdr {
-	u_int8_t cmd;		/* command. high nibble: class, low nibble: cmd */
+	u_int8_t cmd;		/* command. high nibble: class,
+				 *	     low nibble: cmd */
 	u_int8_t flags;
 	u_int8_t reg;		/* register */
 	u_int8_t val;		/* value (in case of write *) */
 	u_int8_t data[0];
 } __attribute__ ((packed));
 
-#define OPENPC_FLAG_RESPOND	0x01	/* Response requested */
+#define OPCD_REV_LEN	16
+struct openpcd_compile_version {
+	char svnrev[OPCD_REV_LEN];
+	char by[OPCD_REV_LEN];
+	char date[OPCD_REV_LEN];
+} __attribute__ ((packed));
+
+#define OPENPCD_FLAG_RESPOND	0x01	/* Response requested */
+#define OPENPCD_FLAG_ERROR	0x80	/* An error occurred */
 
 enum openpcd_cmd_class {
+	OPENPCD_CMD_CLS_GENERIC		= 0x0,
 	/* PCD (reader) side */
 	OPENPCD_CMD_CLS_RC632		= 0x1,
-	OPENPCD_CMD_CLS_LED		= 0x2,
+	//OPENPCD_CMD_CLS_LED		= 0x2,
 	OPENPCD_CMD_CLS_SSC		= 0x3,
 	OPENPCD_CMD_CLS_PWM		= 0x4,
 	OPENPCD_CMD_CLS_ADC		= 0x5,
@@ -35,6 +45,9 @@ enum openpcd_cmd_class {
 
 #define OPENPCD_CLS2CMD(x)	(x << 4)
 
+#define OPENPCD_CMD_GET_VERSION		(0x1|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_GENERIC))
+#define OPENPCD_CMD_SET_LED		(0x2|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_GENERIC))
+
 /* CMD_CLS_RC632 */
 #define OPENPCD_CMD_WRITE_REG		(0x1|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_RC632))
 #define OPENPCD_CMD_WRITE_FIFO		(0x2|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_RC632))
@@ -46,9 +59,6 @@ enum openpcd_cmd_class {
 #define OPENPCD_CMD_READ_VFIFO		(0x8|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_RC632))
 #define OPENPCD_CMD_DUMP_REGS		(0x9|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_RC632))
 #define OPENPCD_CMD_IRQ			(0xa|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_RC632))
-
-/* CMD_CLS_LED */
-#define OPENPCD_CMD_SET_LED		(0x1|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_LED))
 
 /* CMD_CLS_SSC */
 #define OPENPCD_CMD_SSC_READ		(0x1|OPENPCD_CLS2CMD(OPENPCD_CMD_CLS_SSC))

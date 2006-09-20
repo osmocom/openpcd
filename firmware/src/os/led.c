@@ -73,31 +73,10 @@ int led_toggle(int led)
 	return !on;
 }
 
-static int led_usb_rx(struct req_ctx *rctx)
-{
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	int ret = 1;
-
-	switch (poh->cmd) {
-	case OPENPCD_CMD_SET_LED:
-		DEBUGP("SET LED(%u,%u) ", poh->reg, poh->val);
-		led_switch(poh->reg, poh->val);
-		break;
-	default:
-		DEBUGP("UNKNOWN ");
-		ret = -EINVAL;
-		break;
-	}
-	req_ctx_put(rctx);
-	return 1;
-}
-
 void led_init(void)
 {
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1);
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2);
 	led_switch(1, 0);
 	led_switch(2, 0);
-
-	usb_hdlr_register(&led_usb_rx, OPENPCD_CMD_CLS_LED);
 }

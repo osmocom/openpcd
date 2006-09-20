@@ -31,6 +31,8 @@
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
+#define SAM7DFU_SIZE	0x1000
+
 /* If debug is enabled, we need to access debug functions from flash
  * and therefore have to omit flashing */
 #define DEBUG_DFU
@@ -56,8 +58,8 @@ static void __dfufunc udp_init(void)
 	AT91C_BASE_PMC->PMC_SCER = AT91C_PMC_UDP;
 	AT91C_BASE_PMC->PMC_PCER = (1 << AT91C_ID_UDP);
 
-	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the corresponding PIO
-	 * Set in PIO mode and Configure in Output */
+	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the
+	 * corresponding PIO Set in PIO mode and Configure in Output */
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
 }
 
@@ -150,8 +152,8 @@ static void __dfufunc udp_ep0_send_stall(void)
 
 
 static u_int8_t status;
-static u_int8_t *ptr = (u_int8_t *)0x00101000;
-static __dfudata u_int32_t dfu_state;
+static u_int8_t *ptr = AT91C_IFLASH + SAM7DFU_SIZE;
+static __dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
 static u_int8_t pagebuf[AT91C_IFLASH_PAGE_SIZE];
 
 static u_int16_t page_from_ramaddr(const void *addr)
@@ -179,7 +181,8 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 	DEBUGE("download ");
 
 	if (len > AT91C_IFLASH_PAGE_SIZE) {
-		/* Too big */
+		/* Too big. Not that we'd really care, but it's a
+		 * DFU protocol violation */
 	    	dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
 		udp_ep0_send_stall();
@@ -195,6 +198,12 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 	if (len == 0) {
 		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
 		return 0;
+	}
+	if (ptr + len > AT91C_IFLASH + AT91C_IFLASH_SIZE) {
+		dfu_state = DFU_STATE_dfuERROR;
+		status = DFU_STATUS_errADDRESS;
+		udp_ep0_send_stall();
+		return -EINVAL;
 	}
 
 	udp_ep0_recv_data(pagebuf, sizeof(pagebuf));
@@ -234,8 +243,8 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 		return -EINVAL;
 	}
 
-	if (ptr + len > AT91C_IFLASH_SIZE) 
-		len = AT91C_IFLASH_SIZE - (u_int32_t) ptr;
+	if (ptr + len > AT91C_IFLASH + AT91C_IFLASH_SIZE) 
+		len = AT91C_IFLASH + AT91C_IFLASH_SIZE - (u_int32_t) ptr;
 		
 	udp_ep0_send_data((char *)ptr, len);
 	ptr+= len;
@@ -273,6 +282,7 @@ static __dfufunc void handle_getstatus(void)
 	dstat.bStatus = status;
 	dstat.bState = dfu_state;
 	dstat.iString = 0;
+	/* FIXME: set dstat.bwPollTimeout */
 
 	udp_ep0_send_data((char *)&dstat, sizeof(dstat));
 }
@@ -322,11 +332,12 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 				dfu_state = DFU_STATE_dfuERROR;
 				goto send_stall;
 			}
+			ptr = AT91C_IFLASH + SAM7DFU_SIZE;
 			handle_dnload(val, len);
 			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			break;
 		case USB_REQ_DFU_UPLOAD:
-			ptr = 0x00101000; /* Flash base address for app */
+			ptr = AT91C_IFLASH + SAM7DFU_SIZE;
 			dfu_state = DFU_STATE_dfuUPLOAD_IDLE;
 			handle_upload(val, len);
 			break;
@@ -697,13 +708,16 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 		udp_ep0_send_stall();
 		break;
 	default:
-		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
+		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ",
+			bRequest, bmRequestType);
 		if ((bmRequestType & 0x3f) == USB_TYPE_DFU) {
-			dfu_ep0_handler(bmRequestType, bRequest, wValue, wLength);
+			dfu_ep0_handler(bmRequestType, bRequest,
+					wValue, wLength);
 		} else
 			udp_ep0_send_stall();
 		break;
 	}
+	DEBUGE("\r\n");
 }
 
 /* minimal USB IRQ handler in DFU mode */
@@ -747,8 +761,11 @@ static void dfu_switch(void)
 void __dfufunc dfu_main(void)
 {
 	AT91F_DBGU_Init();
+	DEBUGE("sam7dfu startup\r\n");
 
 	udp_init();
+
+	dfu_state = DFU_STATE_dfuIDLE;
 
 	/* This implements 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_UDP,
@@ -771,6 +788,7 @@ void __dfufunc dfu_main(void)
 
 	flash_init();
 
+	DEBUGE("sam7dfu entering main loop\r\n");
 	/* do nothing, since all of DFU is interrupt driven */
 	while (1) ;
 }

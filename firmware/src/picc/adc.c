@@ -74,7 +74,7 @@ static void adc_irq(void)
 		if (sr & AT91C_ADC_ENDRX) {
 			/* rctx full, get rid of it */
 			DEBUGADC("sending rctx (val=%s) ",
-				 hexdump(rctx->tx.data[4], 2));
+				 hexdump(rctx->data[4], 2));
 				 
 			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
 			adc_state.state = ADC_NONE;
@@ -115,8 +115,7 @@ u_int16_T adc_read_pll_dem(void)
 
 static int adc_usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->data[0];
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_ADC_READ:
@@ -129,9 +128,8 @@ static int adc_usb_in(struct req_ctx *rctx)
 
 		adc_state.state = ADC_READ_CONTINUOUS_USB;
 		adc_state.rctx = rctx;
-		memcpy(pih, poh, sizeof(*pih));
-		rctx->tx.tot_len = sizeof(*pih) + poh->val * 2;
-		AT91F_PDC_SetRx(AT91C_BASE_PDC_ADC, rctx->rx.data, poh->val);
+		rctx->tot_len = sizeof(*poh) + poh->val * 2;
+		AT91F_PDC_SetRx(AT91C_BASE_PDC_ADC, rctx->data, poh->val);
 		AT91F_PDC_EnableRx(AT91C_BASE_PDC_ADC);
 		AT91F_ADC_EnableChannel(AT91C_BASE_ADC, OPENPICC_ADC_CH_FIELDSTR);
 		AT91F_ADC_EnableIt(AT91C_BASE_ADC, AT91C_ADC_ENDRX |

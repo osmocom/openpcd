@@ -1,19 +1,18 @@
 SPI:
 - use PDC DMA for SPI transfers
-- use real SPI clock divisor (4.8MHz) rather than current 320kHz clock
 
 RC632:
 - Fix locking between 'atomic' ops like set/clear bit and RC632 IRQ
 - Implement VFIFO handling
 
 USB:
-- don't busy-wait for EP2/EP3 transfers but rather use TX completion IRQ
 - Implement VFIFO handling
-- Add DFU descriptor to host
 
 DFU:
-- implement DFU protocol for bootloader flash partition
-- add capability to copy and execute DFU from RAM
+- fix DFU download (usb control write / zlp at end)
+- add capability to flash DFU itself
+- add a header to the application program, checksum and size
+- checksum application image.  If wrong, enter DFU recovery mode
 - Get rid of lots of constant values and replace them by proper defines
 
 Generic:

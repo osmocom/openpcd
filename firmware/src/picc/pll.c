@@ -22,6 +22,7 @@
 #include <lib_AT91SAM7.h>
 #include <os/pio_irq.h>
 #include <os/dbgu.h>
+#include <os/led.h>
 #include "../openpcd.h"
 
 void pll_inhibit(int inhibit)

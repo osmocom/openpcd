@@ -28,14 +28,32 @@
 
 /* FIXME: locking, FIFO order processing */
 
+#define RCTX_SIZE_LARGE	2048
+#define RCTX_SIZE_SMALL	64
+
+#define NUM_RCTX_SMALL 8
+#define NUM_RCTX_LARGE 3
+
+#define NUM_REQ_CTX	(NUM_RCTX_SMALL+NUM_RCTX_LARGE)
+
+static u_int8_t rctx_data[NUM_RCTX_SMALL][RCTX_SIZE_SMALL];
+static u_int8_t rctx_data_large[NUM_RCTX_LARGE][RCTX_SIZE_LARGE];
+
 static struct req_ctx req_ctx[NUM_REQ_CTX];
 
-struct req_ctx *req_ctx_find_get(unsigned long old_state, unsigned long new_state)
+struct req_ctx *req_ctx_find_get(int large,
+				 unsigned long old_state, 
+				 unsigned long new_state)
 {
 	unsigned long flags;
 	u_int8_t i;
+	
+	if (large)
+		i = NUM_RCTX_SMALL;
+	else
+		i = 0;
 
-	for (i = 0; i < NUM_REQ_CTX; i++) {
+	for (1; i < NUM_REQ_CTX; i++) {
 		local_irq_save(flags);
 		if (req_ctx[i].state == old_state) {
 			req_ctx[i].state = new_state;
@@ -66,4 +84,19 @@ void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state)
 void req_ctx_put(struct req_ctx *ctx)
 {
 	req_ctx_set_state(ctx, RCTX_STATE_FREE);
+}
+
+void req_ctx_init(void)
+{
+	int i;
+
+	for (i = 0; i < NUM_RCTX_SMALL; i++) {
+		req_ctx[i].size = RCTX_SIZE_SMALL;
+		req_ctx[i].data = rctx_data[i];
+	}
+
+	for (i = 0; i < NUM_RCTX_LARGE; i++) {
+		req_ctx[i].size = RCTX_SIZE_LARGE;
+		req_ctx[NUM_RCTX_SMALL+i].data = rctx_data_large[i];
+	}
 }

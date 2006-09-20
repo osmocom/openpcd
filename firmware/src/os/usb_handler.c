@@ -46,23 +46,33 @@ void usb_hdlr_unregister(u_int8_t class)
 
 static int usb_in(struct req_ctx *rctx)
 {
-	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->rx.data[0];
-	struct openpcd_hdr *pih = (struct openpcd_hdr *) &rctx->tx.data[0];
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 	usb_cmd_fn *hdlr;
+	int ret;
 
 	DEBUGP("usb_in(cls=%d) ", OPENPCD_CMD_CLS(poh->cmd));
 
-	if (rctx->rx.tot_len < sizeof(*poh))
+	if (rctx->tot_len < sizeof(*poh))
 		return -EINVAL;
 	
-	memcpy(pih, poh, sizeof(*poh));
-	rctx->tx.tot_len = sizeof(*poh);
-
 	hdlr = cmd_hdlrs[OPENPCD_CMD_CLS(poh->cmd)];
-	if (hdlr) 
-		return (hdlr)(rctx);
-	else
-		DEBUGPCR("no handler for this class\n");
+	if (!hdlr) {
+		DEBUGPCR("no handler for this class ");
+		ret = USB_ERR(USB_ERR_CMD_UNKNOWN);
+	} else
+		ret = (hdlr)(rctx);
+	
+	if (ret & USB_RET_ERR) {
+		poh->val = ret & 0xff;
+		poh->flags = OPENPCD_FLAG_ERROR;
+	}
+	if (ret & USB_RET_RESPOND) { 
+		req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+		udp_refill_ep(2);
+	}
+
+	DEBUGPCR("");
+	return (ret & USB_RET_ERR) ? 1 : 0;
 }
 
 /* Process all pending request contexts that want to Tx on either
@@ -71,17 +81,17 @@ void usb_out_process(void)
 {
 	struct req_ctx *rctx;
 
-	while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP3_PENDING,
+	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_EP3_PENDING,
 				       RCTX_STATE_UDP_EP3_BUSY)) {
 		DEBUGPCRF("EP3_BUSY for ctx %u", req_ctx_num(rctx));
-		if (udp_refill_ep(3, rctx) < 0)
+		if (udp_refill_ep(3) < 0)
 			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP3_PENDING);
 	}
 
-	while (rctx = req_ctx_find_get(RCTX_STATE_UDP_EP2_PENDING,
+	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_EP2_PENDING,
 				       RCTX_STATE_UDP_EP2_BUSY)) {
 		DEBUGPCRF("EP2_BUSY for ctx %u", req_ctx_num(rctx));
-		if (udp_refill_ep(2, rctx) < 0)
+		if (udp_refill_ep(2) < 0)
 			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
 	}
 }
@@ -92,10 +102,10 @@ void usb_in_process(void)
 {
 	struct req_ctx *rctx;
 
-	while (rctx = req_ctx_find_get(RCTX_STATE_UDP_RCV_DONE,
+	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_RCV_DONE,
 				       RCTX_STATE_MAIN_PROCESSING)) {
 	     	DEBUGPCRF("found used ctx %u: len=%u", 
-			req_ctx_num(rctx), rctx->rx.tot_len);
+			req_ctx_num(rctx), rctx->tot_len);
 		usb_in(rctx);
 	}
 	udp_unthrottle();

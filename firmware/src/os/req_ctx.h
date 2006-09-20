@@ -9,18 +9,11 @@
 
 #include <sys/types.h>
 
-struct req_buf {
-	u_int16_t hdr_len;
-	u_int16_t tot_len;
-	u_int8_t data[64];
-};
-
 struct req_ctx {
-	u_int16_t seq;		/* request sequence number */
-	u_int16_t flags;
 	volatile u_int32_t state;
-	struct req_buf rx;
-	struct req_buf tx;
+	u_int16_t size;
+	u_int16_t tot_len;
+	u_int8_t *data;
 };
 
 #define RCTX_STATE_FREE			0x00
@@ -39,8 +32,7 @@ struct req_ctx {
 
 #define RCTX_STATE_PIOIRQ_BUSY		0x80
 
-#define NUM_REQ_CTX	8
-extern struct req_ctx *req_ctx_find_get(unsigned long old_state, unsigned long new_state);
+extern struct req_ctx *req_ctx_find_get(int large, unsigned long old_state, unsigned long new_state);
 extern struct req_ctx *req_ctx_find_busy(void);
 extern void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state);
 extern void req_ctx_put(struct req_ctx *ctx);
