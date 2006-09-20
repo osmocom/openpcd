@@ -23,24 +23,29 @@
 #include <errno.h>
 #include <usb_ch9.h>
 #include <usb_dfu.h>
+#include <board.h>
 #include <lib_AT91SAM7.h>
 
 #include <dfu/dfu.h>
+#include <dfu/dbgu.h>
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
 /* If debug is enabled, we need to access debug functions from flash
  * and therefore have to omit flashing */
-//#define DEBUG_DFU
+#define DEBUG_DFU
 
-#ifdef DEBUG_DFU
 #define DEBUGE DEBUGP
-#define DEBUGI DEBUGP
-#else
-#define DEBUGE(x, args ...) do { } while (0)
-#define DEBUGI(x, args ...) do { } while (0)
-#endif
 
+static void flash_init(void)
+{
+	unsigned int fmcn = AT91F_MC_EFC_ComputeFMCN(MCK);
+
+	AT91F_MC_EFC_CfgModeReg(AT91C_BASE_MC, fmcn << 16 | AT91C_MC_FWS_3FWS |
+				AT91C_MC_FRDY | AT91C_MC_LOCKE | 
+				AT91C_MC_PROGE);
+
+}
 
 static void __dfufunc udp_init(void)
 {
@@ -97,6 +102,32 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 	}
 }
 
+/* receive data from EP0 */
+static int __dfufunc udp_ep0_recv_data(char *data, u_int32_t len)
+{
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
+	u_int16_t i, num_rcv;
+	u_int32_t num_rcv_total = 0;
+
+	do {
+		/* FIXME: do we need to check whether we've been interrupted
+		 * by a RX SETUP stage? */
+		while (!(pUdp->UDP_CSR[0] & AT91C_UDP_RX_DATA_BK0)) ;
+	
+		num_rcv = pUdp->UDP_CSR[0] >> 16;
+		for (i = 0; i < num_rcv; i++)
+			*data++ = pUdp->UDP_FDR[0];
+		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
+
+		num_rcv_total += num_rcv;
+
+		/* we need to continue to pull data until we either receive 
+		 * a packet < endpoint size or == 0 */
+	} while (num_rcv == 8);
+
+	return num_rcv_total;
+}
+
 /* Send zero length packet through the control endpoint */
 static void __dfufunc udp_ep0_send_zlp(void)
 {
@@ -119,12 +150,31 @@ static void __dfufunc udp_ep0_send_stall(void)
 
 
 static u_int8_t status;
-static u_int8_t *ptr;
+static u_int8_t *ptr = (u_int8_t *)0x00101000;
 static __dfudata u_int32_t dfu_state;
+static u_int8_t pagebuf[AT91C_IFLASH_PAGE_SIZE];
+
+static u_int16_t page_from_ramaddr(const void *addr)
+{
+	u_int32_t ramaddr = (u_int32_t) ptr;
+	ramaddr -= (u_int32_t) AT91C_IFLASH;
+	return (ramaddr >> AT91C_IFLASH_PAGE_SHIFT);
+}
+#define PAGES_PER_LOCKREGION	(AT91C_IFLASH_LOCK_REGION_SIZE>>AT91C_IFLASH_PAGE_SHIFT)
+#define IS_FIRST_PAGE_OF_LOCKREGION(x)	((x % PAGES_PER_LOCKREGION) == 0)
+#define LOCKREGION_FROM_PAGE(x)	(x / PAGES_PER_LOCKREGION)
+
+static int is_page_locked(u_int16_t page)
+{
+	u_int16_t lockregion = LOCKREGION_FROM_PAGE(page);
+
+	return (AT91C_BASE_MC->MC_FSR & (lockregion << 16));
+}
 
 static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 {
 	volatile u_int32_t *p = (volatile u_int32_t *)ptr;
+	u_int16_t page = page_from_ramaddr(ptr);
 
 	DEBUGE("download ");
 
@@ -136,6 +186,7 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 		return -EINVAL;
 	}
 	if (len & 0x3) {
+		/* reject non-four-byte-aligned writes */
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
 		udp_ep0_send_stall();
@@ -145,14 +196,27 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
 		return 0;
 	}
+
+	udp_ep0_recv_data(pagebuf, sizeof(pagebuf));
+
+	DEBUGP(hexdump(pagebuf, len));
+
+	/* we can only access the write buffer with correctly aligned
+	 * 32bit writes ! */
 #if 0
 	for (i = 0; i < len/4; i++)
 		p[i] =
 #endif
 	
-	/* FIXME: get data packet from FIFO, (erase+)write flash */
-#ifndef DEBUG_DFU
 
+	/* unlock, (erase+)write flash */
+#ifndef DEBUG_DFU
+	if (is_page_locked(page))
+		AT91F_MC_EFC_PerformCmd(AT91C_BASE_MC, AT91C_MC_FCMD_UNLOCK |
+					AT91C_MC_CORRECT_KEY | page);
+
+	AT91F_MC_EFC_PerformCmd(AT91C_BASE_MC, AT91C_MC_FCMD_START_PROG |
+				AT91C_MC_CORRECT_KEY | page);
 #endif
 
 	return 0;
@@ -182,13 +246,34 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 static __dfufunc void handle_getstatus(void)
 {
 	struct dfu_status dstat;
+	u_int32_t fsr = AT91F_MC_EFC_GetStatus(AT91C_BASE_MC);
 
 	DEBUGE("getstatus ");
+
+	switch (dfu_state) {
+	case DFU_STATE_dfuDNLOAD_SYNC:
+	case DFU_STATE_dfuDNBUSY:
+		if (fsr & AT91C_MC_PROGE) {
+			status = DFU_STATUS_errPROG;
+			dfu_state = DFU_STATE_dfuERROR;
+		} else if (fsr & AT91C_MC_LOCKE) {
+			status = DFU_STATUS_errWRITE;
+			dfu_state = DFU_STATE_dfuERROR;
+		} else if (fsr & AT91C_MC_FRDY)
+			dfu_state = DFU_STATE_dfuDNLOAD_IDLE;
+		else
+			dfu_state = DFU_STATE_dfuDNBUSY;
+		break;
+	case DFU_STATE_dfuMANIFEST_SYNC:
+		dfu_state = DFU_STATE_dfuMANIFEST;
+		break;
+	}
 
 	/* send status response */
 	dstat.bStatus = status;
 	dstat.bState = dfu_state;
 	dstat.iString = 0;
+
 	udp_ep0_send_data((char *)&dstat, sizeof(dstat));
 }
 
@@ -196,6 +281,7 @@ static void __dfufunc handle_getstate(void)
 {
 	u_int8_t u8 = dfu_state;
 	DEBUGE("getstate ");
+
 	udp_ep0_send_data((char *)&u8, sizeof(u8));
 }
 
@@ -237,6 +323,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 				goto send_stall;
 			}
 			handle_dnload(val, len);
+			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			break;
 		case USB_REQ_DFU_UPLOAD:
 			ptr = 0x00101000; /* Flash base address for app */
@@ -280,8 +367,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 	case DFU_STATE_dfuDNLOAD_IDLE:
 		switch (req) {
 		case USB_REQ_DFU_DNLOAD:
-			if (handle_dnload(val, len))
-			/* FIXME: state transition */
+			handle_dnload(val, len);
 			break;
 		case USB_REQ_DFU_ABORT:
 			dfu_state = DFU_STATE_dfuIDLE;
@@ -302,6 +388,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 	case DFU_STATE_dfuMANIFEST_SYNC:
 		switch (req) {
 		case USB_REQ_DFU_GETSTATUS:
+			handle_getstatus();
 			break;
 		case USB_REQ_DFU_GETSTATE:
 			handle_getstate();
@@ -516,6 +603,11 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 					  MIN(sizeof(dfu_if_descriptor),
 					      wLength));
 #endif
+		} else if (wValue == 0x2100) {
+			/* Return Function descriptor */
+			udp_ep0_send_data((const char *) &dfu_cfg_descriptor.func_dfu,
+					  MIN(sizeof(dfu_cfg_descriptor.func_dfu),
+					      wLength));
 		} else
 			udp_ep0_send_stall();
 		break;
@@ -654,6 +746,8 @@ static void dfu_switch(void)
 
 void __dfufunc dfu_main(void)
 {
+	AT91F_DBGU_Init();
+
 	udp_init();
 
 	/* This implements 
@@ -674,6 +768,8 @@ void __dfufunc dfu_main(void)
 
 	/* Clear for set the Pull up resistor */
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+
+	flash_init();
 
 	/* do nothing, since all of DFU is interrupt driven */
 	while (1) ;

@@ -32,14 +32,4 @@ int flash_sector(unsigned int sector, const u_int8_t *data, unsigned int len)
 }
 
 
-void flash_init(void)
-{
-	unsigned int fmcn = AT91F_MC_EFC_ComputerFMCN(48000000);
 
-	AT91F_MC_EFC_CfgModeReg(ff, fmcn << 16 | AT91C_MC_FWS_3FWS |
-				AT91C_MC_FRDY | AT91C_MC_LOCKE | 
-				AT91C_MC_PROGE);
-
-	AT91F_AIC_EnableIt();
-
-}

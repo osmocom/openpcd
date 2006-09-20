@@ -563,6 +563,9 @@ clean_list :
 	$(REMOVE) $(CPPSRCARM:.cpp=.d)
 	$(REMOVE) .dep/*
 
+.PHONY: include/compile.h
+include/compile.h: 
+	scripts/mkcompile_h > $@
 
 # Include the dependency files.
 -include $(shell mkdir .dep 2>/dev/null) $(wildcard .dep/*)

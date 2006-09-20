@@ -54,19 +54,8 @@
 #define __dfudata __attribute__ ((section (".data.shared")))
 #define __dfufunc 
 #define __dfustruct const
-	
-#if 0
-extern void __dfufunc udp_ep0_send_data(const char *data, u_int32_t length);
-extern void __dfufunc udp_ep0_send_zlp(void);
-extern void __dfufunc udp_ep0_send_stall(void);
-extern __dfustruct struct usb_device_descriptor dfu_dev_descriptor;
-extern __dfustruct struct _dfu_desc dfu_cfg_descriptor;
-extern void dfu_switch(void);
-extern int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
-				     u_int16_t val, u_int16_t len);
-extern static u_int8_t dfu_state;
-struct udp_pcd;
-#endif
+
+#define DFU_API_LOCATION	((const struct dfuapi *) 0x00100fd0)
 
 struct _dfu_desc {
 	struct usb_config_descriptor ucfg;
