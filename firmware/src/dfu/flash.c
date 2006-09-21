@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
+#include <dfu/dbgu.h>
 
 #define EFCS_CMD_WRITE_PAGE		0x01
 #define EFCS_CMD_SET_LOCK_BIT		0x02
@@ -38,10 +39,14 @@ static void unlock_page(u_int16_t page)
 void flash_page(u_int8_t *addr)
 {
 	u_int16_t page = page_from_ramaddr(addr);
+	DEBUGP("flash_page(0x%x=%u) ", addr, page);
 
-	if (is_page_locked(page))
+	if (is_page_locked(page)) {
+		DEBUGP("unlocking ");
 		unlock_page(page);
+	}
 
+	DEBUGP("performing start_prog ");
 	AT91F_MC_EFC_PerformCmd(AT91C_BASE_MC, AT91C_MC_FCMD_START_PROG |
 				AT91C_MC_CORRECT_KEY | page);
 }
