@@ -63,8 +63,12 @@ void AT91F_DBGU_Init(void)
 	AT91F_US_EnableIt((AT91PS_USART) AT91C_BASE_DBGU, AT91C_US_RXRDY);
 
 	/* open interrupt */
+
+	/* FIXME: This should be HIGH_LEVEL, but somehow this triggers an
+	 * interrupt storm. no idea why it's working in 'os' but not in 'dfu'
+	 * */
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SYS, USART_SYS_LEVEL,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL,
+			      AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE,
 			      DBGU_irq_handler);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SYS);
 
