@@ -26,6 +26,11 @@
 #include <os/req_ctx.h>
 #include <os/dbgu.h>
 
+static const int ledport[] = {
+	[1] =	OPENPCD_PIO_LED1,
+	[2] =	OPENPCD_PIO_LED2,
+};
+
 static int led2port(int led)
 {
 	if (led == 1)
@@ -38,11 +43,12 @@ static int led2port(int led)
 
 void led_switch(int led, int on)
 {
-	int port = led2port(led);
-
-	if (port == -1)
+	int port;
+	
+	if (led < 1 || led > 2)
 		return;
 
+	port = ledport[led];
 	if (on)
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, port);
 	else
@@ -51,10 +57,12 @@ void led_switch(int led, int on)
 
 int led_get(int led)
 {
-	int port = led2port(led);
+	int port;
 
-	if (port == -1)
+	if (led < 1 || led > 2)
 		return -1;
+
+	port = ledport[led];
 
 	return !(AT91F_PIO_GetOutputDataStatus(AT91C_BASE_PIOA) & port);
 }
@@ -62,8 +70,8 @@ int led_get(int led)
 int led_toggle(int led)
 {
 	int on = led_get(led);
-	if (on == -1)
-		return -1;
+	if (on < 0)
+		return on;
 
 	if (on)
 		led_switch(led, 0);
