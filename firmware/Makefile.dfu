@@ -150,26 +150,30 @@ CDEFS =  -D$(RUN_MODE) -D__MS_types__ -D__LIBRFID__
 
 ifdef DEBUG
 CDEFS += -DDEBUG 
+ADEFS += -DDEBUG 
 endif
 
-ifdef OLIMEX
+ifeq ($(BOARD),OLIMEX)
 CDEFS += -DOLIMEX
+ADEFS += -DOLIMEX
 endif
 
 ifeq ($(BOARD),PICC)
 CDEFS += -DPICC
+ADEFS += -DPICC
 endif
 
 ifeq ($(BOARD),PCD)
 SUBMDL = AT91SAM7S128
 CDEFS += -DPCD
+ADEFS += -DPCD
 endif
 
 # Place -I options here
 CINCS = -Iinclude -Isrc
 
 # Place -D or -U options for ASM here
-ADEFS =  -D$(RUN_MODE)
+ADEFS +=  -D$(RUN_MODE)
 
 ifdef VECTOR_LOCATION
 CDEFS += -D$(VECTOR_LOCATION)

@@ -48,16 +48,17 @@ void AT91F_DBGU_Init(void)
 	/* Open PIO for DBGU */
 	AT91F_DBGU_CfgPIO();
 	/* Enable Transmitter & receivier */
-	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = AT91C_US_RSTTX | AT91C_US_RSTRX;
+	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = 
+					AT91C_US_RSTTX | AT91C_US_RSTRX;
 
 	/* Configure DBGU */
-	AT91F_US_Configure((AT91PS_USART) AT91C_BASE_DBGU,	// DBGU base address
-			   MCK, AT91C_US_ASYNC_MODE,	// Mode Register to be programmed
-			   AT91C_DBGU_BAUD,	// Baudrate to be programmed
-			   0);	// Timeguard to be programmed
+	AT91F_US_Configure(AT91C_BASE_DBGU,
+			   MCK, AT91C_US_ASYNC_MODE,
+			   AT91C_DBGU_BAUD, 0);
 
 	/* Enable Transmitter & receivier */
-	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = AT91C_US_RXEN | AT91C_US_TXEN;
+	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = 
+					AT91C_US_RXEN | AT91C_US_TXEN;
 
 	/* Enable USART IT error and AT91C_US_ENDRX */
 	AT91F_US_EnableIt((AT91PS_USART) AT91C_BASE_DBGU, AT91C_US_RXRDY);

@@ -84,8 +84,15 @@
 	.equ AT91C_BASE_PIOA, (0xFFFFF400)
 	.equ AT91C_ID_PIOA,   (2)
 	.equ PIOA_PDSR,	      (0x3c)
+#if defined(PCD)
 	.equ PIO_BOOTLDR,     (1 << 27)
-	#.equ PIO_BOOTLDR,     (1 << 6)
+#elif defined(PICC)
+	.equ PIO_BOOTLDR,     (1 << 6)
+#elif defined(OLIMEX)
+	.equ PIO_BOOTLDR,     (1 << 19)
+#else
+#error please define PIO_BOOTLDR
+#endif
 
 
 /* #include "AT91SAM7S64_inc.h"	  */

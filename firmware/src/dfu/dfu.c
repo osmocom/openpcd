@@ -36,19 +36,26 @@
 
 /* If debug is enabled, we need to access debug functions from flash
  * and therefore have to omit flashing */
-#define DEBUG_DFU
+//#define DEBUG_DFU_NOFLASH
 
+#define DEBUG_DFU_EP0
+//#define DEBUG_DFU_RECV
+
+#ifdef DEBUG_DFU_EP0
 #define DEBUGE DEBUGP
+#else
+#define DEBUGE(x, args ...)
+#endif
 
-static void flash_init(void)
-{
-	unsigned int fmcn = AT91F_MC_EFC_ComputeFMCN(MCK);
+#ifdef DEBUG_DFU_RECV
+#define DEBUGR DEBUGP
+#else
+#define DEBUGR(x, args ...)
+#endif
 
-	AT91F_MC_EFC_CfgModeReg(AT91C_BASE_MC, fmcn << 16 | AT91C_MC_FWS_3FWS |
-				AT91C_MC_FRDY | AT91C_MC_LOCKE | 
-				AT91C_MC_PROGE);
-
-}
+#define RET_NOTHING	0
+#define RET_ZLP		1
+#define RET_STALL	2
 
 static void __dfufunc udp_init(void)
 {
@@ -105,8 +112,22 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 	}
 }
 
+static void udp_ep0_recv_clean(void)
+{
+	unsigned int i;
+	u_int8_t dummy;
+	const AT91PS_UDP pUdp = AT91C_BASE_UDP;
+
+	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_RX_DATA_BK0)) ;
+
+	for (i = 0; i < (pUdp->UDP_CSR[0] >> 16); i++)
+		dummy = pUdp->UDP_FDR[0];
+
+	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
+}
+
 /* receive data from EP0 */
-static int __dfufunc udp_ep0_recv_data(char *data, u_int32_t len)
+static int __dfufunc udp_ep0_recv_data(u_int8_t *data, u_int16_t len)
 {
 	AT91PS_UDP pUdp = AT91C_BASE_UDP;
 	AT91_REG csr;
@@ -118,7 +139,7 @@ static int __dfufunc udp_ep0_recv_data(char *data, u_int32_t len)
 		 * by a RX SETUP stage? */
 		do {
 			csr = pUdp->UDP_CSR[0];
-			DEBUGE("CSR=%08x ", csr);
+			DEBUGR("CSR=%08x ", csr);
 		} while (!(csr & AT91C_UDP_RX_DATA_BK0)) ;
 	
 		num_rcv = pUdp->UDP_CSR[0] >> 16;
@@ -127,7 +148,7 @@ static int __dfufunc udp_ep0_recv_data(char *data, u_int32_t len)
 		if (num_rcv_total + num_rcv > len)
 			num_rcv = num_rcv_total - len;
 
-		DEBUGE("num_rcv = %u ", num_rcv);
+		DEBUGR("num_rcv = %u ", num_rcv);
 		for (i = 0; i < num_rcv; i++)
 			*data++ = pUdp->UDP_FDR[0];
 		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
@@ -167,64 +188,72 @@ static void __dfufunc udp_ep0_send_stall(void)
 static u_int8_t status;
 static u_int8_t *ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 static __dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
-static u_int8_t pagebuf[AT91C_IFLASH_PAGE_SIZE];
+static u_int32_t pagebuf32[AT91C_IFLASH_PAGE_SIZE/4];
 
 static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 {
 	volatile u_int32_t *p = (volatile u_int32_t *)ptr;
+	u_int8_t *pagebuf = (u_int8_t *) pagebuf32;
+	int i;
 
 	DEBUGE("download ");
 
 	if (len > AT91C_IFLASH_PAGE_SIZE) {
 		/* Too big. Not that we'd really care, but it's a
 		 * DFU protocol violation */
+		DEBUGP("length exceeds flash page size ");
 	    	dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
-		udp_ep0_send_stall();
-		return -EINVAL;
+		return RET_STALL;
 	}
 	if (len & 0x3) {
 		/* reject non-four-byte-aligned writes */
+		DEBUGP("not four-byte-aligned length ");
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
-		udp_ep0_send_stall();
-		return -EINVAL;
+		return RET_STALL;
 	}
 	if (len == 0) {
+		DEBUGP("zero-size write -> MANIFEST_SYNC ");
+		flash_page(p);
 		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
-		return 0;
+		return RET_ZLP;
 	}
 	if (ptr + len > (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE) {
+		DEBUGP("end of write exceeds flash end ");
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
-		udp_ep0_send_stall();
-		return -EINVAL;
+		return RET_STALL;
 	}
 
-	udp_ep0_recv_data(pagebuf, sizeof(pagebuf));
+	DEBUGP("try_to_recv=%u ", len);
+	udp_ep0_recv_data(pagebuf, len);
 
-	DEBUGP(hexdump(pagebuf, len));
+	DEBUGR(hexdump(pagebuf, len));
 
 	/* we can only access the write buffer with correctly aligned
 	 * 32bit writes ! */
-#ifndef DEBUG_DFU
+#ifndef DEBUG_DFU_NOFLASH
+	DEBUGP("copying ");
 	for (i = 0; i < len/4; i++) {
-		*p++ = (u_int32_t *) (pagebuf[i*4]);
+		*p++ = pagebuf32[i];
 		/* If we have filled a page buffer, flash it */
-		if ((p % AT91C_FLASH_PAGE_SIZE) == 0)
-			flash_page(p-4);
+		if (((unsigned long)p % AT91C_IFLASH_PAGE_SIZE) == 0) {
+			DEBUGP("page_full  ");
+			flash_page(p-1);
+		}
 	}
-	ptr = p;
+	ptr = (u_int8_t *) p;
 #endif
 
-	return 0;
+	return RET_ZLP;
 }
 
+#define AT91C_IFLASH_END ((u_int8_t *)AT91C_IFLASH + AT91C_IFLASH_SIZE)
 static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 {
 	DEBUGE("upload ");
-	if (len > AT91C_IFLASH_PAGE_SIZE
-	    || ptr > (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE - SAM7DFU_SIZE) {
+	if (len > AT91C_IFLASH_PAGE_SIZE) {
 		/* Too big */
 		dfu_state = DFU_STATE_dfuERROR;
 		status = DFU_STATUS_errADDRESS;
@@ -232,9 +261,9 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 		return -EINVAL;
 	}
 
-	if (ptr + len > AT91C_IFLASH + AT91C_IFLASH_SIZE) 
-		len = AT91C_IFLASH + AT91C_IFLASH_SIZE - (u_int32_t) ptr;
-		
+	if (ptr + len > AT91C_IFLASH_END)
+		len = AT91C_IFLASH_END - (u_int8_t *)ptr;
+
 	udp_ep0_send_data((char *)ptr, len);
 	ptr+= len;
 
@@ -246,21 +275,26 @@ static __dfufunc void handle_getstatus(void)
 	struct dfu_status dstat;
 	u_int32_t fsr = AT91F_MC_EFC_GetStatus(AT91C_BASE_MC);
 
-	DEBUGE("getstatus ");
+	DEBUGE("getstatus(fsr=0x%08x) ", fsr);
 
 	switch (dfu_state) {
 	case DFU_STATE_dfuDNLOAD_SYNC:
 	case DFU_STATE_dfuDNBUSY:
 		if (fsr & AT91C_MC_PROGE) {
+			DEBUGE("errPROG ");
 			status = DFU_STATUS_errPROG;
 			dfu_state = DFU_STATE_dfuERROR;
 		} else if (fsr & AT91C_MC_LOCKE) {
+			DEBUGE("errWRITE ");
 			status = DFU_STATUS_errWRITE;
 			dfu_state = DFU_STATE_dfuERROR;
-		} else if (fsr & AT91C_MC_FRDY)
+		} else if (fsr & AT91C_MC_FRDY) {
+			DEBUGE("DNLOAD_IDLE ");
 			dfu_state = DFU_STATE_dfuDNLOAD_IDLE;
-		else
+		} else {
+			DEBUGE("DNBUSY ");
 			dfu_state = DFU_STATE_dfuDNBUSY;
+		}
 		break;
 	case DFU_STATE_dfuMANIFEST_SYNC:
 		dfu_state = DFU_STATE_dfuMANIFEST;
@@ -288,16 +322,18 @@ static void __dfufunc handle_getstate(void)
 int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 		    u_int16_t val, u_int16_t len)
 {
-	int rc;
+	int rc, ret = RET_NOTHING;
 
 	DEBUGE("old_state = %u ", dfu_state);
 
 	switch (dfu_state) {
 	case DFU_STATE_appIDLE:
-		if (req != USB_REQ_DFU_DETACH)
-			goto send_stall;
+		if (req != USB_REQ_DFU_DETACH) {
+			ret = RET_STALL;
+			goto out;
+		}
 		dfu_state = DFU_STATE_appDETACH;
-		goto send_zlp;
+		ret = RET_ZLP;
 		break;
 	case DFU_STATE_appDETACH:
 		switch (req) {
@@ -309,7 +345,8 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		default:
 			dfu_state = DFU_STATE_appIDLE;
-			goto send_stall;
+			ret = RET_STALL;
+			goto out;
 			break;
 		}
 		/* FIXME: implement timer to return to appIDLE */
@@ -319,10 +356,11 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 		case USB_REQ_DFU_DNLOAD:
 			if (len == 0) {
 				dfu_state = DFU_STATE_dfuERROR;
-				goto send_stall;
+				ret = RET_STALL;
+				goto out;
 			}
 			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
-			handle_dnload(val, len);
+			ret = handle_dnload(val, len);
 			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			break;
 		case USB_REQ_DFU_UPLOAD:
@@ -332,7 +370,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		case USB_REQ_DFU_ABORT:
 			/* no zlp? */
-			goto send_zlp;
+			ret = RET_ZLP;
 			break;
 		case USB_REQ_DFU_GETSTATUS:
 			handle_getstatus();
@@ -342,7 +380,8 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		default:
 			dfu_state = DFU_STATE_dfuERROR;
-			goto send_stall;
+			ret = RET_STALL;
+			goto out;
 			break;
 		}
 		break;
@@ -357,21 +396,32 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		default:
 			dfu_state = DFU_STATE_dfuERROR;
-			goto send_stall;
+			ret = RET_STALL;
+			goto out;
 		}
 		break;
 	case DFU_STATE_dfuDNBUSY:
-		dfu_state = DFU_STATE_dfuERROR;
-		goto send_stall;
+		switch (req) {
+		case USB_REQ_DFU_GETSTATUS:
+			/* FIXME: only accept getstatus if bwPollTimeout
+			 * has elapsed */
+			handle_getstatus();
+			break;
+		default:
+			dfu_state = DFU_STATE_dfuERROR;
+			ret = RET_STALL;
+			goto out;
+		}
 		break;
 	case DFU_STATE_dfuDNLOAD_IDLE:
 		switch (req) {
 		case USB_REQ_DFU_DNLOAD:
-			handle_dnload(val, len);
+			ret = handle_dnload(val, len);
+			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			break;
 		case USB_REQ_DFU_ABORT:
 			dfu_state = DFU_STATE_dfuIDLE;
-			goto send_zlp;
+			ret = RET_ZLP;
 			break;
 		case USB_REQ_DFU_GETSTATUS:
 			handle_getstatus();
@@ -381,7 +431,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		default:
 			dfu_state = DFU_STATE_dfuERROR;
-			goto send_stall;
+			ret = RET_STALL;
 			break;
 		}
 		break;
@@ -395,13 +445,13 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		default:
 			dfu_state = DFU_STATE_dfuERROR;
-			goto send_stall;
+			ret = RET_STALL;
 			break;
 		}
 		break;
 	case DFU_STATE_dfuMANIFEST:
 		dfu_state = DFU_STATE_dfuERROR;
-		goto send_stall;
+		ret = RET_STALL;
 		break;
 	case DFU_STATE_dfuMANIFEST_WAIT_RST:
 		/* we should never go here */
@@ -417,7 +467,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 		case USB_REQ_DFU_ABORT:
 			dfu_state = DFU_STATE_dfuIDLE;
 			/* no zlp? */
-			goto send_zlp;
+			ret = RET_ZLP;
 			break;
 		case USB_REQ_DFU_GETSTATUS:
 			handle_getstatus();
@@ -427,7 +477,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		default:
 			dfu_state = DFU_STATE_dfuERROR;
-			goto send_stall;
+			ret = RET_STALL;
 			break;
 		}
 		break;
@@ -443,29 +493,32 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			dfu_state = DFU_STATE_dfuIDLE;
 			status = DFU_STATUS_OK;
 			/* no zlp? */
-			goto send_zlp;
+			ret = RET_ZLP;
 			break;
 		default:
 			dfu_state = DFU_STATE_dfuERROR;
-			goto send_stall;
+			ret = RET_STALL;
 			break;
 		}
 		break;
 	}
 
-	DEBUGE("OK new_state = %u\r\n", dfu_state);
-	return 0;
+out:
+	DEBUGE("new_state = %u\r\n", dfu_state);
 
-send_stall:
-	udp_ep0_send_stall();
-	DEBUGE("STALL new_state = %u\r\n", dfu_state);
-	return -EINVAL;
-
-send_zlp:
-	udp_ep0_send_zlp();
-	DEBUGE("ZLP new_state = %u\r\n", dfu_state);
+	switch (ret) {
+	case RET_NOTHING:
+		break;
+	case RET_ZLP:
+		udp_ep0_send_zlp();
+		break;
+	case RET_STALL:
+		udp_ep0_send_stall();
+		break;
+	}
 	return 0;
 }
+
 static u_int8_t cur_config;
 
 /* USB DFU Device descriptor in DFU mode */
@@ -548,13 +601,13 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 	}
 
 	if (!(csr & AT91C_UDP_RXSETUP)) {
-		DEBUGE("no setup packet ");
+		DEBUGE("no setup packet\r\n");
 		return;
 	}
 
 	DEBUGE("len=%d ", csr >> 16);
 	if (csr >> 16  == 0) {
-		DEBUGE("empty packet ");
+		DEBUGE("empty packet\r\n");
 		return;
 	}
 
