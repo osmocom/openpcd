@@ -24,8 +24,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef DEBUG
-
 #define USART_SYS_LEVEL 4
 void AT91F_DBGU_Ready(void)
 {
@@ -70,7 +68,6 @@ void AT91F_DBGU_Init(void)
 			      DBGU_irq_handler);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SYS);
 
-	AT91F_DBGU_Printk("\n\rsam7dfu (C) 2006 by Harald Welte\n\r");
 }
 
 void AT91F_DBGU_Printk(char *buffer)
@@ -79,16 +76,6 @@ void AT91F_DBGU_Printk(char *buffer)
 		while (!AT91F_US_TxReady((AT91PS_USART) AT91C_BASE_DBGU)) ;
 		AT91F_US_PutChar((AT91PS_USART) AT91C_BASE_DBGU, *buffer++);
 	}
-}
-
-void AT91F_DBGU_Frame(char *buffer)
-{
-	unsigned char len;
-
-	for (len = 0; buffer[len] != '\0'; len++) { }
-
-	AT91F_US_SendFrame((AT91PS_USART) AT91C_BASE_DBGU, 
-			   (unsigned char *)buffer, len, 0, 0);
 }
 
 int AT91F_DBGU_Get(char *val)
@@ -100,6 +87,19 @@ int AT91F_DBGU_Get(char *val)
 		return (-1);
 	}
 }
+
+#ifdef DEBUG
+
+void AT91F_DBGU_Frame(char *buffer)
+{
+	unsigned char len;
+
+	for (len = 0; buffer[len] != '\0'; len++) { }
+
+	AT91F_US_SendFrame((AT91PS_USART) AT91C_BASE_DBGU, 
+			   (unsigned char *)buffer, len, 0, 0);
+}
+
 
 const char *
 hexdump(const void *data, unsigned int len)

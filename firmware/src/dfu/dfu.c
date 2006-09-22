@@ -808,7 +808,6 @@ static __dfufunc void dfu_udp_irq(void)
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 
-	{ volatile int i; for (i=0; i< 0x3ff; i++) ; }
 	led1off();
 }
 
@@ -817,6 +816,7 @@ static void dfu_switch(void)
 {
 	AT91PS_AIC pAic = AT91C_BASE_AIC;
 
+	DEBUGE("\r\nsam7dfu: switching to DFU mode\r\n");
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1);
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2);
 	led1off();
@@ -830,6 +830,9 @@ static void dfu_switch(void)
 	pAic->AIC_SVR[AT91C_ID_UDP] = (unsigned int) &dfu_udp_irq;
 	dfu_state = DFU_STATE_dfuIDLE;
 	dfu_status = DFU_STATUS_OK;
+	//AT91F_DBGU_Printk("You may now start the DFU up/download process\r\n");
+	AT91F_DBGU_Printk("\r\nTHIS DOES NOT WORK YET, "
+			  " PLEASE PUSH THE BUTTON WHILE POWERING UP\r\n");
 }
 
 void __dfufunc dfu_main(void)
@@ -840,11 +843,12 @@ void __dfufunc dfu_main(void)
 	led2off();
 
 	AT91F_DBGU_Init();
-	DEBUGE("sam7dfu startup\r\n");
-
-	AT91F_DBGU_Printk("\n\r");
-	AT91F_DBGU_Printk(COMPILE_DATE " " COMPILE_BY " " COMPILE_SVNREV);
-	AT91F_DBGU_Printk("\n\r");
+	AT91F_DBGU_Printk("\n\r\n\rsam7dfu - AT91SAM7 USB DFU bootloader\n\r"
+		 "(C) 2006 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
+		 "This software is FREE SOFTWARE licensed under GNU GPL\n\r");
+	AT91F_DBGU_Printk("Version " COMPILE_SVNREV 
+			  " compiled " COMPILE_DATE 
+			  " by " COMPILE_BY "\n\r\n\r");
 
 	udp_init();
 
@@ -871,7 +875,7 @@ void __dfufunc dfu_main(void)
 
 	flash_init();
 
-	DEBUGE("sam7dfu entering main loop\r\n");
+	AT91F_DBGU_Printk("You may now start the DFU up/download process\r\n");
 	/* do nothing, since all of DFU is interrupt driven */
 	while (1) ;
 }
