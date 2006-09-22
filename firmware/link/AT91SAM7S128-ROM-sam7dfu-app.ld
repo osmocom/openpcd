@@ -2,8 +2,8 @@
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 0x00020000
-  DATA (rw)  : ORIGIN = 0x00200000, LENGTH = 0x00008000
+  FLASH (rx) : ORIGIN = 0x00104000, LENGTH = (0x00020000 - 0x4000)
+  DATA (rw)  : ORIGIN = 0x00200028, LENGTH = (0x00008000 - 0x28)
   STACK (rw) : ORIGIN = 0x00208000, LENGTH = 0x00000000
 }
 
@@ -14,31 +14,19 @@ SECTIONS
 {
 	. = 0x00000000;
 	/* first section is .text which is used for code */
-	.text 0x00000000: AT ( 0x00000000 ) { 
-		* (.reset)
+	.text 0x00104000: AT ( 0x00000000 ) { 
+  		src/start/Cstartup_app.o (.text)
 		* (.text)
 		* (.rodata*)
-		/* * (.dfu.functab) */ /* for debugging */
   		. = ALIGN(4);
   	} >FLASH
 
   	_etext = . ;
 	PROVIDE (etext = .);
 
-	.data.shared (0x00200020): AT (LOADADDR(.text) + SIZEOF(.text)) {
-		_data_shared = . ;
-		* (.data.shared)
-		. = ALIGN(4);
-	} >DATA
-
-	_edata_shared = . ;
-	_data_flash = LOADADDR(.data.shared) + SIZEOF(.data.shared);
-
 	/* 0x00200000 ... */
-	.data (0x00200000 + SIZEOF(.text)): AT 
-		( LOADADDR(.text) + SIZEOF(.text) + SIZEOF(.data.shared)) {
+	.data 0x00200028: AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.text) ) {
   		_data = . ;
-		* (.vectram)
   		* (.data)
   		. = ALIGN(4);
   	} >DATA
@@ -46,15 +34,6 @@ SECTIONS
   	_edata = . ;
 	PROVIDE (edata = .);
 	
-	/* dfu.functab addresses are valid as long as DFU is in flash, i.e.
-	 * only while application calls those functions.  Once executing in
-	 * DFU mode, we are re-located to ram */
-	.dfu.functab 0x00003fd0: AT ( ADDR(.dfu.functab) - ADDR(.text) ) {
-  		*(.dfu.functab)
-  		. = ALIGN(4096);
-  	} >FLASH
-
-
 	/* .bss section which is used for uninitialized data */
 	.bss : {
 		__bss_start = . ;

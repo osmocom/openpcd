@@ -65,7 +65,6 @@ void flash_init(void)
 {
 	unsigned int fmcn = AT91F_MC_EFC_ComputeFMCN(MCK);
 
-	AT91F_MC_EFC_CfgModeReg(AT91C_BASE_MC, fmcn << 16 | AT91C_MC_FWS_3FWS |
-				AT91C_MC_FRDY | AT91C_MC_LOCKE | 
-				AT91C_MC_PROGE);
+	AT91F_MC_EFC_CfgModeReg(AT91C_BASE_MC, (fmcn&0xff) << 16 | 
+				AT91C_MC_FWS_3FWS);
 }

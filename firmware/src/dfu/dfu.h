@@ -55,7 +55,7 @@
 #define __dfufunc 
 #define __dfustruct const
 
-#define DFU_API_LOCATION	((const struct dfuapi *) 0x00100fd0)
+#define DFU_API_LOCATION	((const struct dfuapi *) 0x00103fd0)
 
 struct _dfu_desc {
 	struct usb_config_descriptor ucfg;

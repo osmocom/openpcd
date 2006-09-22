@@ -2,8 +2,8 @@
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x00101000, LENGTH = (0x00040000 - 0x1000)
-  DATA (rw)  : ORIGIN = 0x00200024, LENGTH = (0x00010000 - 0x24)
+  FLASH (rx) : ORIGIN = 0x00104000, LENGTH = (0x00040000 - 0x4000)
+  DATA (rw)  : ORIGIN = 0x00200028, LENGTH = (0x00010000 - 0x28)
   STACK (rw) : ORIGIN = 0x00210000, LENGTH = 0x00000000
 }
 
@@ -14,7 +14,7 @@ SECTIONS
 {
 	. = 0x00000000;
 	/* first section is .text which is used for code */
-	.text 0x00101000: AT ( 0x00000000 ) { 
+	.text 0x00104000: AT ( 0x00000000 ) { 
   		src/start/Cstartup_app.o (.text)
 		* (.text)
 		* (.rodata*)
@@ -25,7 +25,7 @@ SECTIONS
 	PROVIDE (etext = .);
 
 	/* 0x00200000 ... */
-	.data 0x00200024: AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.text) ) {
+	.data 0x00200028: AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.text) ) {
   		_data = . ;
   		* (.data)
   		. = ALIGN(4);

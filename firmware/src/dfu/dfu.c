@@ -32,7 +32,9 @@
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
-#define SAM7DFU_SIZE	0x1000
+#include <compile.h>
+
+#define SAM7DFU_SIZE	0x4000
 
 /* If debug is enabled, we need to access debug functions from flash
  * and therefore have to omit flashing */
@@ -56,6 +58,12 @@
 #define RET_NOTHING	0
 #define RET_ZLP		1
 #define RET_STALL	2
+
+#define led1on()	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1)
+#define led1off()	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1)
+
+#define led2on()	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2)
+#define led2off()	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2)
 
 static void __dfufunc udp_init(void)
 {
@@ -185,8 +193,8 @@ static void __dfufunc udp_ep0_send_stall(void)
 }
 
 
-static u_int8_t status;
 static u_int8_t *ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
+static __dfudata u_int8_t dfu_status;
 static __dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
 static u_int32_t pagebuf32[AT91C_IFLASH_PAGE_SIZE/4];
 
@@ -203,14 +211,14 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 		 * DFU protocol violation */
 		DEBUGP("length exceeds flash page size ");
 	    	dfu_state = DFU_STATE_dfuERROR;
-		status = DFU_STATUS_errADDRESS;
+		dfu_status = DFU_STATUS_errADDRESS;
 		return RET_STALL;
 	}
 	if (len & 0x3) {
 		/* reject non-four-byte-aligned writes */
 		DEBUGP("not four-byte-aligned length ");
 		dfu_state = DFU_STATE_dfuERROR;
-		status = DFU_STATUS_errADDRESS;
+		dfu_status = DFU_STATUS_errADDRESS;
 		return RET_STALL;
 	}
 	if (len == 0) {
@@ -222,7 +230,7 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 	if (ptr + len > (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE) {
 		DEBUGP("end of write exceeds flash end ");
 		dfu_state = DFU_STATE_dfuERROR;
-		status = DFU_STATUS_errADDRESS;
+		dfu_status = DFU_STATUS_errADDRESS;
 		return RET_STALL;
 	}
 
@@ -256,7 +264,7 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 	if (len > AT91C_IFLASH_PAGE_SIZE) {
 		/* Too big */
 		dfu_state = DFU_STATE_dfuERROR;
-		status = DFU_STATUS_errADDRESS;
+		dfu_status = DFU_STATUS_errADDRESS;
 		udp_ep0_send_stall();
 		return -EINVAL;
 	}
@@ -282,11 +290,11 @@ static __dfufunc void handle_getstatus(void)
 	case DFU_STATE_dfuDNBUSY:
 		if (fsr & AT91C_MC_PROGE) {
 			DEBUGE("errPROG ");
-			status = DFU_STATUS_errPROG;
+			dfu_status = DFU_STATUS_errPROG;
 			dfu_state = DFU_STATE_dfuERROR;
 		} else if (fsr & AT91C_MC_LOCKE) {
 			DEBUGE("errWRITE ");
-			status = DFU_STATUS_errWRITE;
+			dfu_status = DFU_STATUS_errWRITE;
 			dfu_state = DFU_STATE_dfuERROR;
 		} else if (fsr & AT91C_MC_FRDY) {
 			DEBUGE("DNLOAD_IDLE ");
@@ -302,7 +310,7 @@ static __dfufunc void handle_getstatus(void)
 	}
 
 	/* send status response */
-	dstat.bStatus = status;
+	dstat.bStatus = dfu_status;
 	dstat.bState = dfu_state;
 	dstat.iString = 0;
 	/* FIXME: set dstat.bwPollTimeout */
@@ -328,12 +336,21 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 
 	switch (dfu_state) {
 	case DFU_STATE_appIDLE:
-		if (req != USB_REQ_DFU_DETACH) {
-			ret = RET_STALL;
+		switch (req) {
+		case USB_REQ_DFU_GETSTATUS:
+			handle_getstatus();
+			break;
+		case USB_REQ_DFU_GETSTATE:
+			handle_getstate();
+			break;
+		case USB_REQ_DFU_DETACH:
+			dfu_state = DFU_STATE_appDETACH;
+			ret = RET_ZLP;
 			goto out;
+			break;
+		default:
+			ret = RET_STALL;
 		}
-		dfu_state = DFU_STATE_appDETACH;
-		ret = RET_ZLP;
 		break;
 	case DFU_STATE_appDETACH:
 		switch (req) {
@@ -491,7 +508,7 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 			break;
 		case USB_REQ_DFU_CLRSTATUS:
 			dfu_state = DFU_STATE_dfuIDLE;
-			status = DFU_STATUS_OK;
+			dfu_status = DFU_STATUS_OK;
 			/* no zlp? */
 			ret = RET_ZLP;
 			break;
@@ -768,8 +785,10 @@ static __dfufunc void dfu_udp_irq(void)
 {
 	AT91PS_UDP pUDP = AT91C_BASE_UDP;
 	AT91_REG isr = pUDP->UDP_ISR;
+	led1on();
 
 	if (isr & AT91C_UDP_ENDBUSRES) {
+		led2on();
 		pUDP->UDP_IER = AT91C_UDP_EPINT0;
 		/* reset all endpoints */
 		pUDP->UDP_RSTEP = (unsigned int)-1;
@@ -788,6 +807,9 @@ static __dfufunc void dfu_udp_irq(void)
 	pUDP->UDP_ICR = isr;
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
+
+	{ volatile int i; for (i=0; i< 0x3ff; i++) ; }
+	led1off();
 }
 
 /* this is only called once before DFU mode, no __dfufunc required */
@@ -795,16 +817,34 @@ static void dfu_switch(void)
 {
 	AT91PS_AIC pAic = AT91C_BASE_AIC;
 
-	DEBUGE("Switching to DFU mode ");
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2);
+	led1off();
+	led2off();
+
+	flash_init();
+
+	/* disable all non-usb (and non-dbgu) interrupts */
+	pAic->AIC_IDCR = ~((1 << AT91C_ID_UDP)|(1 << AT91C_ID_SYS));
 
 	pAic->AIC_SVR[AT91C_ID_UDP] = (unsigned int) &dfu_udp_irq;
 	dfu_state = DFU_STATE_dfuIDLE;
+	dfu_status = DFU_STATUS_OK;
 }
 
 void __dfufunc dfu_main(void)
 {
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2);
+	led1off();
+	led2off();
+
 	AT91F_DBGU_Init();
 	DEBUGE("sam7dfu startup\r\n");
+
+	AT91F_DBGU_Printk("\n\r");
+	AT91F_DBGU_Printk(COMPILE_DATE " " COMPILE_BY " " COMPILE_SVNREV);
+	AT91F_DBGU_Printk("\n\r");
 
 	udp_init();
 

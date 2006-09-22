@@ -48,7 +48,7 @@ SECTIONS
 	/* dfu.functab addresses are valid as long as DFU is in flash, i.e.
 	 * only while application calls those functions.  Once executing in
 	 * DFU mode, we are re-located to ram */
-	.dfu.functab 0x00010fd0: AT ( ADDR(.dfu.functab) - ADDR(.text) ) {
+	.dfu.functab 0x00003fd0: AT ( ADDR(.dfu.functab) - ADDR(.text) ) {
   		*(.dfu.functab)
   		. = ALIGN(4096);
   	} >FLASH
