@@ -492,7 +492,7 @@ $(COBJ) : %.o : %.c
 	$(CC) -c $(ALL_CFLAGS) $(CONLYFLAGS) $< -o $@ 
 
 # Compile: create object files from C source files. ARM-only
-$(COBJARM) : %.o : %.c
+$(COBJARM) : %.o : %.c include/compile.h
 	@echo
 	@echo $(MSG_COMPILING_ARM) $<
 	$(CC) -c $(ALL_CFLAGS) $(CONLYFLAGS) $< -o $@ 
@@ -517,7 +517,7 @@ $(CPPOBJARM) : %.o : %.cpp
 
 
 # Assemble: create object files from assembler source files. ARM/Thumb
-$(AOBJ) : %.o : %.S
+$(AOBJ) : %.o : %.S 
 	@echo
 	@echo $(MSG_ASSEMBLING) $<
 	$(CC) -c $(ALL_ASFLAGS) $< -o $@

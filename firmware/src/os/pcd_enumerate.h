@@ -7,6 +7,13 @@
 #include "openpcd.h"
 #include <dfu/dfu.h>
 
+#define AT91C_EP_OUT 1
+#define AT91C_EP_OUT_SIZE 0x40
+#define AT91C_EP_IN  2
+#define AT91C_EP_IN_SIZE 0x40
+#define AT91C_EP_INT  3
+
+
 struct req_ctx;
 
 extern void udp_open(void);

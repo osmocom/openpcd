@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <compile.h>
 #include <include/lib_AT91SAM7.h>
 #include <os/dbgu.h>
 #include <os/led.h>

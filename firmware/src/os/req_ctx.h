@@ -1,6 +1,9 @@
 #ifndef _REQ_CTX_H
 #define _REQ_CTX_H
 
+#define RCTX_SIZE_LARGE	2048
+#define RCTX_SIZE_SMALL	64
+
 #define MAX_HDRSIZE	sizeof(struct openpcd_hdr)
 #define MAX_REQSIZE	(64-MAX_HDRSIZE)
 
@@ -31,6 +34,8 @@ struct req_ctx {
 #define RCTX_STATE_SSC_RX_BUSY		0x20
 
 #define RCTX_STATE_PIOIRQ_BUSY		0x80
+
+#define RCTX_STATE_INVALID		0xff
 
 extern struct req_ctx *req_ctx_find_get(int large, unsigned long old_state, unsigned long new_state);
 extern struct req_ctx *req_ctx_find_busy(void);

@@ -38,8 +38,6 @@
 #include <os/req_ctx.h>
 #include "rc632.h"
 
-#define ALWAYS_RESPOND
-
 #define NOTHING  do {} while(0)
 
 #if 0
@@ -50,7 +48,7 @@
 #define DEBUGPSPIIRQ(x, args...) NOTHING
 #endif
 
-#if 0
+#if 1
 #define DEBUG632 DEBUGPCRF
 #else
 #define DEBUG632(x, args ...)	NOTHING
@@ -266,7 +264,7 @@ int rc632_fifo_read(struct rfid_asic_handle *hdl,
 
 	DEBUG632("[FIFO] => %s", hexdump(data, rx_len-1));
 
-	return 0;
+	return rx_len-1;
 }
 
 int rc632_set_bits(struct rfid_asic_handle *hdl,
@@ -403,6 +401,9 @@ static int rc632_usb_in(struct req_ctx *rctx)
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 	u_int16_t len = rctx->tot_len-sizeof(*poh);
 
+	/* initialize transmit length to header length */
+	rctx->tot_len = sizeof(*poh);
+
 	switch (poh->cmd) {
 	case OPENPCD_CMD_READ_REG:
 		rc632_reg_read(RAH, poh->reg, &poh->val);
@@ -415,6 +416,7 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		poh->flags &= OPENPCD_FLAG_RESPOND;
 		{
 		u_int16_t req_len = poh->val, remain_len = req_len, pih_len;
+#if 0
 		if (req_len > MAX_PAYLOAD_LEN) {
 			pih_len = MAX_PAYLOAD_LEN;
 			remain_len -= pih_len;
@@ -443,11 +445,12 @@ static int rc632_usb_in(struct req_ctx *rctx)
 			/* don't set state of second rctx, main function
 			 * body will do this after switch statement */
 		} else {
-			rc632_fifo_read(RAH, req_len, poh->data);
-			rctx->tot_len += pih_len;
+#endif
+			poh->val = rc632_fifo_read(RAH, req_len, poh->data);
+			rctx->tot_len += poh->val;
 			DEBUGP("READ FIFO(len=%u)=%s ", poh->val,
 				hexdump(poh->data, poh->val));
-		}
+		//}
 		}
 		break;
 	case OPENPCD_CMD_WRITE_REG:

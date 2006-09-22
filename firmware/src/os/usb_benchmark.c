@@ -21,6 +21,7 @@
 #include <string.h>
 #include <lib_AT91SAM7.h>
 #include <os/led.h>
+#include <os/dbgu.h>
 #include <os/pcd_enumerate.h>
 #include <os/usb_handler.h>
 #include <os/req_ctx.h>
@@ -49,18 +50,30 @@ static void usbtest_tx_transfer(unsigned int num_pkts)
 static int usbtest_rx(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
+	struct req_ctx *rctx_new;
 	int i;
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_USBTEST_IN:
+		DEBUGP("USBTEST_IN ");
 		/* test bulk in pipe */
-		for (i = 0; i < poh->reg; i++) {
-			usbtest_tx_transfer(poh->val);
-			led_toggle(2);
+		if (poh->val > RCTX_SIZE_LARGE/AT91C_EP_OUT_SIZE)
+			poh->val = RCTX_SIZE_LARGE/AT91C_EP_OUT_SIZE;
+		rctx_new = req_ctx_find_get(1, RCTX_STATE_FREE,
+					    RCTX_STATE_MAIN_PROCESSING);
+		if (!rctx_new) {
+			DEBUGP("NO RCTX ");
+			return USB_ERR(0);
 		}
+
+		rctx_new->tot_len = poh->val * AT91C_EP_OUT_SIZE;
+		req_ctx_set_state(rctx_new, RCTX_STATE_UDP_EP2_PENDING);
+		led_toggle(2);
 		break;
 	case OPENPCD_CMD_USBTEST_OUT:
+		DEBUGP("USBTEST_IN ");
 		/* test bulk out pipe */
+		return USB_ERR(USB_ERR_CMD_NOT_IMPL);
 		break;
 	}
 

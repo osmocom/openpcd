@@ -5,15 +5,11 @@
 #include <errno.h>
 #include <string.h>
 #include <lib_AT91SAM7.h>
-#include "openpcd.h"
-#include "rc632.h"
-#include "dbgu.h"
-#include "led.h"
-#include "pwm.h"
-#include "tc.h"
-#include "ssc.h"
-#include "pcd_enumerate.h"
-#include "usb_handler.h"
+#include <openpcd.h>
+#include <os/dbgu.h>
+#include <os/led.h>
+#include <os/pcd_enumerate.h>
+#include <os/usb_handler.h>
 
 static void help(void)
 {
@@ -37,7 +33,7 @@ void _init_func(void)
 void _main_func(void)
 {
 	/* first we try to get rid of pending to-be-sent stuff */
-	//usb_out_process();
+	usb_out_process();
 
 	/* next we deal with incoming reqyests from USB EP1 (OUT) */
 	usb_in_process();

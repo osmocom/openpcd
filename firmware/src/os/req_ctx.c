@@ -28,9 +28,6 @@
 
 /* FIXME: locking, FIFO order processing */
 
-#define RCTX_SIZE_LARGE	2048
-#define RCTX_SIZE_SMALL	64
-
 #define NUM_RCTX_SMALL 8
 #define NUM_RCTX_LARGE 3
 

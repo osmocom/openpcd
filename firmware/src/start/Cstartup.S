@@ -341,7 +341,7 @@ LoopZI:         CMP     R1, R2
 		/* prepare c function call to main */
 		mov	r0, #0	/* argc = 0 */
 		ldr	lr, =exit
-		ldr	r10, =0x00101000
+		ldr	r10, =0x00104000
 
 #ifdef CONFIG_DFU_SWITCH
 		/* check whether bootloader button is pressed */

@@ -146,6 +146,7 @@ void AT91F_DBGU_Init(void)
 	AT91F_DBGU_Printk(" ");
 	AT91F_DBGU_Printk(opcd_version.by);
 	AT91F_DBGU_Printk("\n\r");
+	AT91F_DBGU_Printk
 	    ("\n\r-I- OpenPCD test mode\n\r 0) Set Pull-up 1) Clear Pull-up "
 	     "2) Toggle LED1 3) Toggle LED2 4) Test RC632\n\r"
 	     "5) Read RxWait 6) Write RxWait 7) Dump RC632 Regs\n\r");

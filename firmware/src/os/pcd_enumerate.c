@@ -40,16 +40,31 @@
 #include "../openpcd.h"
 #include <os/dbgu.h>
 
-#define DEBUG_UDP_IRQ
+//#define DEBUG_UDP_IRQ
+#define DEBUG_UDP_IRQ_IN
+//#define DEBUG_UDP_IRQ_OUT
 #define DEBUG_UDP_EP0
 
-#define CONFIG_DFU
+#ifdef DEBUG_UDP_IRQ
+#define DEBUGI(x, args ...)	DEBUGP(x, ## args)
+#else
+#define DEBUGI(x, args ...)	do { } while (0)
+#endif
 
-#define AT91C_EP_OUT 1
-#define AT91C_EP_OUT_SIZE 0x40
-#define AT91C_EP_IN  2
-#define AT91C_EP_IN_SIZE 0x40
-#define AT91C_EP_INT  3
+#ifdef DEBUG_UDP_IRQ_IN
+#define DEBUGII(x, args ...)	DEBUGP(x, ## args)
+#else
+#define DEBUGII(x, args ...)	do { } while (0)
+#endif
+
+#ifdef DEBUG_UDP_IRQ_OUT
+#define DEBUGIO(x, args ...)	DEBUGP(x, ## args)
+#else
+#define DEBUGIO(x, args ...)	do { } while (0)
+#endif
+
+
+#define CONFIG_DFU
 
 #ifdef CONFIG_DFU
 static const struct dfuapi *dfu = DFU_API_LOCATION;
@@ -157,6 +172,38 @@ static const struct usb_string_descriptor string0 = {
 	.wData[0] = 0x0409,	/* English */
 };
 
+struct epstate {
+	u_int32_t state_busy;
+	u_int32_t state_pending;
+};
+
+static const struct epstate epstate[] = {
+	[0] =	{ .state_busy = RCTX_STATE_INVALID },
+	[1] =	{ .state_busy = RCTX_STATE_INVALID },
+	[2] =	{ .state_busy = RCTX_STATE_UDP_EP2_BUSY,
+		  .state_pending = RCTX_STATE_UDP_EP2_PENDING },
+	[3] =	{ .state_busy = RCTX_STATE_UDP_EP3_BUSY,
+		  .state_pending = RCTX_STATE_UDP_EP3_PENDING },
+};
+
+static void reset_ep(unsigned int ep)
+{
+	AT91PS_UDP pUDP = upcd.pUdp;
+	struct req_ctx *rctx;
+
+	//pUDP->UDP_CSR[ep] = AT91C_UDP_EPEDS;
+
+	atomic_set(&upcd.ep[ep].pkts_in_transit, 0);
+
+	/* free all currently transmitting contexts */
+	while (rctx = req_ctx_find_get(0, epstate[ep].state_busy,
+				       RCTX_STATE_FREE)) {}
+
+	pUDP->UDP_RSTEP |= (1 << ep);
+	pUDP->UDP_RSTEP &= ~(1 << ep);
+
+	upcd.ep[ep].incomplete.rctx = NULL;
+}
 
 static void udp_ep0_handler(void);
 
@@ -166,7 +213,7 @@ void udp_unthrottle(void)
 	pUDP->UDP_IER = AT91C_UDP_EPINT1;
 }
 
-int udp_refill_ep(int ep)
+static int __udp_refill_ep(int ep)
 {
 	u_int16_t i;
 	AT91PS_UDP pUDP = upcd.pUdp;
@@ -175,13 +222,17 @@ int udp_refill_ep(int ep)
 
 	/* If we're not configured by the host yet, there is no point
 	 * in trying to send data to it... */
-	if (!upcd.cur_config)
+	if (!upcd.cur_config) {
+		DEBUGPCR("-ENXIO");
 		return -ENXIO;
+	}
 	
 	/* If there are already two packets in transit, the DPR of
 	 * the SAM7 UDC doesn't have space for more data */
-	if (atomic_read(&upcd.ep[ep].pkts_in_transit) == 2)
+	if (atomic_read(&upcd.ep[ep].pkts_in_transit) == 2) {
+		DEBUGPCR("-EBUSY");
 		return -EBUSY;
+	}
 
 	/* If we have an incompletely-transmitted req_ctx (>EP size),
 	 * we need to transmit the rest and finish the transaction */
@@ -189,28 +240,24 @@ int udp_refill_ep(int ep)
 		rctx = upcd.ep[ep].incomplete.rctx;
 		start = upcd.ep[ep].incomplete.bytes_sent;
 	} else {
-		unsigned int state, state_busy;
-		if (ep == 2) {
-			state = RCTX_STATE_UDP_EP2_PENDING;
-			state_busy = RCTX_STATE_UDP_EP2_BUSY;
-		} else {
-			state = RCTX_STATE_UDP_EP3_PENDING;
-			state_busy = RCTX_STATE_UDP_EP3_BUSY;
-		}
-
 		/* get pending rctx and start transmitting from zero */
-		rctx = req_ctx_find_get(0, state, state_busy);
+		rctx = req_ctx_find_get(0, epstate[ep].state_pending, 
+					epstate[ep].state_busy);
 		if (!rctx)
 			return 0;
 		start = 0;
+
+		upcd.ep[ep].incomplete.bytes_sent = 0;
 	}
 
 	if (rctx->tot_len - start <= AT91C_EP_IN_SIZE)
 		end = rctx->tot_len;
 	else
-		end = AT91C_EP_IN_SIZE;
+		end = start + AT91C_EP_IN_SIZE;
 
 	/* fill FIFO/DPR */
+	DEBUGII("RCTX_tx(ep=%u,ctx=%u):%u ", ep, req_ctx_num(rctx),
+		end - start);
 	for (i = start; i < end; i++) 
 		pUDP->UDP_FDR[ep] = rctx->data[i];
 
@@ -219,22 +266,40 @@ int udp_refill_ep(int ep)
 		pUDP->UDP_CSR[ep] |= AT91C_UDP_TXPKTRDY;
 	}
 
-	/* Increment the number of bytes sent in the current large
-	 * context, if any */
-	if (start != 0)
-		upcd.ep[ep].incomplete.bytes_sent += end-start;
+	if ((end - start < AT91C_EP_OUT_SIZE) ||
+	    (((end - start) == 0) && end && (rctx->tot_len % AT91C_EP_OUT_SIZE) == 0)) {
+		/* CASE 1: return context to pool, if
+		 * - packet transfer < AT91C_EP_OUT_SIZE
+		 * - after ZLP of transfer == AT91C_EP_OUT_SIZE
+		 * - after ZLP of transfer % AT91C_EP_OUT_SIZE == 0
+		 * - after last packet of transfer % AT91C_EP_OUT_SIZE != 0
+		 */
+		DEBUGII("RCTX(ep=%u)_tx_done ", ep);
+		upcd.ep[ep].incomplete.rctx = NULL;
+		req_ctx_put(rctx);
+	} else {
+		/* CASE 2: mark transfer as incomplete, if
+		 * - after data of transfer == AT91C_EP_OUT_SIZE
+		 * - after data of transfer > AT91C_EP_OUT_SIZE
+		 * - after last packet of transfer % AT91C_EP_OUT_SIZE == 0
+		 */
+		upcd.ep[ep].incomplete.rctx = rctx;
+		upcd.ep[ep].incomplete.bytes_sent += end - start;
+		DEBUGII("RCTX(ep=%u)_tx_cont ", ep);
+	}
 
-	/* return rctx to pool of free contexts */
-	req_ctx_put(rctx);
-
-	return 0;
+	return 1;
 }
 
-#ifdef DEBUG_UDP_IRQ
-#define DEBUGI(x, args ...)	DEBUGP(x, ## args)
-#else
-#define DEBUGI(x, args ...)	do { } while (0)
-#endif
+int udp_refill_ep(int ep)
+{
+	unsigned long flags;
+	int ret;
+
+	local_irq_save(flags);
+	ret = __udp_refill_ep(ep);
+	local_irq_restore(flags);
+}
 
 static void udp_irq(void)
 {
@@ -256,11 +321,16 @@ static void udp_irq(void)
 		/* Configure endpoint 0 */
 		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
 		upcd.cur_config = 0;
+
+		reset_ep(1);
+		reset_ep(2);
+		reset_ep(3);
 		
 #ifdef CONFIG_DFU
 		if (*dfu->dfu_state == DFU_STATE_appDETACH) {
 			/* now we need to switch to DFU mode */
 			dfu->dfu_switch();
+			goto out;
 		}
 #endif
 	}
@@ -271,52 +341,89 @@ static void udp_irq(void)
 	}
 	if (isr & AT91C_UDP_EPINT1) {
 		u_int32_t cur_rcv_bank = upcd.cur_rcv_bank;
+		u_int16_t i, pkt_size;
+		struct req_ctx *rctx;
+
 		csr = pUDP->UDP_CSR[1];
+		pkt_size = csr >> 16;
+
 		DEBUGI("EP1INT(Out, CSR=0x%08x) ", csr);
 		if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK1)
-			DEBUGI("cur_bank=1 ");
+			DEBUGIO("cur_bank=1 ");
 		else if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
-			DEBUGI("cur_bank=0 ");
+			DEBUGIO("cur_bank=0 ");
 		else
-			DEBUGI("cur_bank INVALID ");
+			DEBUGIO("cur_bank INVALID ");
 
 		if (csr & AT91C_UDP_RX_DATA_BK1)
-			DEBUGI("BANK1 ");
+			DEBUGIO("BANK1 ");
 		if (csr & AT91C_UDP_RX_DATA_BK0)
-			DEBUGI("BANK0 ");
+			DEBUGIO("BANK0 ");
 
-		if (csr & cur_rcv_bank) {
-			u_int16_t pkt_recv = 0;
-			u_int16_t pkt_size = csr >> 16;
-			struct req_ctx *rctx = 
-				req_ctx_find_get(0, RCTX_STATE_FREE,
+		if (!(csr & cur_rcv_bank))
+			goto cont_ep2;
+
+		if (upcd.ep[1].incomplete.rctx) {
+			DEBUGIO("continue_incompl_RCTX ");
+			rctx = upcd.ep[1].incomplete.rctx;
+		} else {
+			/* allocate new req_ctx  */
+			DEBUGIO("alloc_new_RCTX ");
+		
+			/* whether to get a big or a small req_ctx */
+			if (pkt_size >= AT91C_EP_IN_SIZE)
+				rctx = req_ctx_find_get(1, RCTX_STATE_FREE,
+						 RCTX_STATE_UDP_RCV_BUSY);
+			else 
+				rctx = req_ctx_find_get(0, RCTX_STATE_FREE,
 						 RCTX_STATE_UDP_RCV_BUSY);
 
-			if (rctx) {
-				rctx->tot_len = pkt_size;
-				while (pkt_size--)
-					rctx->data[pkt_recv++] = pUDP->UDP_FDR[1];
-				pUDP->UDP_CSR[1] &= ~cur_rcv_bank;
-				if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
-					cur_rcv_bank = AT91C_UDP_RX_DATA_BK1;
-				else
-					cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
-				upcd.cur_rcv_bank = cur_rcv_bank;
-				DEBUGI("rctxdump(%s) ", hexdump(rctx->data, rctx->tot_len));
-				req_ctx_set_state(rctx, RCTX_STATE_UDP_RCV_DONE);
-				DEBUGI("RCTX=%u ", req_ctx_num(rctx));
-			} else {
+			if (!rctx) {
 				/* disable interrupts for now */
 				pUDP->UDP_IDR = AT91C_UDP_EPINT1;
 				DEBUGP("NO_RCTX_AVAIL! ");
+				goto cont_ep2;
 			}
+			rctx->tot_len = 0;
+		}
+		DEBUGIO("RCTX=%u ", req_ctx_num(rctx));
+
+		if (rctx->size - rctx->tot_len < pkt_size) {
+			DEBUGIO("RCTX too small, truncating !!!\n");
+			pkt_size = rctx->size - rctx->tot_len;
+		}
+
+		for (i = 0; i < pkt_size; i++)
+			rctx->data[rctx->tot_len++] = pUDP->UDP_FDR[1];
+
+		pUDP->UDP_CSR[1] &= ~cur_rcv_bank;
+
+		/* toggle current receive bank */
+		if (cur_rcv_bank == AT91C_UDP_RX_DATA_BK0)
+			cur_rcv_bank = AT91C_UDP_RX_DATA_BK1;
+		else
+			cur_rcv_bank = AT91C_UDP_RX_DATA_BK0;
+		upcd.cur_rcv_bank = cur_rcv_bank;
+
+		DEBUGIO("rctxdump(%s) ", hexdump(rctx->data, rctx->tot_len));
+
+		/* if this is the last packet in transfer, hand rctx up the
+		 * stack */
+		if (pkt_size < AT91C_EP_IN_SIZE) {
+			DEBUGIO("RCTX_rx_done ");
+			req_ctx_set_state(rctx, RCTX_STATE_UDP_RCV_DONE);
+			upcd.ep[1].incomplete.rctx = NULL;
+		} else {
+			DEBUGIO("RCTX_rx_cont ");
+			upcd.ep[1].incomplete.rctx = rctx;
 		}
 	}
+cont_ep2:
 	if (isr & AT91C_UDP_EPINT2) {
 		csr = pUDP->UDP_CSR[2];
 		DEBUGI("EP2INT(In, CSR=0x%08x) ", csr);
 		if (csr & AT91C_UDP_TXCOMP) {
-			DEBUGI("ACK_TX_COMP ");
+			DEBUGII("ACK_TX_COMP ");
 			/* acknowledge TX completion */
 			pUDP->UDP_CSR[2] &= ~AT91C_UDP_TXCOMP;
 			while (pUDP->UDP_CSR[2] & AT91C_UDP_TXCOMP) ;
@@ -325,12 +432,12 @@ static void udp_irq(void)
 			if (atomic_dec_return(&upcd.ep[2].pkts_in_transit) == 1)
 				pUDP->UDP_CSR[2] |= AT91C_UDP_TXPKTRDY;
 
-			udp_refill_ep(2);
+			__udp_refill_ep(2);
 		}
 	}
 	if (isr & AT91C_UDP_EPINT3) {
 		csr = pUDP->UDP_CSR[3];
-		DEBUGI("EP3INT(Interrupt, CSR=0x%08x) ", csr);
+		DEBUGII("EP3INT(Interrupt, CSR=0x%08x) ", csr);
 		/* Transmit has completed, re-fill from pending rcts for EP3 */
 		if (csr & AT91C_UDP_TXCOMP) {
 			pUDP->UDP_CSR[3] &= ~AT91C_UDP_TXCOMP;
@@ -340,7 +447,7 @@ static void udp_irq(void)
 			if (atomic_dec_return(&upcd.ep[3].pkts_in_transit) == 1)
 				pUDP->UDP_CSR[3] |= AT91C_UDP_TXPKTRDY;
 
-			udp_refill_ep(3);
+			__udp_refill_ep(3);
 		}
 	}
 	if (isr & AT91C_UDP_RXSUSP) {
@@ -367,7 +474,7 @@ static void udp_irq(void)
 		DEBUGI("WAKEUP ");
 		/* FIXME: implement suspend/resume */
 	}
-
+out:
 	DEBUGI("END\r\n");
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 }
@@ -605,37 +712,7 @@ static void udp_ep0_handler(void)
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
 			struct req_ctx *rctx;
-			if (wIndex == 1) {
-				pUDP->UDP_CSR[1] =
-				    (AT91C_UDP_EPEDS |
-				     AT91C_UDP_EPTYPE_BULK_OUT);
-				pUDP->UDP_RSTEP |= AT91C_UDP_EP1;
-				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP1;
-			}
-			else if (wIndex == 2) {
-				pUDP->UDP_CSR[2] =
-				    (AT91C_UDP_EPEDS |
-				     AT91C_UDP_EPTYPE_BULK_IN);
-				pUDP->UDP_RSTEP |= AT91C_UDP_EP2;
-				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP2;
-
-				/* free all currently transmitting contexts */
-				while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_EP2_BUSY,
-							       RCTX_STATE_FREE)) {}
-				atomic_set(&upcd.ep[wIndex].pkts_in_transit, 0);
-			}
-			else if (wIndex == 3) {
-				pUDP->UDP_CSR[3] =
-				    (AT91C_UDP_EPEDS |
-				     AT91C_UDP_EPTYPE_INT_IN);
-				pUDP->UDP_RSTEP |= AT91C_UDP_EP3;
-				pUDP->UDP_RSTEP &= ~AT91C_UDP_EP3;
-
-				/* free all currently transmitting contexts */
-				while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_EP3_BUSY,
-							       RCTX_STATE_FREE)) {}
-				atomic_set(&upcd.ep[wIndex].pkts_in_transit, 0);
-			}
+			reset_ep(wIndex);
 			udp_ep0_send_zlp();
 		} else
 			udp_ep0_send_stall();
@@ -645,10 +722,12 @@ static void udp_ep0_handler(void)
 		udp_ep0_send_stall();
 		break;
 	default:
-		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", bRequest, bmRequestType);
+		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", 
+			bRequest, bmRequestType);
 #ifdef CONFIG_DFU
 		if ((bmRequestType & 0x3f) == USB_TYPE_DFU) {
-			dfu->dfu_ep0_handler(bmRequestType, bRequest, wValue, wLength);
+			dfu->dfu_ep0_handler(bmRequestType, bRequest, wValue,
+					     wLength);
 		} else
 #endif
 		udp_ep0_send_stall();
