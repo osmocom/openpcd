@@ -79,21 +79,9 @@ static int usb_in(struct req_ctx *rctx)
  * IN or INTERRUPT endpoint */
 void usb_out_process(void)
 {
-	struct req_ctx *rctx;
-
-	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_EP3_PENDING,
-				       RCTX_STATE_UDP_EP3_BUSY)) {
-		DEBUGPCRF("EP3_BUSY for ctx %u", req_ctx_num(rctx));
-		if (udp_refill_ep(3) < 0)
-			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP3_PENDING);
-	}
-
-	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_EP2_PENDING,
-				       RCTX_STATE_UDP_EP2_BUSY)) {
-		DEBUGPCRF("EP2_BUSY for ctx %u", req_ctx_num(rctx));
-		if (udp_refill_ep(2) < 0)
-			req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
-	}
+	/* interrupts are likely to be more urgent than bulk */
+	udp_refill_ep(3);
+	udp_refill_ep(2);
 }
 
 /* process incoming USB packets (OUT pipe) that have already been 
@@ -104,8 +92,8 @@ void usb_in_process(void)
 
 	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_RCV_DONE,
 				       RCTX_STATE_MAIN_PROCESSING)) {
-	     	DEBUGPCRF("found used ctx %u: len=%u", 
-			req_ctx_num(rctx), rctx->tot_len);
+		DEBUGPCRF("found used ctx %u: len=%u", 
+			  req_ctx_num(rctx), rctx->tot_len);
 		usb_in(rctx);
 	}
 	udp_unthrottle();
