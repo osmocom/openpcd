@@ -48,7 +48,7 @@
 #define DEBUGPSPIIRQ(x, args...) NOTHING
 #endif
 
-#if 1
+#if 0
 #define DEBUG632 DEBUGPCRF
 #else
 #define DEBUG632(x, args ...)	NOTHING
