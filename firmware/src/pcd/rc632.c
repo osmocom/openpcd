@@ -484,7 +484,7 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		break;
 	default:
 		DEBUGP("UNKNOWN ");
-		return -EINVAL;
+		return USB_ERR(USB_ERR_CMD_UNKNOWN);
 	}
 
 	return (poh->flags & OPENPCD_FLAG_RESPOND) ? USB_RET_RESPOND : 0;
