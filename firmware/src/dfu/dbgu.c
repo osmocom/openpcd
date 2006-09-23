@@ -36,6 +36,11 @@ static void DBGU_irq_handler(void)
 
 	AT91F_DBGU_Get(&value);
 	switch (value) {
+	case '9':
+		AT91F_DBGU_Printk("Resetting SAM7\n\r");
+		AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
+				   AT91C_RSTC_PERRST|AT91C_RSTC_EXTRST);
+		break;
 	default:
 		AT91F_DBGU_Printk("\n\r");
 	}
