@@ -35,7 +35,11 @@
 //*- 1.1 01/Apr/05 JPP    : save SPSR 
 //*-----------------------------------------------------------------------------*/
 
+/* Enable DFU by press of hardware POI_BOOTLDR switch */
 #define CONFIG_DFU_SWITCH
+
+/* Enable DFU by magic value in RAM and software reset */
+#define CONFIG_DFU_MAGIC
 
 //#define DEBUG_LL
 
@@ -301,6 +305,12 @@ InitReset:
           .EQU		I_BIT,              0x80
           .EQU		F_BIT,              0x40
 
+
+#define AT91C_RSTC_RSR			0xFFFFFD04
+#define AT91C_RSTC_RSTTYP_SOFTWARE	(0x03 << 8)
+#define DFU_STATE_appDETACH		1
+
+
 /*------------------------------------------------------------------------------
 //*- Setup the stack for each mode
 //*-------------------------------*/
@@ -318,6 +328,20 @@ InitReset:
 /*- Set up Supervisor Mode and set Supervisor Mode Stack*/
                 msr     CPSR_c, #ARM_MODE_SVC
                 mov     r13, r0                     /* Init stack Sup */
+
+#ifdef CONFIG_DFU_MAGIC
+		ldr	r1, =AT91C_RSTC_RSR
+		ldr	r2, [r1]
+		#and	r2, r2, AT91C_RSTC_RSTTYP
+		tst	r2, #AT91C_RSTC_RSTTYP_SOFTWARE
+		beq	dfu_magic_end
+
+		ldr	r1, =dfu_state
+		ldr	r2, [r1]
+		cmp	r2, #DFU_STATE_appDETACH
+		beq	_reloc_dfu
+dfu_magic_end:
+#endif
 
 # Relocate DFU .data.shared section (Copy from ROM to RAM)
                 LDR     R1, =_etext

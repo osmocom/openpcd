@@ -195,7 +195,7 @@ static void __dfufunc udp_ep0_send_stall(void)
 
 static u_int8_t *ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 static __dfudata u_int8_t dfu_status;
-static __dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
+__dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
 static u_int32_t pagebuf32[AT91C_IFLASH_PAGE_SIZE/4];
 
 static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
@@ -376,9 +376,9 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 				ret = RET_STALL;
 				goto out;
 			}
+			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 			ret = handle_dnload(val, len);
-			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
 			break;
 		case USB_REQ_DFU_UPLOAD:
 			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
@@ -433,8 +433,8 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 	case DFU_STATE_dfuDNLOAD_IDLE:
 		switch (req) {
 		case USB_REQ_DFU_DNLOAD:
-			ret = handle_dnload(val, len);
 			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
+			ret = handle_dnload(val, len);
 			break;
 		case USB_REQ_DFU_ABORT:
 			dfu_state = DFU_STATE_dfuIDLE;
@@ -798,6 +798,14 @@ static __dfufunc void dfu_udp_irq(void)
 		/* Configure endpoint 0 */
 		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
 		cur_config = 0;
+
+		if (dfu_state == DFU_STATE_dfuMANIFEST_WAIT_RST ||
+		    dfu_state == DFU_STATE_dfuMANIFEST) {
+			AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
+					   		    AT91C_RSTC_PERRST|
+							    AT91C_RSTC_EXTRST);
+		}
+			
 	}
 
 	if (isr & AT91C_UDP_EPINT0)
@@ -817,22 +825,14 @@ static void dfu_switch(void)
 	AT91PS_AIC pAic = AT91C_BASE_AIC;
 
 	DEBUGE("\r\nsam7dfu: switching to DFU mode\r\n");
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED1);
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2);
-	led1off();
-	led2off();
 
-	flash_init();
+	dfu_state = DFU_STATE_appDETACH;
+	AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
+			   AT91C_RSTC_PERRST|AT91C_RSTC_EXTRST);
 
-	/* disable all non-usb (and non-dbgu) interrupts */
-	pAic->AIC_IDCR = ~((1 << AT91C_ID_UDP)|(1 << AT91C_ID_SYS));
-
-	pAic->AIC_SVR[AT91C_ID_UDP] = (unsigned int) &dfu_udp_irq;
-	dfu_state = DFU_STATE_dfuIDLE;
-	dfu_status = DFU_STATUS_OK;
-	//AT91F_DBGU_Printk("You may now start the DFU up/download process\r\n");
-	AT91F_DBGU_Printk("\r\nTHIS DOES NOT WORK YET, "
-			  " PLEASE PUSH THE BUTTON WHILE POWERING UP\r\n");
+	/* We should never reach here, but anyway avoid returning to the
+	 * caller since he doesn't expect us to do so */
+	while (1) ;
 }
 
 void __dfufunc dfu_main(void)
