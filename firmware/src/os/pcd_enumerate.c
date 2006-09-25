@@ -41,7 +41,7 @@
 #include <os/dbgu.h>
 
 //#define DEBUG_UDP_IRQ
-#define DEBUG_UDP_IRQ_IN
+//#define DEBUG_UDP_IRQ_IN
 //#define DEBUG_UDP_IRQ_OUT
 #define DEBUG_UDP_EP0
 
@@ -86,8 +86,8 @@ const struct usb_device_descriptor dev_descriptor = {
 	.bDeviceSubClass = 0xff,
 	.bDeviceProtocol = 0xff,
 	.bMaxPacketSize0 = 0x08,
-	.idVendor = OPENPCD_VENDOR_ID,
-	.idProduct = OPENPCD_PRODUCT_ID,
+	.idVendor = USB_VENDOR_ID,
+	.idProduct = USB_PRODUCT_ID,
 	.bcdDevice = 0x0000,
 	.iManufacturer = 0x00,
 	.iProduct = 0x00,
@@ -223,14 +223,12 @@ static int __udp_refill_ep(int ep)
 	/* If we're not configured by the host yet, there is no point
 	 * in trying to send data to it... */
 	if (!upcd.cur_config) {
-		DEBUGPCR("-ENXIO");
 		return -ENXIO;
 	}
 	
 	/* If there are already two packets in transit, the DPR of
 	 * the SAM7 UDC doesn't have space for more data */
 	if (atomic_read(&upcd.ep[ep].pkts_in_transit) == 2) {
-		DEBUGPCR("-EBUSY");
 		return -EBUSY;
 	}
 
@@ -275,6 +273,7 @@ static int __udp_refill_ep(int ep)
 		 * - after last packet of transfer % AT91C_EP_OUT_SIZE != 0
 		 */
 		DEBUGII("RCTX(ep=%u)_tx_done ", ep);
+		DEBUGP("RCTX(ep=%u,ctx=%u)_tx_done ", ep, req_ctx_num(rctx));
 		upcd.ep[ep].incomplete.rctx = NULL;
 		req_ctx_put(rctx);
 	} else {
