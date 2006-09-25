@@ -197,7 +197,7 @@ ADEFS += -D__$(SUBMDL)__
 #    -adhlns...: create assembler listing
 #
 # Flags for C and C++ (arm-elf-gcc/arm-elf-g++)
-CFLAGS = -g$(DEBUGF) -DBOARD=PCD -DPCD
+CFLAGS += -g$(DEBUGF) -DBOARD=$(BOARD) 
 CFLAGS += $(CDEFS) $(CINCS)
 CFLAGS += -O$(OPT)
 CFLAGS += -Wall -Wextra -Wcast-align -Wimplicit -Wunused
