@@ -69,6 +69,8 @@ PATH_TO_LINKSCRIPTS=link/
 # Target file name (without extension).
 TARGET:=main_reqa
 
+USBSTRINGS=src/picc/usb_strings_app.h src/pcd/usb_strings_app.h
+
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
 SRC = 
@@ -494,7 +496,7 @@ $(COBJ) : %.o : %.c
 	$(CC) -c $(ALL_CFLAGS) $(CONLYFLAGS) $< -o $@ 
 
 # Compile: create object files from C source files. ARM-only
-$(COBJARM) : %.o : %.c include/compile.h
+$(COBJARM) : %.o : %.c include/compile.h $(USBSTRINGS)
 	@echo
 	@echo $(MSG_COMPILING_ARM) $<
 	$(CC) -c $(ALL_CFLAGS) $(CONLYFLAGS) $< -o $@ 
@@ -572,7 +574,7 @@ clean_list :
 include/compile.h: 
 	scripts/mkcompile_h > $@
 
-src/picc/usb_strings_app.h: ./scripts/usbstring src/picc/usb_strings_app.txt
+$(USBSTRINGS): %.h : %.txt ./scripts/usbstring
 	cat $< | ./scripts/usbstring > $@
 
 # Include the dependency files.

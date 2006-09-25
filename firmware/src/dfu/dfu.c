@@ -678,7 +678,7 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 				udp_ep0_send_stall();
 				break;
 			}
-			DEBUGP("bLength=%u, wLength=%u\n", 
+			DEBUGE("bLength=%u, wLength=%u ", 
 				usb_strings[desc_index]->bLength, wLength);
 			udp_ep0_send_data((const char *) usb_strings[desc_index],
 					  MIN(usb_strings[desc_index]->bLength, 

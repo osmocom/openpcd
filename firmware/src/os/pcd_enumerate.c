@@ -34,7 +34,7 @@
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
 
-#include <usb_strings.h>
+#include <usb_strings_app.h>
 
 #include <os/pcd_enumerate.h>
 #include <os/req_ctx.h>
