@@ -26,6 +26,8 @@
  */
 
 #include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -194,4 +196,6 @@ int main(int argc, char **argv)
 		printf("\t(struct usb_descriptor_header *) &string%d,\n", j);
 	printf("};\n\n");
 	printf("#endif /* _USB_STRINGS_H */\n");
+
+	exit(0);
 }

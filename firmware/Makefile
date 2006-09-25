@@ -569,6 +569,7 @@ clean_list :
 	$(REMOVE) .dep/*
 	$(REMOVE) include/compile.h
 	$(REMOVE) src/picc/usb_strings_app.h
+	$(REMOVE) scripts/usbstring
 
 .PHONY: include/compile.h
 include/compile.h: 
@@ -576,6 +577,9 @@ include/compile.h:
 
 $(USBSTRINGS): %.h : %.txt ./scripts/usbstring
 	cat $< | ./scripts/usbstring > $@
+
+scripts/usbstring: scripts/usbstring.c
+	gcc $^ -o $@
 
 # Include the dependency files.
 -include $(shell mkdir .dep 2>/dev/null) $(wildcard .dep/*)
