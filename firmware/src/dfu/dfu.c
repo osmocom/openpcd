@@ -26,6 +26,8 @@
 #include <board.h>
 #include <lib_AT91SAM7.h>
 
+#include <usb_strings_dfu.h>
+
 #include <dfu/dfu.h>
 #include <dfu/dbgu.h>
 #include <dfu/flash.h>
@@ -547,11 +549,11 @@ __dfustruct const struct usb_device_descriptor dfu_dev_descriptor = {
 	.bDeviceSubClass	= 0x00,
 	.bDeviceProtocol	= 0x00,
 	.bMaxPacketSize0	= 8,
-	.idVendor		= OPENPCD_VENDOR_ID,
-	.idProduct		= OPENPCD_PRODUCT_ID,
+	.idVendor		= USB_VENDOR_ID,
+	.idProduct		= USB_PRODUCT_ID,
 	.bcdDevice		= 0x0000,
-	.iManufacturer		= 0x00,
-	.iProduct		= 0x00,
+	.iManufacturer		= 1,
+	.iProduct		= 2,
 	.iSerialNumber		= 0x00,
 	.bNumConfigurations	= 0x01,
 };
@@ -566,7 +568,7 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 				USB_DT_DFU_SIZE,
 		.bNumInterfaces = 1,
 		.bConfigurationValue = 1,
-		.iConfiguration = 0,
+		.iConfiguration = 3,
 		.bmAttributes = USB_CONFIG_ATT_ONE,
 		.bMaxPower = 100,
 		},
@@ -579,7 +581,7 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 		.bInterfaceClass	= 0xfe,
 		.bInterfaceSubClass	= 0x01,
 		.bInterfaceProtocol	= 0x02,
-		.iInterface		= 0,
+		.iInterface		= 4,
 		}, 
 	.uif[1] = {
 		.bLength		= USB_DT_INTERFACE_SIZE,
@@ -590,7 +592,7 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 		.bInterfaceClass	= 0xfe,
 		.bInterfaceSubClass	= 0x01,
 		.bInterfaceProtocol	= 0x02,
-		.iInterface		= 0,
+		.iInterface		= 5,
 		}, 
 
 	.func_dfu = DFU_FUNC_DESC,
@@ -650,37 +652,48 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 	/* Handle supported standard device request Cf Table 9-3 in USB
 	 * speciication Rev 1.1 */
 	switch ((bRequest << 8) | bmRequestType) {
+		u_int8_t desc_type, desc_index;
 	case STD_GET_DESCRIPTOR:
 		DEBUGE("GET_DESCRIPTOR ");
-		if (wValue == 0x100) {
+		desc_type = wValue >> 8;
+		desc_index = wValue & 0xff;
+		switch (desc_type) {
+		case USB_DT_DEVICE:
 			/* Return Device Descriptor */
 			udp_ep0_send_data((const char *) 
 					  &dfu_dev_descriptor,
 					  MIN(sizeof(dfu_dev_descriptor),
 					      wLength));
-		} else if (wValue == 0x200) {
+			break;
+		case USB_DT_CONFIG:
 			/* Return Configuration Descriptor */
 			udp_ep0_send_data((const char *)
 					  &dfu_cfg_descriptor,
 					  MIN(sizeof(dfu_cfg_descriptor),
 					      wLength));
-#if 0
-		} else if (wValue == 0x400) {
-			/* Return Interface descriptor */
-			if (wIndex != 0x01)
+			break;
+		case USB_DT_STRING:
+			/* Return String Descriptor */
+			if (desc_index > ARRAY_SIZE(usb_strings)) {
 				udp_ep0_send_stall();
-			udp_ep0_send_data((const char *) 
-					  &dfu_if_descriptor,
-					  MIN(sizeof(dfu_if_descriptor),
+				break;
+			}
+			DEBUGP("bLength=%u, wLength=%u\n", 
+				usb_strings[desc_index]->bLength, wLength);
+			udp_ep0_send_data((const char *) usb_strings[desc_index],
+					  MIN(usb_strings[desc_index]->bLength, 
 					      wLength));
-#endif
-		} else if (wValue == 0x2100) {
+			break;
+		case USB_DT_CS_DEVICE:
 			/* Return Function descriptor */
 			udp_ep0_send_data((const char *) &dfu_cfg_descriptor.func_dfu,
 					  MIN(sizeof(dfu_cfg_descriptor.func_dfu),
 					      wLength));
-		} else
+			break;
+		default:
 			udp_ep0_send_stall();
+			break;
+		}
 		break;
 	case STD_SET_ADDRESS:
 		DEBUGE("SET_ADDRESS ");

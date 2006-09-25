@@ -1,0 +1,6 @@
+OpenPICC DFU Interface - Application Partition
+OpenPICC DFU Interface - Bootloader Partition
+bitmanufaktur.de IT Solutions and hmw-consulting.de
+OpenPICC RFID Simulator - Runtime Mode
+OpenPIIC Runtime Configuration
+OpenPICC Runtime Interface

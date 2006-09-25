@@ -1,0 +1,6 @@
+OpenPCD DFU Interface - Application Partition
+OpenPCD DFU Interface - Bootloader Partition
+bitmanufaktur.de IT Solutions and hmw-consulting.de
+OpenPCD RFID Simulator - Runtime Mode
+OpenPCD Runtime Configuration
+OpenPCD Runtime Interface

@@ -34,6 +34,8 @@
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
 
+#include <usb_strings.h>
+
 #include <os/pcd_enumerate.h>
 #include <os/req_ctx.h>
 #include <dfu/dfu.h>
@@ -89,8 +91,8 @@ const struct usb_device_descriptor dev_descriptor = {
 	.idVendor = USB_VENDOR_ID,
 	.idProduct = USB_PRODUCT_ID,
 	.bcdDevice = 0x0000,
-	.iManufacturer = 0x00,
-	.iProduct = 0x00,
+	.iManufacturer = 3,
+	.iProduct = 4,
 	.iSerialNumber = 0x00,
 	.bNumConfigurations = 0x01,
 };
@@ -100,8 +102,7 @@ struct _desc {
 	struct usb_interface_descriptor uif;
 	struct usb_endpoint_descriptor ep[3];
 #ifdef CONFIG_DFU
-	struct usb_interface_descriptor uif_dfu;
-	struct usb_dfu_func_descriptor func_dfu;
+	struct usb_interface_descriptor uif_dfu[2];
 #endif
 };
 
@@ -111,17 +112,16 @@ const struct _desc cfg_descriptor = {
 		 .bDescriptorType = USB_DT_CONFIG,
 		 .wTotalLength = USB_DT_CONFIG_SIZE +
 #ifdef CONFIG_DFU
-		 		 2 * USB_DT_INTERFACE_SIZE + 
-				 3 * USB_DT_ENDPOINT_SIZE +
-				 USB_DT_DFU_SIZE,
-		 .bNumInterfaces = 2,
+		 		 3 * USB_DT_INTERFACE_SIZE + 
+				 3 * USB_DT_ENDPOINT_SIZE,
+		 .bNumInterfaces = 3,
 #else
 		 		 1 * USB_DT_INTERFACE_SIZE + 
 				 3 * USB_DT_ENDPOINT_SIZE,
 		 .bNumInterfaces = 1,
 #endif
 		 .bConfigurationValue = 1,
-		 .iConfiguration = 0,
+		 .iConfiguration = 5,
 		 .bmAttributes = USB_CONFIG_ATT_ONE,
 		 .bMaxPower = 100,	/* 200mA */
 		 },
@@ -134,7 +134,7 @@ const struct _desc cfg_descriptor = {
 		.bInterfaceClass = USB_CLASS_VENDOR_SPEC,
 		.bInterfaceSubClass = 0,
 		.bInterfaceProtocol = 0xff,
-		.iInterface = 0,
+		.iInterface = 6,
 		},
 	.ep= {
 		{
@@ -162,14 +162,7 @@ const struct _desc cfg_descriptor = {
 	},
 #ifdef CONFIG_DFU
 	.uif_dfu = DFU_RT_IF_DESC,
-	.func_dfu = DFU_FUNC_DESC,
 #endif
-};
-
-static const struct usb_string_descriptor string0 = {
-	.bLength = sizeof(string0),
-	.bDescriptorType = USB_DT_STRING,
-	.wData[0] = 0x0409,	/* English */
 };
 
 struct epstate {
@@ -568,9 +561,13 @@ static void udp_ep0_handler(void)
 	/* Handle supported standard device request Cf Table 9-3 in USB
 	 * speciication Rev 1.1 */
 	switch ((bRequest << 8) | bmRequestType) {
+		u_int8_t desc_type, desc_index;
 	case STD_GET_DESCRIPTOR:
 		DEBUGE("GET_DESCRIPTOR ");
-		if (wValue == 0x100) {
+		desc_type = wValue >> 8;
+		desc_index = wValue & 0xff;
+		switch (desc_type) {
+		case USB_DT_DEVICE:
 			/* Return Device Descriptor */
 #ifdef CONFIG_DFU
 			if (*dfu->dfu_state != DFU_STATE_appIDLE)
@@ -582,7 +579,8 @@ static void udp_ep0_handler(void)
 #endif
 			udp_ep0_send_data((const char *) &dev_descriptor,
 					   MIN(sizeof(dev_descriptor), wLength));
-		} else if (wValue == 0x200) {
+			break;
+		case USB_DT_CONFIG:
 			/* Return Configuration Descriptor */
 #ifdef CONFIG_DFU
 			if (*dfu->dfu_state != DFU_STATE_appIDLE)
@@ -594,19 +592,20 @@ static void udp_ep0_handler(void)
 #endif
 			udp_ep0_send_data((const char *) &cfg_descriptor,
 					   MIN(sizeof(cfg_descriptor), wLength));
-		} else if (wValue == 0x300) {
+			break;
+		case USB_DT_STRING:
 			/* Return String descriptor */
-			switch (wIndex) {
-			case 0:
-				udp_ep0_send_data((const char *) &string0,
-						  MIN(sizeof(string0), wLength));
-				break;
-			default:
-				/* FIXME: implement this */
+			if (desc_index > ARRAY_SIZE(usb_strings)) {
 				udp_ep0_send_stall();
 				break;
 			}
-		} else if (wValue == 0x2100) {
+			DEBUGP("bLength=%u, wLength=%u\n", 
+				usb_strings[desc_index]->bLength, wLength);
+			udp_ep0_send_data((const char *) usb_strings[desc_index],
+					  MIN(usb_strings[desc_index]->bLength, 
+					      wLength));
+			break;
+		case USB_DT_CS_DEVICE:
 			/* Return Function descriptor */
 			udp_ep0_send_data((const char *) &dfu->dfu_cfg_descriptor->func_dfu,
 					  MIN(sizeof(dfu->dfu_cfg_descriptor->func_dfu), wLength));
@@ -620,8 +619,10 @@ static void udp_ep0_handler(void)
 					  MIN(sizeof(dfu_if_descriptor),
 					      wLength));
 #endif
-		} else
+			break;
+		default:
 			udp_ep0_send_stall();
+		}
 		break;
 	case STD_SET_ADDRESS:
 		DEBUGE("SET_ADDRESS ");
@@ -710,7 +711,6 @@ static void udp_ep0_handler(void)
 		DEBUGE("CLEAR_FEATURE_ENDPOINT(EPidx=%u) ", wIndex & 0x0f);
 		wIndex &= 0x0F;
 		if ((wValue == 0) && wIndex && (wIndex <= 3)) {
-			struct req_ctx *rctx;
 			reset_ep(wIndex);
 			udp_ep0_send_zlp();
 		} else

@@ -39,6 +39,7 @@
 
 /* USB Interface descriptor in Runtime mode */
 #define DFU_RT_IF_DESC	{						\
+	{								\
 	.bLength		= USB_DT_INTERFACE_SIZE,		\
 	.bDescriptorType	= USB_DT_INTERFACE,			\
 	.bInterfaceNumber	= 0x01,					\
@@ -48,6 +49,17 @@
 	.bInterfaceSubClass	= 0x01,					\
 	.bInterfaceProtocol	= 0x01,					\
 	.iInterface		= 1,					\
+	}, {								\
+	.bLength		= USB_DT_INTERFACE_SIZE,		\
+	.bDescriptorType	= USB_DT_INTERFACE,			\
+	.bInterfaceNumber	= 0x02,					\
+	.bAlternateSetting	= 0x00,					\
+	.bNumEndpoints		= 0x00,					\
+	.bInterfaceClass	= 0xfe,					\
+	.bInterfaceSubClass	= 0x01,					\
+	.bInterfaceProtocol	= 0x01,					\
+	.iInterface		= 2,					\
+	},								\
 }
 
 #define __dfufunctab  __attribute__ ((section (".dfu.functab")))

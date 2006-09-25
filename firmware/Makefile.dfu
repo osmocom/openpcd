@@ -69,6 +69,8 @@ PATH_TO_LINKSCRIPTS=link/
 # Target file name (without extension).
 TARGET:=dfu
 
+USBSTRINGS=src/picc/usb_strings_dfu.h src/pcd/usb_strings_dfu.h
+
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
 SRC = 
@@ -161,16 +163,18 @@ endif
 ifeq ($(BOARD),PICC)
 CDEFS += -DPICC
 ADEFS += -DPICC
+CINCS  = -Isrc/picc
 endif
 
 ifeq ($(BOARD),PCD)
 SUBMDL = AT91SAM7S128
 CDEFS += -DPCD
 ADEFS += -DPCD
+CINCS  = -Isrc/pcd
 endif
 
 # Place -I options here
-CINCS = -Iinclude -Isrc
+CINCS += -Iinclude -Isrc
 
 # Place -D or -U options for ASM here
 ADEFS +=  -D$(RUN_MODE)
@@ -465,7 +469,7 @@ $(COBJ) : %.o : %.c
 	$(CC) -c $(ALL_CFLAGS) $(CONLYFLAGS) $< -o $@ 
 
 # Compile: create object files from C source files. ARM-only
-$(COBJARM) : %.o : %.c include/compile.h
+$(COBJARM) : %.o : %.c include/compile.h $(USBSTRINGS)
 	@echo
 	@echo $(MSG_COMPILING_ARM) $<
 	$(CC) -c $(ALL_CFLAGS) $(CONLYFLAGS) $< -o $@ 
@@ -536,10 +540,15 @@ clean_list :
 	$(REMOVE) $(CPPSRCARM:.cpp=.s) 
 	$(REMOVE) $(CPPSRCARM:.cpp=.d)
 	$(REMOVE) .dep/*
+	$(REMOVE) src/picc/usb_strings_dfu.h
+	$(REMOVE) src/dfu/usb_strings_dfu.h
 
 .PHONY: include/compile.h
 include/compile.h: 
 	scripts/mkcompile_h > $@
+
+$(USBSTRINGS): %.h : %.txt ./scripts/usbstring
+	cat $< | ./scripts/usbstring > $@
 
 # Include the dependency files.
 -include $(shell mkdir .dep 2>/dev/null) $(wildcard .dep/*)

@@ -190,14 +190,16 @@ endif
 
 ifeq ($(BOARD),PICC)
 CDEFS += -DPICC
+CINCS = -Isrc/picc
 endif
 
 ifeq ($(BOARD),PCD)
 CDEFS += -DPCD
+CINCS = -Isrc/pcd
 endif
 
 # Place -I options here
-CINCS = -Iinclude -Isrc
+CINCS += -Iinclude -Isrc
 
 # Place -D or -U options for ASM here
 ADEFS =  -D$(RUN_MODE)
@@ -564,10 +566,14 @@ clean_list :
 	$(REMOVE) $(CPPSRCARM:.cpp=.d)
 	$(REMOVE) .dep/*
 	$(REMOVE) include/compile.h
+	$(REMOVE) src/picc/usb_strings_app.h
 
 .PHONY: include/compile.h
 include/compile.h: 
 	scripts/mkcompile_h > $@
+
+src/picc/usb_strings_app.h: ./scripts/usbstring src/picc/usb_strings_app.txt
+	cat $< | ./scripts/usbstring > $@
 
 # Include the dependency files.
 -include $(shell mkdir .dep 2>/dev/null) $(wildcard .dep/*)
