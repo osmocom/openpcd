@@ -50,8 +50,6 @@ opcd_hexdump(const void *data, unsigned int len)
 	return string;
 }
 
-#define OPCD_VENDOR_ID	0x2342
-#define OPCD_PRODUCT_ID	0x0001
 #define OPCD_OUT_EP	0x01
 #define OPCD_IN_EP	0x82
 #define OPCD_INT_EP	0x83
@@ -63,12 +61,12 @@ static struct usb_device *find_opcd_handle(void)
 	for (bus = usb_busses; bus; bus = bus->next) {
 		struct usb_device *dev;
 		for (dev = bus->devices; dev; dev = dev->next) {
-			if (dev->descriptor.idVendor == OPCD_VENDOR_ID
-			    && dev->descriptor.idProduct == OPCD_PRODUCT_ID
+			if (dev->descriptor.idVendor == OPENPCD_VENDOR_ID
+			    && (dev->descriptor.idProduct == OPENPCD_PRODUCT_ID ||
+			        dev->descriptor.idProduct == OPENPCD_PRODUCT_ID)
 			    && dev->descriptor.iManufacturer == 0
 			    && dev->descriptor.iProduct == 0
 			    && dev->descriptor.bNumConfigurations == 1
-			    && dev->config->bNumInterfaces == 2
 			    && dev->config->iConfiguration == 0)
 				return dev;
 		}
@@ -186,6 +184,7 @@ int opcd_send_command(struct opcd_handle *od, u_int8_t cmd,
 	ohdr->cmd = cmd;
 	ohdr->reg = reg;
 	ohdr->val = val;
+	ohdr->flags = OPENPCD_FLAG_RESPOND;
 	if (data && len)
 		memcpy(ohdr->data, data, len);
 	
@@ -213,10 +212,13 @@ int opcd_usbperf(struct opcd_handle *od, unsigned int frames)
 
 	printf("starting DATA IN performance test (%u frames of 64 bytes)\n",
 		frames);
-	opcd_send_command(od, OPENPCD_CMD_USBTEST_IN, transfers, frames, 0, NULL);
 	gettimeofday(&tv_start, NULL);
+	opcd_send_command(od, OPENPCD_CMD_USBTEST_IN, transfers, frames, 0, NULL);
 	for (i = 0; i < transfers; i++) {
 		int ret;
+
+		if (i < transfers - 1)
+			opcd_send_command(od, OPENPCD_CMD_USBTEST_IN, transfers, frames, 0, NULL);
 		ret = ausb_bulk_read(od->hdl, OPCD_IN_EP, buf, sizeof(buf), 0);
 		if (ret < 0) {
 			fprintf(stderr, "error receiving data in transaction\n");
