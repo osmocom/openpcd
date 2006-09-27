@@ -27,6 +27,7 @@ SECTIONS
 	/* 0x00200000 ... */
 	.data 0x00200028: AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.text) ) {
   		_data = . ;
+		* (.fastrun)
   		* (.data)
   		. = ALIGN(4);
   	} >DATA
