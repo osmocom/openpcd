@@ -99,6 +99,11 @@ static void DBGU_irq_handler(void)
 		AT91F_DBGU_Printk("Toggling LED 2\n\r");
 		led_toggle(2);
 		break;
+	case '9':
+		AT91F_DBGU_Printk("Resetting SAM7\n\r");
+		AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
+				   AT91C_RSTC_PERRST|AT91C_RSTC_EXTRST);
+		break;
 	default:
 		if (_main_dbgu(value) < 0)
 			AT91F_DBGU_Printk("\n\r");
@@ -146,10 +151,9 @@ void AT91F_DBGU_Init(void)
 	AT91F_DBGU_Printk(" ");
 	AT91F_DBGU_Printk(opcd_version.by);
 	AT91F_DBGU_Printk("\n\r");
-	AT91F_DBGU_Printk
-	    ("\n\r-I- OpenPCD test mode\n\r 0) Set Pull-up 1) Clear Pull-up "
-	     "2) Toggle LED1 3) Toggle LED2 4) Test RC632\n\r"
-	     "5) Read RxWait 6) Write RxWait 7) Dump RC632 Regs\n\r");
+	AT91F_DBGU_Printk("\n\rDEBUG Interface:\n\r"
+	     "0) Set Pull-up 1) Clear Pull-up 2) Toggle LED1 3) "
+	     "Toggle LED2\r\n9) Reset\n\r");
 }
 
 //*----------------------------------------------------------------------------
