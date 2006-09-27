@@ -11,6 +11,7 @@
 #define req_buf_hdr(x)		(x->data[0])
 
 #include <sys/types.h>
+#include <lib_AT91SAM7.h>
 
 struct req_ctx {
 	volatile u_int32_t state;
@@ -37,7 +38,7 @@ struct req_ctx {
 
 #define RCTX_STATE_INVALID		0xff
 
-extern struct req_ctx *req_ctx_find_get(int large, unsigned long old_state, unsigned long new_state);
+extern struct req_ctx __ramfunc *req_ctx_find_get(int large, unsigned long old_state, unsigned long new_state);
 extern struct req_ctx *req_ctx_find_busy(void);
 extern void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state);
 extern void req_ctx_put(struct req_ctx *ctx);
