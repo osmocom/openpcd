@@ -17,7 +17,7 @@
 struct req_ctx;
 
 extern void udp_open(void);
-extern int udp_refill_ep(int ep);
+extern int __ramfunc udp_refill_ep(int ep);
 extern void udp_unthrottle(void);
 extern void udp_reset(void);
 
@@ -31,7 +31,10 @@ struct ep_ctx {
 
 struct udp_pcd {
 	AT91PS_UDP pUdp;
+	enum usb_device_state state;
 	unsigned char cur_config;
+	unsigned char cur_interface;
+	unsigned char cur_altsett;
 	unsigned int  cur_rcv_bank;
 	struct ep_ctx ep[4];
 };
