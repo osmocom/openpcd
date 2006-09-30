@@ -43,13 +43,14 @@
 
 //#define DEBUG_LL
 
-#ifdef DEBUG_LL
-/* Debugging macros for switching on/off LED1 (green) */
 #define PIOA_PER	0xFFFFF400
 #define PIOA_OER	0xFFFFF410
 #define PIOA_SODR	0xFFFFF430
 #define PIOA_CODR	0xFFFFF434
 #define LED1		25		/* this only works on OpenPICC, not Olimex */
+
+#ifdef DEBUG_LL
+/* Debugging macros for switching on/off LED1 (green) */
 	.macro	led1on
 		ldr	r2, =PIOA_CODR
 		mov	r1, #(1 << LED1)
@@ -78,6 +79,7 @@
 #endif
 
      .equ   IRQ_Stack_Size,     0x00000400
+     .equ   FIQ_Stack_Size,     0x00000400
 
 	.equ AIC_IVR,         (256) 
 	.equ AIC_FVR,         (260) 
@@ -167,10 +169,13 @@ rsvdvec:
 irqvec:
 		b	IRQ_Handler_Entry	/* 0x18 IRQ */
 fiqvec:
-		b	FIQ_Handler_Entry
-						/* 0x1c FIQ */
+		ldr	pc, [pc, #-0xF20]	 /* 0x1c FIQ */
+
 dfu_state_dummy:
 		.word	0
+
+	.global IRQ_Handler_Entry
+	.func   IRQ_Handler_Entry
 		
 FIQ_Handler_Entry:
 
@@ -200,9 +205,6 @@ FIQ_Handler_Entry:
 
 		/*- Restore the Program Counter using the LR_fiq directly in the PC */
 		subs        pc, lr, #4
-
-	.global IRQ_Handler_Entry
-	.func   IRQ_Handler_Entry
 
 IRQ_Handler_Entry:
 
@@ -277,17 +279,6 @@ InitReset:
 	mov	lr, pc
 	bx	r0
 	ledinit
-/*------------------------------------------------------------------------------
-//*- Stack Sizes Definition
-//*------------------------
-//*- Interrupt Stack requires 2 words x 8 priority level x 4 bytes when using
-//*- the vectoring. This assume that the IRQ management.
-//*- The Interrupt Stack must be adjusted depending on the interrupt handlers.
-//*- Fast Interrupt not requires stack If in your application it required you must
-//*- be definehere.
-//*- The System stack size is not defined and is limited by the free internal
-//*- SRAM.
-//*------------------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------------------
 //*- Top of Stack Definition
@@ -297,7 +288,6 @@ InitReset:
 //*- ARM_MODE_SVC (Application, C) Stack is located at the top of the external memory.
 //*------------------------------------------------------------------------------*/
 
-	  .EQU		IRQ_STACK_SIZE,    (3*8*4)
           .EQU		ARM_MODE_FIQ,       0x11
           .EQU		ARM_MODE_IRQ,       0x12
           .EQU		ARM_MODE_SVC,       0x13
@@ -318,6 +308,9 @@ InitReset:
 
 /*- Set up Fast Interrupt Mode and set FIQ Mode Stack*/
                 msr     CPSR_c, #ARM_MODE_FIQ | I_BIT | F_BIT
+		mov	r13, r0
+		sub	r0, r0, #FIQ_Stack_Size
+
 /*- Init the FIQ register*/
             	ldr     r8, =AT91C_BASE_AIC
 
@@ -325,9 +318,13 @@ InitReset:
                 msr     CPSR_c, #ARM_MODE_IRQ | I_BIT | F_BIT
                 mov     r13, r0                     /* Init stack IRQ */
                 sub     r0, r0, #IRQ_Stack_Size
+
 /*- Set up Supervisor Mode and set Supervisor Mode Stack*/
-                msr     CPSR_c, #ARM_MODE_SVC
+                msr     CPSR_c, #ARM_MODE_SVC | I_BIT | F_BIT
                 mov     r13, r0                     /* Init stack Sup */
+
+/* - Enable Interrupts and FIQ */
+                msr     CPSR_c, #ARM_MODE_SVC
 
 #ifdef CONFIG_DFU_MAGIC
 		ldr	r1, =AT91C_RSTC_RSR
