@@ -452,12 +452,22 @@ cont_ep2:
 	if (isr & AT91C_UDP_RXSUSP) {
 		pUDP->UDP_ICR = AT91C_UDP_RXSUSP;
 		DEBUGI("RXSUSP ");
-		/* FIXME: implement suspend/resume */
+#ifdef CONFIG_USB_SUSPEND
+		upcd.state = USB_STATE_SUSPENDED;
+		/* FIXME: implement suspend/resume correctly. This
+		 * involves saving the pre-suspend state, and calling back
+		 * into the main application program to ask it to power down
+		 * all peripherals, switching to slow clock, ... */
+#endif
 	}
 	if (isr & AT91C_UDP_RXRSM) {
 		pUDP->UDP_ICR = AT91C_UDP_RXRSM;
 		DEBUGI("RXRSM ");
+#ifdef CONFIG_USB_SUSPEND
+		if (upcd.state == USB_STATE_SUSPENDED)
+			upcd.state = USB_STATE_CONFIGURED;
 		/* FIXME: implement suspend/resume */
+#endif
 	}
 	if (isr & AT91C_UDP_EXTRSM) {
 		pUDP->UDP_ICR = AT91C_UDP_EXTRSM;
@@ -471,7 +481,6 @@ cont_ep2:
 	if (isr & AT91C_UDP_WAKEUP) {
 		pUDP->UDP_ICR = AT91C_UDP_WAKEUP;
 		DEBUGI("WAKEUP ");
-		/* FIXME: implement suspend/resume */
 	}
 out:
 	DEBUGI("END\r\n");
