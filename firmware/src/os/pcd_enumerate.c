@@ -191,6 +191,9 @@ static void reset_ep(unsigned int ep)
 	/* free all currently transmitting contexts */
 	while (rctx = req_ctx_find_get(0, epstate[ep].state_busy,
 				       RCTX_STATE_FREE)) {}
+	/* free all currently pending contexts */
+	while (rctx = req_ctx_find_get(0, epstate[ep].state_pending,
+				       RCTX_STATE_FREE)) {}
 
 	pUDP->UDP_RSTEP |= (1 << ep);
 	pUDP->UDP_RSTEP &= ~(1 << ep);
@@ -206,7 +209,7 @@ void udp_unthrottle(void)
 	pUDP->UDP_IER = AT91C_UDP_EPINT1;
 }
 
-static int __udp_refill_ep(int ep)
+static int __ramfunc __udp_refill_ep(int ep)
 {
 	u_int16_t i;
 	AT91PS_UDP pUDP = upcd.pUdp;
@@ -265,8 +268,7 @@ static int __udp_refill_ep(int ep)
 		 * - after ZLP of transfer % AT91C_EP_OUT_SIZE == 0
 		 * - after last packet of transfer % AT91C_EP_OUT_SIZE != 0
 		 */
-		DEBUGII("RCTX(ep=%u)_tx_done ", ep);
-		DEBUGP("RCTX(ep=%u,ctx=%u)_tx_done ", ep, req_ctx_num(rctx));
+		DEBUGII("RCTX(ep=%u,ctx=%u)_tx_done ", ep, req_ctx_num(rctx));
 		upcd.ep[ep].incomplete.rctx = NULL;
 		req_ctx_put(rctx);
 	} else {
@@ -283,7 +285,7 @@ static int __udp_refill_ep(int ep)
 	return 1;
 }
 
-int udp_refill_ep(int ep)
+int __ramfunc udp_refill_ep(int ep)
 {
 	unsigned long flags;
 	int ret;
@@ -293,7 +295,7 @@ int udp_refill_ep(int ep)
 	local_irq_restore(flags);
 }
 
-static void udp_irq(void)
+static void __ramfunc udp_irq(void)
 {
 	u_int32_t csr;
 	AT91PS_UDP pUDP = upcd.pUdp;
