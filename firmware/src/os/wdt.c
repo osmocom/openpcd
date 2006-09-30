@@ -17,21 +17,31 @@
  *
  */
 
+#include <lib_AT91SAM7.h>
+#include <AT91SAM7.h>
+
+#include <os/dbgu.h>
+
 #define WDT_DEBUG
  
-void wdt_irq(void)
+static void wdt_irq(void)
 {
 	DEBUGPCRF("================> WATCHDOG EXPIRED !!!!!");
+}
+
+void wdt_restart(void)
+{
+	AT91F_WDTRestart(AT91C_BASE_WDTC);
 }
 
 void wdt_init(void)
 {
 #ifdef WDT_DEBUG
-	AT91F_WDTSetMode(AT91C_BASE_WDT, (0xfff << 16) |
+	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0xfff << 16) |
 			 AT91C_WDTC_WDDBGHLT | AT91C_WDTC_WDIDLEHLT |
 			 AT91C_WDTC_WDFIEN);
 #else
-	AT91F_WDTSetMode(AT91C_BASE_WDT, (0xfff << 16) |
+	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0xfff << 16) |
 			 AT91C_WDTC_WDDBGHLT | AT91C_WDTC_WDIDLEHLT |
 			 AT91C_WDTC_WDRSTEN);
 #endif

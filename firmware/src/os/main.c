@@ -45,13 +45,15 @@ int main(void)
 
 	AT91F_PIOA_CfgPMC();
 
-	/* call application specific init function */
-	_init_func();
+	wdt_init();
 
 	/* initialize USB */
 	req_ctx_init();
 	usbcmd_gen_init();
 	udp_open();
+
+	/* call application specific init function */
+	_init_func();
 
 	// Enable User Reset and set its minimal assertion to 960 us
 	AT91C_BASE_RSTC->RSTC_RMR =
@@ -70,6 +72,7 @@ int main(void)
 		/* Call application specific main idle function */
 		_main_func();
 		dbgu_rb_flush();
+		wdt_restart();
 #ifdef CONFIG_IDLE
 		//cpu_idle();
 #endif
