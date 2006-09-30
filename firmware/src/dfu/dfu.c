@@ -778,7 +778,9 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 		break;
 	case STD_SET_INTERFACE:
 		DEBUGE("SET INTERFACE ");
-		udp_ep0_send_stall();
+		/* FIXME: store the interface number somewhere, once
+		 * we need to support DFU flashing DFU */
+		udp_ep0_send_zlp();
 		break;
 	default:
 		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ",
