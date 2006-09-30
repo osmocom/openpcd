@@ -89,7 +89,8 @@ SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
 	  src/os/led.c src/os/req_ctx.c src/os/trigger.c \
 	  src/os/main.c src/os/syscalls.c src/os/usb_handler.c \
 	  src/os/usb_benchmark.c src/os/tc_cdiv.c src/os/pit.c \
-	  src/os/pwm.c src/os/pio_irq.c src/os/usbcmd_generic.c
+	  src/os/pwm.c src/os/pio_irq.c src/os/usbcmd_generic.c \
+	  src/os/wdt.c
 
 ifeq ($(BOARD), PCD)
 # PCD support code
