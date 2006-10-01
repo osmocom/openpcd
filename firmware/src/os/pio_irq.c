@@ -33,9 +33,10 @@ struct pioirq_state {
 
 static struct pioirq_state pirqs;
 
-static void pio_irq_demux(void)
+/* low-level handler, used by Cstartup_app.S PIOA fast forcing and
+ * by regular interrupt handler below */
+void __pio_irq_demux(u_int32_t pio)
 {
-	u_int32_t pio = AT91F_PIO_GetInterruptStatus(AT91C_BASE_PIOA);
 	u_int8_t send_usb = 0;
 	int i;
 
@@ -72,6 +73,13 @@ static void pio_irq_demux(void)
 	}
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_PIOA);
+}
+
+/* regular interrupt handler, in case fast forcing for PIOA disabled */
+static void pio_irq_demux(void)
+{
+	u_int32_t pio = AT91F_PIO_GetInterruptStatus(AT91C_BASE_PIOA);
+	__pio_irq_demux(pio);
 }
 
 void pio_irq_enable(u_int32_t pio)
