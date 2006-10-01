@@ -1320,9 +1320,9 @@ static inline void AT91F_RTTClearRttIncINT(
 //* \brief  Set RTT Alarm Value
 //*--------------------------------------------------------------------------------------
 static inline void AT91F_RTTSetAlarmValue(
-        AT91PS_RTTC pRTTC, unsigned int alarm)
+        AT91PS_RTTC pRTTC, unsigned int _alarm)
 {
-	pRTTC->RTTC_RTAR = alarm;
+	pRTTC->RTTC_RTAR = _alarm;
 }
 
 //*--------------------------------------------------------------------------------------
