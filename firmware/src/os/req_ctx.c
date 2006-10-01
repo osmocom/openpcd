@@ -90,6 +90,7 @@ void req_ctx_init(void)
 	for (i = 0; i < NUM_RCTX_SMALL; i++) {
 		req_ctx[i].size = RCTX_SIZE_SMALL;
 		req_ctx[i].data = rctx_data[i];
+		req_ctx[i].state = RCTX_STATE_FREE;
 	}
 
 	for (i = 0; i < NUM_RCTX_LARGE; i++) {
