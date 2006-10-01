@@ -41,6 +41,7 @@
 #include <os/led.h>
 #include <os/main.h>
 #include <asm/system.h>
+#include <compile.h>
 
 #define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
@@ -145,15 +146,14 @@ void AT91F_DBGU_Init(void)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SYS);
 
 	AT91F_DBGU_Printk("\n\r");
-	AT91F_DBGU_Printk(opcd_version.svnrev);
-	AT91F_DBGU_Printk(" ");
-	AT91F_DBGU_Printk(opcd_version.date);
-	AT91F_DBGU_Printk(" ");
-	AT91F_DBGU_Printk(opcd_version.by);
-	AT91F_DBGU_Printk("\n\r");
+	AT91F_DBGU_Printk("(C) 2006 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
+			  "This software is FREE SOFTWARE licensed under GNU GPL\n\r");
+	AT91F_DBGU_Printk("Version " COMPILE_SVNREV
+			  " compiled " COMPILE_DATE
+			  " by " COMPILE_BY "\n\r\n\r");
 	AT91F_DBGU_Printk("\n\rDEBUG Interface:\n\r"
-	     "0) Set Pull-up 1) Clear Pull-up 2) Toggle LED1 3) "
-	     "Toggle LED2\r\n9) Reset\n\r");
+			  "0) Set Pull-up 1) Clear Pull-up 2) Toggle LED1 3) "
+			  "Toggle LED2\r\n9) Reset\n\r");
 }
 
 //*----------------------------------------------------------------------------
