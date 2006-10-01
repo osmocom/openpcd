@@ -499,7 +499,7 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list args)
  */
 int vscnprintf(char *buf, size_t size, const char *fmt, va_list args)
 {
-	int i;
+	unsigned int i;
 
 	i=vsnprintf(buf,size,fmt,args);
 	return (i >= size) ? (size - 1) : i;
@@ -545,7 +545,7 @@ int snprintf(char * buf, size_t size, const char *fmt, ...)
 int scnprintf(char * buf, size_t size, const char *fmt, ...)
 {
 	va_list args;
-	int i;
+	unsigned int i;
 
 	va_start(args, fmt);
 	i = vsnprintf(buf, size, fmt, args);
