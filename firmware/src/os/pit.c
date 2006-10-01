@@ -26,6 +26,7 @@
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
 #include <os/pit.h>
+#include <os/system_irq.h>
 
 #include "../openpcd.h"
 
@@ -95,12 +96,12 @@ void timer_add(struct timer_list *tl)
 	local_irq_restore(flags);
 }
 
-static void pit_irq(void)
+static void pit_irq(u_int32_t sr)
 {
 	struct timer_list *tl;
 	unsigned long flags;
 
-	jiffies++;
+	jiffies += *AT91C_PITC_PIVR;
 
 	/* this is the most simple/stupid algorithm one can come up with, but
 	 * hey, we're on a small embedded platform with only a hand ful
@@ -131,10 +132,7 @@ void pit_init(void)
 
 	AT91F_PITInit(AT91C_BASE_PITC, 1000 /* uS */, 48 /* MHz */);
 
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SYS,
-			      OPENPCD_IRQ_PRIO_PIT,
-			      AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE,
-			      &pit_irq);
+	sysirq_register(AT91SAM7_SYSIRQ_PIT, &pit_irq);	
 
-	//AT91F_PITEnableInt(AT91C_BASE_PITC);
+	AT91F_PITEnableInt(AT91C_BASE_PITC);
 }

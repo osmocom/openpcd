@@ -40,6 +40,7 @@
 #include "../openpcd.h"
 #include <os/led.h>
 #include <os/main.h>
+#include <os/system_irq.h>
 #include <asm/system.h>
 #include <compile.h>
 
@@ -72,10 +73,10 @@ static void Send_reset(void)
 
 //*----------------------------------------------------------------------------
 //* Function Name       : DBGU_irq_handler
-//* Object              : C handler interrupt function called by the interrupts
-//*                       assembling routine
+//* Object              : C handler interrupt function called by the sysirq
+//*                       demultiplexer
 //*----------------------------------------------------------------------------
-static void DBGU_irq_handler(void)
+static void DBGU_irq_handler(u_int32_t sr)
 {
 	static char value;
 
@@ -140,10 +141,7 @@ void AT91F_DBGU_Init(void)
 	AT91F_US_EnableIt((AT91PS_USART) AT91C_BASE_DBGU, AT91C_US_RXRDY);
 
 	//* open interrupt
-	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SYS, USART_SYS_LEVEL,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL,
-			      DBGU_irq_handler);
-	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SYS);
+	sysirq_register(AT91SAM7_SYSIRQ_DBGU, &DBGU_irq_handler);
 
 	AT91F_DBGU_Printk("\n\r");
 	AT91F_DBGU_Printk("(C) 2006 by Harald Welte <hwelte@hmw-consulting.de>\n\r"

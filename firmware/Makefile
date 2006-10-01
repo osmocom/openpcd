@@ -90,7 +90,7 @@ SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
 	  src/os/main.c src/os/syscalls.c src/os/usb_handler.c \
 	  src/os/usb_benchmark.c src/os/tc_cdiv.c src/os/pit.c \
 	  src/os/pwm.c src/os/pio_irq.c src/os/usbcmd_generic.c \
-	  src/os/wdt.c
+	  src/os/wdt.c src/os/blinkcode.c src/os/system_irq.c
 
 ifeq ($(BOARD), PCD)
 # PCD support code
@@ -104,7 +104,7 @@ ifeq ($(BOARD), PICC)
 # PICC support code
 SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
 	  src/picc/decoder.c src/picc/decoder_miller.c \
-	  src/picc/load_modulation.c \
+	  src/picc/load_modulation.c src/picc/tc_cdiv_sync.c \
 	  src/picc/decoder_nrzl.c src/picc/poti.c src/picc/pll.c \
 	  src/picc/openpicc.c
 # finally, the actual main application 

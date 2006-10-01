@@ -41,11 +41,12 @@ int main(void)
 {
 	/* initialize LED and debug unit */
 	led_init();
+	sysirq_init();
 	AT91F_DBGU_Init();
 
 	AT91F_PIOA_CfgPMC();
-
 	wdt_init();
+	pit_init();
 
 	/* initialize USB */
 	req_ctx_init();
