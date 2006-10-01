@@ -20,7 +20,7 @@ struct req_ctx {
 	u_int8_t *data;
 };
 
-#define RCTX_STATE_FREE			0x00
+#define RCTX_STATE_FREE			0xfe
 #define RCTX_STATE_UDP_RCV_BUSY		0x01
 #define RCTX_STATE_UDP_RCV_DONE		0x02
 #define RCTX_STATE_MAIN_PROCESSING	0x03
