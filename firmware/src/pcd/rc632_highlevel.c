@@ -17,6 +17,9 @@
  *
  */
 
+#ifdef DEBUG
+#undef DEBUG
+#endif
 
 #include <sys/types.h>
 #include <string.h>
@@ -1470,3 +1473,14 @@ rc632_mifare_transceive(struct rfid_asic_handle *handle,
 	return 0; 
 }
 
+#define RC632_E2_PRODUCT_TYPE	0
+#define RC632_E2_PRODUCT_SERIAL	8
+#define RC632_E2_RS_MAX_P	14
+
+int rc632_get_serial(struct rfid_asic_handle *handle,
+		     u_int32_t *serial)
+{
+	return rc632_read_eeprom(handle, RC632_E2_PRODUCT_SERIAL, 
+				 4, (u_int8_t *)serial);
+
+}
