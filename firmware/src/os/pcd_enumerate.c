@@ -627,32 +627,32 @@ static void udp_ep0_handler(void)
 			/* Return Function descriptor */
 			udp_ep0_send_data((const char *) &dfu->dfu_cfg_descriptor->func_dfu,
 					  MIN(sizeof(dfu->dfu_cfg_descriptor->func_dfu), wLength));
+			break;
 		case USB_DT_INTERFACE:
 			/* Return Interface descriptor */
 			if (desc_index > cfg_descriptor.ucfg.bNumInterfaces)
 				goto out_stall;
 			switch (desc_index) {
 			case 0:
-				udp_ep0_send_data((const char *) 
-					&cfg_descriptor.uif,
-					MIN(sizeof(cfg_descriptor.uif),
-					    wLength));
+				udp_ep0_send_data((const char *)
+						&cfg_descriptor.uif,
+						MIN(sizeof(cfg_descriptor.uif),
+						      wLength));
 				break;
-#ifdef CONFIG_DFU
+	#ifdef CONFIG_DFU
 			case 1:
-				udp_ep0_send_data((const char *) 
-					&cfg_descriptor.uif_dfu[0],
-					MIN(sizeof(cfg_descriptor.uif_dfu[0]),
-					    wLength));
+				udp_ep0_send_data((const char *)
+						&cfg_descriptor.uif_dfu[0],
+						MIN(sizeof(cfg_descriptor.uif_dfu[0]),
+						    wLength));
 				break;
 			case 2:
-				udp_ep0_send_data((const char *) 
-					&cfg_descriptor.uif_dfu[1],
-					MIN(sizeof(cfg_descriptor.uif_dfu[1]),
-					    wLength));
+				udp_ep0_send_data((const char *)
+						&cfg_descriptor.uif_dfu[1],
+						MIN(sizeof(cfg_descriptor.uif_dfu[1]),
+						    wLength));
 				break;
-
-#endif
+	#endif
 			default:
 				goto out_stall;
 				break;
@@ -660,31 +660,30 @@ static void udp_ep0_handler(void)
 			break;
 		default:
 			goto out_stall;
+			break;
 		}
 		break;
 	case STD_SET_ADDRESS:
 		DEBUGE("SET_ADDRESS ");
-		if (wValue > 127) 
+		if (wValue > 127)
 			goto out_stall;
-
+		
 		switch (upcd.state) {
 		case USB_STATE_DEFAULT:
+			udp_ep0_send_zlp();
 			if (wValue == 0) {
-				udp_ep0_send_zlp();
 				/* do nothing */
 			} else {
-				udp_ep0_send_zlp();
 				pUDP->UDP_FADDR = (AT91C_UDP_FEN | wValue);
 				pUDP->UDP_GLBSTATE = AT91C_UDP_FADDEN;
 				upcd.state = USB_STATE_ADDRESS;
 			}
 			break;
 		case USB_STATE_ADDRESS:
+			udp_ep0_send_zlp();
 			if (wValue == 0) {
-				udp_ep0_send_zlp();
 				upcd.state = USB_STATE_DEFAULT;
 			} else {
-				udp_ep0_send_zlp();
 				pUDP->UDP_FADDR = (AT91C_UDP_FEN | wValue);
 			}
 			break;
@@ -697,7 +696,7 @@ static void udp_ep0_handler(void)
 		DEBUGE("SET_CONFIG ");
 		if (upcd.state != USB_STATE_ADDRESS &&
 		    upcd.state != USB_STATE_CONFIGURED) {
-			goto out_stall;
+		    	goto out_stall;
 		}
 		if ((wValue & 0xff) == 0) {
 			DEBUGE("VALUE==0 ");
@@ -706,16 +705,16 @@ static void udp_ep0_handler(void)
 			pUDP->UDP_CSR[1] = 0;
 			pUDP->UDP_CSR[2] = 0;
 			pUDP->UDP_CSR[3] = 0;
-		} else if ((wValue & 0xff) <= 
+		} else if ((wValue & 0xff) <=
 					dev_descriptor.bNumConfigurations) {
 			DEBUGE("VALUE!=0 ");
 			upcd.state = USB_STATE_CONFIGURED;
 			pUDP->UDP_GLBSTATE = AT91C_UDP_CONFG;
-			pUDP->UDP_CSR[1] = AT91C_UDP_EPEDS | 
+			pUDP->UDP_CSR[1] = AT91C_UDP_EPEDS |
 					   AT91C_UDP_EPTYPE_BULK_OUT;
-			pUDP->UDP_CSR[2] = AT91C_UDP_EPEDS | 
+			pUDP->UDP_CSR[2] = AT91C_UDP_EPEDS |
 					   AT91C_UDP_EPTYPE_BULK_IN;
-			pUDP->UDP_CSR[3] = AT91C_UDP_EPEDS | 
+			pUDP->UDP_CSR[3] = AT91C_UDP_EPEDS |
 					   AT91C_UDP_EPTYPE_INT_IN;
 		} else {
 			/* invalid configuration */
@@ -724,8 +723,8 @@ static void udp_ep0_handler(void)
 		}
 		upcd.cur_config = wValue;
 		udp_ep0_send_zlp();
-		pUDP->UDP_IER = (AT91C_UDP_EPINT0|AT91C_UDP_EPINT1|
-				 AT91C_UDP_EPINT2|AT91C_UDP_EPINT3);
+		pUDP->UDP_IER = (AT91C_UDP_EPINT0 | AT91C_UDP_EPINT1 |
+				 AT91C_UDP_EPINT2 | AT91C_UDP_EPINT3);
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGE("GET_CONFIG ");
@@ -756,7 +755,7 @@ static void udp_ep0_handler(void)
 		DEBUGE("GET_STATUS_INTERFACE ");
 		if (upcd.state == USB_STATE_DEFAULT ||
 		    (upcd.state == USB_STATE_ADDRESS && wIndex != 0))
-		    	goto out_stall;
+			goto out_stall;
 		wStatus = 0;
 		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus));
 		break;
@@ -764,7 +763,7 @@ static void udp_ep0_handler(void)
 		DEBUGE("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
 		if (upcd.state == USB_STATE_DEFAULT ||
 		    (upcd.state == USB_STATE_ADDRESS && wIndex != 0))
-		    	goto out_stall;
+			goto out_stall;
 		wStatus = 0;
 		wIndex &= 0x0F;
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex <= 3)) {
@@ -838,7 +837,10 @@ static void udp_ep0_handler(void)
 			goto out_stall;
 		upcd.cur_interface = wIndex;
 		upcd.cur_altsett = wValue;
-		udp_ep0_send_zlp();
+		/* USB spec mandates that if we only support one altsetting in
+		 * the given interface, we shall respond with STALL in the status
+		 * stage */
+		udp_ep0_send_stall();
 		break;
 	default:
 		DEBUGE("DEFAULT(req=0x%02x, type=0x%02x) ", 
