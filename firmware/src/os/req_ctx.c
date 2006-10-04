@@ -29,7 +29,7 @@
 /* FIXME: locking, FIFO order processing */
 
 #define NUM_RCTX_SMALL 8
-#define NUM_RCTX_LARGE 8
+#define NUM_RCTX_LARGE 4
 
 #define NUM_REQ_CTX	(NUM_RCTX_SMALL+NUM_RCTX_LARGE)
 
