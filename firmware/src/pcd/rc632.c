@@ -185,6 +185,8 @@ struct rc632 {
 #define RC632_F_FIFO_TX		0x0001
 static struct rc632 rc632;
 
+#define RC632_WRITE_ADDR(x)	((x << 1) & 0x7e)
+
 /* RC632 access primitives */
 
 int rc632_reg_write(struct rfid_asic_handle *hdl,
@@ -194,13 +196,39 @@ int rc632_reg_write(struct rfid_asic_handle *hdl,
 
 	DEBUG632("[0x%02x] <= 0x%02x", addr, data);
 
-	addr = (addr << 1) & 0x7e;
+	addr = RC632_WRITE_ADDR(addr);
 
 	spi_outbuf[0] = addr;
 	spi_outbuf[1] = data;
 
 	//spi_transceive(spi_outbuf, 2, NULL, NULL);
 	return spi_transceive(spi_outbuf, 2, spi_inbuf, &rx_len);
+}
+
+#define RC632_REGSET_START	0x10
+#define RC632_REGSET_END	0x3f
+#define RC632_REGSET_MAXSIZE	(RC632_REGSET_END-RC632_REGSET_START)
+static char regset_buf[RC632_REGSET_MAXSIZE * 2];
+
+int rc632_reg_write_set(struct rfid_asic_handle *hdl,
+			u_int8_t *regs, int len)
+{
+	u_int8_t i, j = 0;
+	u_int16_t rx_len;
+
+	if (len > RC632_REGSET_MAXSIZE)
+		return -E2BIG;
+	
+	for (i = RC632_REGSET_START; i <= RC632_REGSET_END; i++) {
+		/* skip bank registers */
+		if (i % 8 == 0)
+			continue;
+		regset_buf[j++] = RC632_WRITE_ADDR(i);
+		regset_buf[j++] = regs[i - RC632_REGSET_START];
+	}
+	
+	rx_len = j;
+	return spi_transceive(regset_buf, j, spi_inbuf, &rx_len);
 }
 
 int rc632_fifo_write(struct rfid_asic_handle *hdl,
@@ -456,6 +484,10 @@ static int rc632_usb_in(struct req_ctx *rctx)
 	case OPENPCD_CMD_WRITE_REG:
 		DEBUGP("WRITE_REG(0x%02x, 0x%02x) ", poh->reg, poh->val);
 		rc632_reg_write(RAH, poh->reg, poh->val);
+		break;
+	case OPENPCD_CMD_WRITE_REG_SET:
+		DEBUGP("WRITE_REG_SET(%s) ", hexdump(poh->data, len));
+		rc632_reg_write_set(RAH, poh->data, len);
 		break;
 	case OPENPCD_CMD_WRITE_FIFO:
 		DEBUGP("WRITE FIFO(len=%u): %s ", len,
