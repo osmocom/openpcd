@@ -32,11 +32,16 @@ static int gen_usb_rx(struct req_ctx *rctx)
 		led_switch(poh->reg, poh->val);
 		break;
 	case OPENPCD_CMD_GET_SERIAL:
-		DEBUGP("GET SERIAL ");
+		DEBUGP("GET SERIAL(");
 		poh->flags |= OPENPCD_FLAG_RESPOND;
 #ifdef PCD
 		rctx->tot_len += 4;
-		rc632_get_serial(NULL, (u_int32_t *)poh->data);
+		if (rc632_get_serial(NULL, (u_int32_t *)poh->data) < 0) {
+			DEBUGP("ERROR) ");
+			return USB_ERR(USB_ERR_CMD_NOT_IMPL);
+		}
+
+		DEBUGP("%s) ", hexdump(poh->data, 4));
 #else
 		/* FIXME: where to get serial in PICC case */
 		return USB_ERR(USB_ERR_CMD_NOT_IMPL);
