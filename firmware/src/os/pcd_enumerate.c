@@ -209,7 +209,7 @@ void udp_unthrottle(void)
 	pUDP->UDP_IER = AT91C_UDP_EPINT1;
 }
 
-static int __ramfunc __udp_refill_ep(int ep)
+static int __udp_refill_ep(int ep)
 {
 	u_int16_t i;
 	AT91PS_UDP pUDP = upcd.pUdp;
@@ -285,7 +285,7 @@ static int __ramfunc __udp_refill_ep(int ep)
 	return 1;
 }
 
-int __ramfunc udp_refill_ep(int ep)
+int udp_refill_ep(int ep)
 {
 	unsigned long flags;
 	int ret;
@@ -297,7 +297,7 @@ int __ramfunc udp_refill_ep(int ep)
 	return ret;
 }
 
-static void __ramfunc udp_irq(void)
+static void udp_irq(void)
 {
 	u_int32_t csr;
 	AT91PS_UDP pUDP = upcd.pUdp;

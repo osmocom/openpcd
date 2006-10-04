@@ -17,7 +17,7 @@
 struct req_ctx;
 
 extern void udp_open(void);
-extern int __ramfunc udp_refill_ep(int ep);
+extern int udp_refill_ep(int ep);
 extern void udp_unthrottle(void);
 extern void udp_reset(void);
 
