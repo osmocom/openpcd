@@ -1,0 +1,20 @@
+---------------------------------------------------------------------------
+NCDrill File Report For: Bm115_4.PcbDoc   19.09.2006  07:45:22
+---------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII File : H:\Projekte\Protel\RFID-READER\Project Outputs for RFID-READER\Bm115_4.TXT
+EIA File   : Bm115_4.DRL
+
+Tool         Hole Size          Hole Count Plated       Tool Travel
+---------------------------------------------------------------------------
+T1        20mil (0.508mm)          151              26.60 Inch (675.66 mm)
+T2        35mil (0.889mm)          22               8.83 Inch (224.23 mm)
+T3        39mil (0.9906mm)         1                3.17 Inch (80.47 mm)
+T4        59mil (1.4986mm)         2                2.12 Inch (53.89 mm)
+T5        126mil (3.2004mm)        4                7.74 Inch (196.56 mm)
+T6        35mil (0.889mm)          2         NPTH   1.78 Inch (45.33 mm)
+---------------------------------------------------------------------------
+Totals                             182              50.24 Inch (1276.13 mm)
+
+Total Processing Time (hh:mm:ss) : 00:00:00
