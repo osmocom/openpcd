@@ -399,7 +399,7 @@ rc632_read_eeprom(struct rfid_asic_handle *handle, u_int16_t addr, u_int8_t len,
 	if (err & RC632_ERR_FLAG_ACCESS_ERR)
 		return -EPERM;
 	
-	ret = rc632_reg_read(handle, RC632_REG_FIFO_DATA, &err);
+	ret = rc632_reg_read(handle, RC632_REG_FIFO_LENGTH, &err);
 	if (err < len)
 		len = err;
 
@@ -1482,5 +1482,4 @@ int rc632_get_serial(struct rfid_asic_handle *handle,
 {
 	return rc632_read_eeprom(handle, RC632_E2_PRODUCT_SERIAL, 
 				 4, (u_int8_t *)serial);
-
 }
