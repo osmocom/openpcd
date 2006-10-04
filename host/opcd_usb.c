@@ -54,20 +54,21 @@ opcd_hexdump(const void *data, unsigned int len)
 #define OPCD_IN_EP	0x82
 #define OPCD_INT_EP	0x83
 
-static struct usb_device *find_opcd_handle(void)
+static struct usb_device *find_opcd_handle(int picc)
 {
 	struct usb_bus *bus;
+	u_int16_t product_id;
+
+	if (picc)
+		product_id = OPENPICC_PRODUCT_ID;
+	else
+		product_id = OPENPCD_PRODUCT_ID;
 
 	for (bus = usb_busses; bus; bus = bus->next) {
 		struct usb_device *dev;
 		for (dev = bus->devices; dev; dev = dev->next) {
-			if (dev->descriptor.idVendor == OPENPCD_VENDOR_ID
-			    && (dev->descriptor.idProduct == OPENPCD_PRODUCT_ID ||
-			        dev->descriptor.idProduct == OPENPCD_PRODUCT_ID)
-			    && dev->descriptor.iManufacturer == 0
-			    && dev->descriptor.iProduct == 0
-			    && dev->descriptor.bNumConfigurations == 1
-			    && dev->config->iConfiguration == 0)
+			if (dev->descriptor.idVendor == OPENPCD_VENDOR_ID &&
+			    dev->descriptor.idProduct == product_id)
 				return dev;
 		}
 	}
@@ -100,7 +101,7 @@ static void handle_interrupt(struct usbdevfs_urb *uurb, void *userdata)
 		fprintf(stderr, "unable to resubmit interupt urb\n");
 }
 
-struct opcd_handle *opcd_init(void)
+struct opcd_handle *opcd_init(int picc)
 {
 	struct opcd_handle *oh;
 	struct usb_device *dev;
@@ -113,7 +114,7 @@ struct opcd_handle *opcd_init(void)
 
 	ausb_init();
 
-	dev = find_opcd_handle();
+	dev = find_opcd_handle(picc);
 	if (!dev) {
 		fprintf(stderr, "Cannot find OpenPCD device. "
 			"Are you sure it is connected?\n");
@@ -163,8 +164,9 @@ int opcd_recv_reply(struct opcd_handle *od, char *buf, int len)
 		return ret;
 	}
 
-	printf("RX: %s\n", opcd_hexdump(buf, ret));
-	opcd_dump_hdr((struct openpcd_hdr *)buf);
+	//printf("RX: %s\n", opcd_hexdump(buf, ret));
+	//printf("RX: %s\n", opcd_hexdump(buf, 48));
+	//opcd_dump_hdr((struct openpcd_hdr *)buf);
 
 	return ret;
 }

@@ -61,8 +61,14 @@ static void print_help(void)
 		"\t-w\t--reg-write\treg value\n"
 		"\t-r\t--reg-read\treg\n"
 
+		"\t-W\t--fifo-write\thex\n"
+		"\t-R\t--fifo-read\thex\n"
+
 		"\t-s\t--set-bits\treg\tmask\n"
-		"\t-c\t--clear-bits\treg\tmask\n");
+		"\t-c\t--clear-bits\treg\tmask\n"
+
+		"\t-u\t--usb-perf\txfer_size\n"
+		);
 }
 
 
@@ -79,24 +85,29 @@ static struct option opts[] = {
 	{ "adc-loop", 0, 0, 'A' },
 	{ "ssc-read", 0, 0, 'S' },
 	{ "loop", 0, 0, 'L' },
+	{ "serial-number", 0, 0, 'n' },
 	{ "help", 0, 0, 'h'},
 };	
 
 int main(int argc, char **argv)
 {
 	struct opcd_handle *od;
-	int c;
+	int c, outfd, retlen;
+	char *data;
 	static char buf[8192];
 	int buf_len = sizeof(buf);
 
 	print_welcome();
 
-	od = opcd_init();
+	if (!strcmp(argv[0], "opicc_test"))
+		od = opcd_init(1);
+	else
+		od = opcd_init(0);
 
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?u:aASL", opts,
+		c = getopt_long(argc, argv, "l:r:w:R:W:s:c:h?u:aASLn", opts,
 				&option_index);
 
 		if (c == -1)
@@ -115,7 +126,7 @@ int main(int argc, char **argv)
 		case 'r':
 			if (get_number(optarg, 0x00, OPENPCD_REG_MAX, &i) < 0)
 				exit(2);
-			printf("reading register 0x%02x: ");
+			printf("reading register 0x%02x: ", i);
 			opcd_send_command(od, OPENPCD_CMD_READ_REG, i, 0, 0, NULL);
 			opcd_recv_reply(od, buf, buf_len);
 			break;
@@ -174,16 +185,41 @@ int main(int argc, char **argv)
 		case 'S':
 			opcd_send_command(od, OPENPCD_CMD_SSC_READ, 0, 1, 0, NULL);
 			opcd_recv_reply(od, buf, buf_len);
-			/* FIXME: interpret and print ADC result */
+			/* FIXME: interpret and print SSC result */
 			break;
 		case 'L':
-			while (1) 
-				opcd_recv_reply(od, buf, buf_len);
+			outfd = open("/tmp/opcd_samples",
+				     O_CREAT|O_WRONLY|O_APPEND, 0664);
+			if (outfd < 0)
+				exit(2);
+			while (1) {
+				data = buf + sizeof(struct openpcd_hdr);
+				retlen = opcd_recv_reply(od, buf, buf_len);
+				if (retlen < 0)
+					break;
+				printf("DATA: %s\n", opcd_hexdump(data, retlen-4));
+#if 1
+				write(outfd, data, retlen-4);
+				fsync(outfd);
+#endif
+			}
+			close(outfd);
 			break;
 		case 'h':
 		case '?':
 			print_help();
 			exit(0);
+			break;
+		case 'n':
+			opcd_send_command(od, OPENPCD_CMD_GET_SERIAL, 0, 1, 4,
+					  NULL);
+			retlen = opcd_recv_reply(od, buf,
+						 sizeof(struct openpcd_hdr)+4);
+			if (retlen > 0) {
+				data = buf + sizeof(struct openpcd_hdr);
+				printf("SERIAL: %s\n", opcd_hexdump(data, retlen-4));
+			} else
+				printf("ERROR: %d, %s\n", retlen, usb_strerror());
 			break;
 		default:
 			fprintf(stderr, "unknown key `%c'\n", c);

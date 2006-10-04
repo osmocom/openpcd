@@ -12,7 +12,7 @@ struct opcd_handle {
 
 extern const char *opcd_hexdump(const void *data, unsigned int len);
 
-extern struct opcd_handle *opcd_init(void);
+extern struct opcd_handle *opcd_init(int is_picc);
 extern void opcd_fini(struct opcd_handle *od);
 
 extern int opcd_recv_reply(struct opcd_handle *od, char *buf, int len);
