@@ -21,6 +21,9 @@ extern int udp_refill_ep(int ep);
 extern void udp_unthrottle(void);
 extern void udp_reset(void);
 
+extern void udp_pullup_off(void);
+extern void udp_pullup_on(void);
+
 struct ep_ctx {
 	atomic_t pkts_in_transit;
 	struct {

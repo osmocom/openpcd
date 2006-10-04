@@ -487,6 +487,18 @@ out:
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_UDP);
 }
 
+void udp_pullup_on(void)
+{
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
+}
+
+void udp_pullup_off(void)
+{
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
+}
+
 /* Open USB Device Port  */
 void udp_open(void)
 {
@@ -508,16 +520,18 @@ void udp_open(void)
 
 	/* Set the Pull up resistor */
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
+	udp_pullup_on();
 }
 
 void udp_reset(void)
 {
 	volatile int i;
 
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	udp_pullup_off();
 	for (i = 0; i < 0xffff; i++)
 		;
-	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	udp_pullup_on();
 }
 
 #ifdef DEBUG_UDP_EP0

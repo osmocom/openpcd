@@ -79,6 +79,7 @@ static void __dfufunc udp_init(void)
 	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the
 	 * corresponding PIO Set in PIO mode and Configure in Output */
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
 }
 
 /* Send Data through the control endpoint */
@@ -887,6 +888,7 @@ void __dfufunc dfu_main(void)
 
 	/* Clear for set the Pull up resistor */
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
 
 	flash_init();
 

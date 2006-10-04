@@ -85,10 +85,10 @@ static void DBGU_irq_handler(u_int32_t sr)
 	case '0':		//* info
 		AT91F_DBGU_Frame("Clear Pull up\n\r");
 		// Set
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+		udp_pullup_on();
 		break;
 	case '1':		//* info
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+		udp_pullup_off();
 		AT91F_DBGU_Printk("Set Pull up\n\r");
 		// Reset Application
 		Send_reset();
