@@ -33,7 +33,7 @@ static sysirq_hdlr *sysirq_hdlrs[AT91SAM7_SYSIRQ_COUNT];
 static void sys_irq(void)
 {
 	u_int32_t sr;
-	DEBUGP("sys_irq: ");
+	DEBUGP("sys_irq ");
 
 	/* Somehow Atmel decided to do really stupid interrupt sharing
 	 * for commonly-used interrupts such as the timer irq */
@@ -41,9 +41,8 @@ static void sys_irq(void)
 	/* dbgu */
 	if (*AT91C_DBGU_IMR) {
 		sr = *AT91C_DBGU_CSR;
-		DEBUGP("DBGU(");
 		if (sr & *AT91C_DBGU_IMR) {
-			DEBUGP("found ");
+			DEBUGP("DBGU(");
 			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_DBGU]) {
 				DEBUGP("handler ");
 				sysirq_hdlrs[AT91SAM7_SYSIRQ_DBGU](sr);
@@ -51,96 +50,108 @@ static void sys_irq(void)
 				*AT91C_DBGU_IDR = *AT91C_DBGU_IMR;
 				DEBUGP("no handler ");
 			}
+			DEBUGP(") ");
 		}
-		DEBUGP(") ");
 	}
 	
 	/* pit_irq */
 	if (*AT91C_PITC_PIMR & AT91C_PITC_PITIEN) {
 		sr = *AT91C_PITC_PISR;
-		DEBUGP("PIT(");
 		if (sr & AT91C_PITC_PITS) {
-			DEBUGP("found ");
 			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_PIT]) {
-				DEBUGP("handler ");
 				sysirq_hdlrs[AT91SAM7_SYSIRQ_PIT](sr);
 			} else {
+				DEBUGP("no handler DISABLE_PIT ");
 				*AT91C_PITC_PIMR &= ~AT91C_PITC_PITIEN;
-				DEBUGP("no handler ");
 			}
 		}
-		DEBUGP(") ");
 	}
 
 	/* rtt_irq */
 	if (*AT91C_RTTC_RTMR & (AT91C_RTTC_ALMIEN|AT91C_RTTC_RTTINCIEN)) {
 		sr = *AT91C_RTTC_RTSR;
-		DEBUGP("RTT(");
 		if (sr) {
-			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_RTT])
+			DEBUGP("RTT(");
+			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_RTT]) {
+				DEBUGP("handler ");
 				sysirq_hdlrs[AT91SAM7_SYSIRQ_RTT](sr);
-			else
+			} else {
 				*AT91C_RTTC_RTMR &= ~(AT91C_RTTC_ALMIEN|
 						      AT91C_RTTC_RTTINCIEN);
+				DEBUGP("no handler ");
+			}
+			DEBUGP(") ");
 		}
-		DEBUGP(") ");
 	}
 
 	/* pmc_irq */
 	if (*AT91C_PMC_IMR) {
 		sr = *AT91C_PMC_SR;
-		DEBUGP("PMC(");
 		if (sr & *AT91C_PMC_IMR) {
-			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_PMC])
+			DEBUGP("PMC(");
+			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_PMC]) {
+				DEBUGP("handler ");
 				sysirq_hdlrs[AT91SAM7_SYSIRQ_PMC](sr);
-			else
+			} else {
 				*AT91C_PMC_IDR = *AT91C_PMC_IMR;
+				DEBUGP("no handler ");
+			}
+			DEBUGP(") ");
 		}
-		DEBUGP(") ");
 	}
 
 	/* rstc_irq */
 	if (*AT91C_RSTC_RMR & (AT91C_RSTC_URSTIEN|AT91C_RSTC_BODIEN)) {
 		sr = *AT91C_RSTC_RSR;
-		DEBUGP("RSTC(");
 		if (sr & (AT91C_RSTC_URSTS|AT91C_RSTC_BODSTS)) {
-			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_RSTC])
+			DEBUGP("RSTC(");
+			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_RSTC]) {
+				DEBUGP("handler ");
 				sysirq_hdlrs[AT91SAM7_SYSIRQ_RSTC](sr);
-			else
+			} else {
 				*AT91C_RSTC_RMR &= ~(AT91C_RSTC_URSTIEN|
 						     AT91C_RSTC_BODIEN);
+				DEBUGP("no handler ");
+			}
+			DEBUGP(") ");
 		}
-		DEBUGP(") ");
 	}
 
 	/* mc_irq */
 	if (*AT91C_MC_FMR & (AT91C_MC_LOCKE | AT91C_MC_PROGE)) {
 		sr = *AT91C_MC_FSR;
-		DEBUGP("EFC(");
 		if ((*AT91C_MC_FMR & AT91C_MC_LOCKE && (sr & AT91C_MC_LOCKE))||
 		    (*AT91C_MC_FMR & AT91C_MC_PROGE && (sr & AT91C_MC_PROGE))){
-			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_EFC])
+			DEBUGP("EFC(");
+			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_EFC]) {
+				DEBUGP("handler ");
 		    		sysirq_hdlrs[AT91SAM7_SYSIRQ_EFC](sr);
-			else
+			} else {
 				*AT91C_MC_FMR &= ~(AT91C_MC_LOCKE |
 						   AT91C_MC_PROGE);
+				DEBUGP("no handler ");
+			}
+			DEBUGP(") ");
 		}
-		DEBUGP(") ");
 	}
 	    
 	/* wdt_irq */
 	if (*AT91C_WDTC_WDMR & AT91C_WDTC_WDFIEN) {
 		sr = *AT91C_WDTC_WDSR;
-		DEBUGP("WDT(");
 		if (sr) {
-			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_WDT])
+			DEBUGP("WDT(");
+			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_WDT]) {
+				DEBUGP("handler ");
 				sysirq_hdlrs[AT91SAM7_SYSIRQ_WDT](sr);
-			/* we can't disable it... */
+			} else {
+				/* we can't disable it... */
+				DEBUGP("no handler ");
+			}
+			DEBUGP(") ");
 		}
-		DEBUGP(") ");
 	}
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SYS);
-	DEBUGPCR("");
+	DEBUGPCR("END");
 }
 
 void sysirq_register(enum sysirqs irq, sysirq_hdlr *hdlr)
@@ -155,7 +166,7 @@ void sysirq_init(void)
 {
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SYS,
 			      OPENPCD_IRQ_PRIO_SYS,
-			      AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE,
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL,
 			      &sys_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SYS);
 }

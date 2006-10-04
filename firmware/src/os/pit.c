@@ -26,6 +26,7 @@
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
 #include <os/pit.h>
+#include <os/dbgu.h>
 #include <os/system_irq.h>
 
 #include "../openpcd.h"
@@ -35,7 +36,7 @@
 
 static struct timer_list *timers;
 
-unsigned long jiffies;
+volatile unsigned long jiffies;
 
 static void __timer_insert(struct timer_list *new)
 {
@@ -63,7 +64,7 @@ static void __timer_insert(struct timer_list *new)
 	}
 }
 
-static void __timer_remove(struct timer_list *old)
+static int __timer_remove(struct timer_list *old)
 {
 	struct timer_list *tl, *tl_prev = NULL;
 
@@ -73,18 +74,24 @@ static void __timer_remove(struct timer_list *old)
 				timers = tl->next;
 			else
 				tl_prev->next = tl->next;
+			return 1;
 		}
 		tl_prev = tl;
 	}
+
+	return 0;
 }
 
 int timer_del(struct timer_list *tl)
 {
 	unsigned long flags;
+	int ret;
 
 	local_irq_save(flags);
-	__timer_remove(tl);
+	ret = __timer_remove(tl);
 	local_irq_restore(flags);
+
+	return ret;
 }
 
 void timer_add(struct timer_list *tl)
@@ -98,21 +105,23 @@ void timer_add(struct timer_list *tl)
 
 static void pit_irq(u_int32_t sr)
 {
-	struct timer_list *tl;
+	struct timer_list *tl, *next;
 	unsigned long flags;
 
-	jiffies += *AT91C_PITC_PIVR;
+	if (!(sr & 0x1))
+		return;
+
+	jiffies += *AT91C_PITC_PIVR >> 20;
 
 	/* this is the most simple/stupid algorithm one can come up with, but
 	 * hey, we're on a small embedded platform with only a hand ful
 	 * of timers, at all */
-	for (tl = timers; tl != 0; tl = tl->next) {
-		if (tl->expires >= jiffies) {
-			tl->function(tl->data);
-			local_irq_save(flags);
+	for (tl = timers; tl != NULL; tl = next) {
+		next = tl->next;
+		if (tl->expires <= jiffies) {
 			/* delete timer from list */
-			__timer_remove(tl);
-			local_irq_restore(flags);
+			timer_del(tl);
+			tl->function(tl->data);
 		}
 	}
 }
@@ -130,7 +139,7 @@ void pit_init(void)
 {
 	AT91F_PITC_CfgPMC();
 
-	AT91F_PITInit(AT91C_BASE_PITC, 1000 /* uS */, 48 /* MHz */);
+	AT91F_PITInit(AT91C_BASE_PITC, 1000000/HZ /* uS */, 48 /* MHz */);
 
 	sysirq_register(AT91SAM7_SYSIRQ_PIT, &pit_irq);	
 

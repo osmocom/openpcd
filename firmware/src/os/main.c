@@ -23,8 +23,12 @@
 #include <include/lib_AT91SAM7.h>
 #include <os/dbgu.h>
 #include <os/led.h>
+#include <os/blinkcode.h>
 #include <os/main.h>
 #include <os/power.h>
+#include <os/system_irq.h>
+#include <os/pit.h>
+#include <os/wdt.h>
 #include <os/usbcmd_generic.h>
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
@@ -47,6 +51,7 @@ int main(void)
 	AT91F_PIOA_CfgPMC();
 	wdt_init();
 	pit_init();
+	blinkcode_init();
 
 	/* initialize USB */
 	req_ctx_init();
@@ -73,7 +78,7 @@ int main(void)
 		/* Call application specific main idle function */
 		_main_func();
 		dbgu_rb_flush();
-		wdt_restart();
+		//wdt_restart();
 #ifdef CONFIG_IDLE
 		//cpu_idle();
 #endif

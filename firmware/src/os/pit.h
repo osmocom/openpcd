@@ -3,6 +3,8 @@
 
 #include <sys/types.h>
 
+#define HZ	100
+
 /* This API (but not the code) is modelled after the Linux API */
 
 struct timer_list {
@@ -12,7 +14,7 @@ struct timer_list {
 	void *data;
 };
 
-extern unsigned long jiffies;
+extern volatile unsigned long jiffies;
 
 extern void timer_add(struct timer_list *timer);
 extern int timer_del(struct timer_list *timer);

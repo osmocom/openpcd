@@ -19,14 +19,15 @@ enum blinkcode_state {
 	BLINKCODE_STATE_DONE,
 };
 
-#define TIME_SILENT	(1000)
-#define TIME_INIT	(1000)
-#define TIME_BLINK	(100)
+#define TIME_SILENT	(1*HZ)
+#define TIME_INIT	(1*HZ)
+#define TIME_BLINK	(HZ/4)
 
 struct blinker {
 	struct timer_list timer;
 	enum blinkcode_state state;
-	int8_t num;
+	int num;
+	int cur;
 	u_int8_t led;
 };
 
@@ -36,12 +37,15 @@ static void blinkcode_cb(void *data)
 {
 	/* we got called back by the timer */
 	struct blinker *bl = data;
-
+	
+	DEBUGPCRF("(jiffies=%lu, data=%p, state=%u)",
+		  jiffies, data, bl->state);
 	switch (bl->state) {
 	case BLINKCODE_STATE_NONE:
 		led_switch(bl->led, 0);
 		bl->state = BLINKCODE_STATE_SILENT;
 		bl->timer.expires = jiffies + TIME_SILENT;
+		bl->cur = bl->num;
 		break;
 	case BLINKCODE_STATE_SILENT:
 		/* we've finished the period of silence, turn led on */
@@ -53,22 +57,27 @@ static void blinkcode_cb(void *data)
 		/* we've finished the period of init */
 		led_switch(bl->led, 0);
 		bl->state = BLINKCODE_STATE_BLINK_OFF;
-		bl->timer.expires = jiffies + TIME_BLINK;
+		bl->timer.expires = jiffies + TIME_INIT;
 		break;
 	case BLINKCODE_STATE_BLINK_OFF:
 		/* we've been off, turn on */
 		led_switch(bl->led, 1);
 		bl->state = BLINKCODE_STATE_BLINK_ON;
-		bl->num--;
-		if (bl->num <= 0) {
-			bl->state = BLINKCODE_STATE_NONE;
-			return;
-		}
+		bl->cur--;
+		bl->timer.expires = jiffies + TIME_BLINK;
+		if (bl->cur <= 0)
+			bl->state = BLINKCODE_STATE_DONE;
 		break;
 	case BLINKCODE_STATE_BLINK_ON:
 		/* we've been on, turn off */
 		led_switch(bl->led, 0);
 		bl->state = BLINKCODE_STATE_BLINK_OFF;
+		bl->timer.expires = jiffies + TIME_BLINK;
+		break;
+	case BLINKCODE_STATE_DONE:
+		/* we've been on, turn off */
+		led_switch(bl->led, 0);
+		return;
 		break;
 	}
 	/* default case: re-add the timer */
@@ -77,13 +86,16 @@ static void blinkcode_cb(void *data)
 
 void blinkcode_set(int led, enum blinkcode_num num)
 {
-	if (led >= NUM_LEDS)
+	DEBUGPCRF("(jiffies=%lu, led=%u, num=%u)", jiffies, led, num);
+
+	if (--led > NUM_LEDS)
 		return;
 
 	timer_del(&blink_state[led].timer);
 
 	blink_state[led].num = num;
 	blink_state[led].state = BLINKCODE_STATE_NONE;
+	blink_state[led].timer.expires = jiffies;
 
 	if (num != BLINKCODE_NONE)
 		timer_add(&blink_state[led].timer);
@@ -97,5 +109,7 @@ void blinkcode_init(void)
 		blink_state[i].num = 0;
 		blink_state[i].state = BLINKCODE_STATE_NONE;
 		blink_state[i].led = i+1;
+		blink_state[i].timer.data = &blink_state[i];
+		blink_state[i].timer.function = &blinkcode_cb;
 	}
 }
