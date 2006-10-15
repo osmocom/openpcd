@@ -34,6 +34,7 @@
 # - 19. Apr. 2006  - option FLASH_TOOL (default lpc21isp); variable IMGEXT (mth)
 # - 19. Mai. 2006  - USE_THUMB_MODE switch, ROM_RUN->RUN_FROM_ROM RAM_RUN->RUN_FROM_RAM
 
+LIBRFID_DIR:=../../librfid/
 
 FLASH_TOOL = AT91FLASH
 #FLASH_TOOL = UVISION
@@ -159,12 +160,12 @@ DEBUGF = dwarf-2
 # List any extra directories to look for include files here.
 #     Each directory must be seperated by a space.
 #### FreeRTOS
-EXTRAINCDIRS =
+EXTRAINCDIRS = $(LIBRFID_DIR)/include/
 
 # List any extra directories to look for library files here.
 #     Each directory must be seperated by a space.
 #EXTRA_LIBDIRS = ../arm7_efsl_0_2_4
-EXTRA_LIBDIRS = ../../librfid/src/.libs/
+EXTRA_LIBDIRS = $(LIBRFID_DIR)/src/.libs/
 
 ## Using the Atmel AT91_lib produces warning with
 ## the default warning-levels. 
