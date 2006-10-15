@@ -242,6 +242,64 @@ int _main_dbgu(char key)
 	return -EINVAL;
 }
 
+static int build_atqa_samples(void)
+{
+	u_int16_t atqa = opicc_reg_read(OPICC_REG_14443A_ATQA);
+	u_int16_t uid_len = opicc_reg_read(OPICC_REG_14443A_UIDLEN);
+
+	atqa &= 0xff3f;
+
+	switch (uid_len) {
+		case 4:
+			/* single */
+			break;
+		case 7:
+			/* double */
+			atqa |= 0x1 << 6;
+			break;
+		case 10:
+			/* triple */
+			atqa != 0x2 << 6;
+			break;
+		default:
+			return -1;
+	}
+
+	return 0;
+}
+
+static int state_set(int newstate)
+{
+	int oldstate;
+
+	switch (newstate) {
+	case ISO1443A_ST_POWEROFF:
+		/* In the POWREOFF state we don't react to anything
+		 * but PLL lock interrupt.  We use the PLL lock interrupt
+		 * to detect a carrier signal and transition into IDLE
+		 * state */
+		break;
+	case ISO14443A_ST_IDLE:
+		/* In the IDLE state, we wait for REQA/WUPA */
+
+		/* Configure clock divider for 424kHz */
+
+		/* Configure SSC for 106kBps */
+
+		/* Prepare Tx Data: ATQA as specified in registers for
+		 * 106kHz */
+
+		/* Configure SSC Tx 
+		break;
+	case ISO14443A_ST_READY:
+		/* In the READY state, we wait for SELECT. After we're
+		 * selected, we transition into ACTIVE state */
+		break;
+	
+
+	}
+}
+
 void _main_func(void)
 {
 	/* first we try to get rid of pending to-be-sent stuff */

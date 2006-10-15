@@ -239,68 +239,6 @@ static int __ramfunc __ssc_rx_refill(int secondary)
 	return 0;
 }
 
-#if 0
-static char dmabuf1[512];
-static char dmabuf2[512];
-
-/* Try to refill RX dma descriptors. Return values:
- *  0) no dma descriptors empty
- *  1) filled next/secondary descriptor
- *  2) filled both primary and secondary descriptor
- * -1) no free request contexts to use
- * -2) only one free request context, but two free descriptors
- */
-static int8_t ssc_rx_refill(void)
-{
-	struct req_ctx *rctx;
-	DEBUGR("refill ");
-#if 1
-	rctx = req_ctx_find_get(1, RCTX_STATE_FREE, RCTX_STATE_SSC_RX_BUSY);
-	DEBUGP("SSC_SR=0x%08x ", ssc->SSC_SR);
-	if (AT91F_PDC_IsRxEmpty(rx_pdc)) {
-		DEBUGR("filling primary SSC RX dma ctx: %u (len=%u) ",
-			req_ctx_num(rctx), rctx->size);
-		rctx->tot_len = rctx->size;
-		AT91F_PDC_SetRx(rx_pdc, rctx->data+MAX_HDRSIZE,
-				(rctx->size-MAX_HDRSIZE)>>2);
-		ssc_state.rx_ctx[0] = rctx;
-
-		/* If primary is empty, secondary must be empty, too */
-		rctx = req_ctx_find_get(1, RCTX_STATE_FREE, 
-					RCTX_STATE_SSC_RX_BUSY);
-		if (!rctx) {
-			DEBUGPCRF("no rctx for secondary refill!");
-			return -2;
-		}
-		init_opcdhdr(rctx);
-	}
-
-	if (AT91F_PDC_IsNextRxEmpty(rx_pdc)) {
-		DEBUGR("filling secondary SSC RX dma ctx: %u (len=%u) ",
-			req_ctx_num(rctx), rctx->size);
-		rctx->tot_len = rctx->size;
-		AT91F_PDC_SetNextRx(rx_pdc, rctx->data+MAX_HDRSIZE,
-				    (rctx->size-MAX_HDRSIZE)>2);
-		ssc_state.rx_ctx[1] = rctx;
-		return 2;
-	} else {
-		/* we were unable to fill*/
-		DEBUGPCRF("prim/secnd DMA busy, can't refill");
-		req_ctx_put(rctx);	
-		return 0;
-	}
-#else
-	if (AT91F_PDC_IsRxEmpty(rx_pdc))
-		AT91F_PDC_SetRx(rx_pdc, dmabuf1, sizeof(dmabuf1)>>2);
-	
-	if (AT91F_PDC_IsNextRxEmpty(rx_pdc))
-		AT91F_PDC_SetNextRx(rx_pdc, dmabuf2, sizeof(dmabuf2)>>2);
-	else
-		DEBUGPCRF("prim/secnd DMA busy, can't refill");
-#endif
-}
-#endif
-
 #define ISO14443A_FDT_SHORT_1	1236
 #define ISO14443A_FDT_SHORT_0	1172
 

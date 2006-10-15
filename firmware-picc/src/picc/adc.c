@@ -131,7 +131,8 @@ static int adc_usb_in(struct req_ctx *rctx)
 		rctx->tot_len = sizeof(*poh) + poh->val * 2;
 		AT91F_PDC_SetRx(AT91C_BASE_PDC_ADC, rctx->data, poh->val);
 		AT91F_PDC_EnableRx(AT91C_BASE_PDC_ADC);
-		AT91F_ADC_EnableChannel(AT91C_BASE_ADC, OPENPICC_ADC_CH_FIELDSTR);
+		AT91F_ADC_EnableChannel(AT91C_BASE_ADC,
+					OPENPICC_ADC_CH_FIELDSTR);
 		AT91F_ADC_EnableIt(AT91C_BASE_ADC, AT91C_ADC_ENDRX |
 				   OPENPICC_ADC_CH_FIELDSTR);
 		AT91F_ADC_StartConversion(adc);
