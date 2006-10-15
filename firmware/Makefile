@@ -94,8 +94,7 @@ SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
 
 ifeq ($(BOARD), PCD)
 # PCD support code
-SRCARM += src/pcd/rc632.c src/pcd/rc632_highlevel.c \
-	  src/pcd/rfid_layer2_iso14443a.c
+SRCARM += src/pcd/rc632.c src/pcd/rc632_highlevel.c
 # finally, the actual main application 
 SRCARM += src/pcd/$(TARGET).c 
 endif
@@ -165,7 +164,7 @@ EXTRAINCDIRS =
 # List any extra directories to look for library files here.
 #     Each directory must be seperated by a space.
 #EXTRA_LIBDIRS = ../arm7_efsl_0_2_4
-EXTRA_LIBDIRS = 
+EXTRA_LIBDIRS = ../../librfid/src/.libs/
 
 ## Using the Atmel AT91_lib produces warning with
 ## the default warning-levels. 
@@ -266,7 +265,7 @@ ASFLAGS = $(ADEFS) -Wa,-adhlns=$(<:.S=.lst),--g$(DEBUGF) -Iinclude/ -D__ASSEMBLY
 #    To add libxyz.a, libabc.a and libefsl.a: 
 #    EXTRA_LIBS = xyz abc efsl
 #EXTRA_LIBS = efsl
-EXTRA_LIBS =
+EXTRA_LIBS = rfid
 
 #Support for newlibc-lpc (file: libnewlibc-lpc.a)
 #NEWLIBLPC = -lnewlib-lpc

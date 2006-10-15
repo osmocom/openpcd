@@ -31,16 +31,6 @@ static const int ledport[] = {
 	[2] =	OPENPCD_PIO_LED2,
 };
 
-static int led2port(int led)
-{
-	if (led == 1)
-		return OPENPCD_PIO_LED1;
-	else if (led == 2)
-		return OPENPCD_PIO_LED2;
-	else
-		return 0;
-}
-
 void led_switch(int led, int on)
 {
 	int port;

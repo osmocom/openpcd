@@ -35,14 +35,14 @@ static struct pioirq_state pirqs;
 
 /* low-level handler, used by Cstartup_app.S PIOA fast forcing and
  * by regular interrupt handler below */
-void __pio_irq_demux(u_int32_t pio)
+void __ramfunc __pio_irq_demux(u_int32_t pio)
 {
 	u_int8_t send_usb = 0;
 	int i;
 
 	DEBUGPCRF("PIO_ISR_STATUS = 0x%08x", pio);
 
-	for (i = 0; i < NR_PIO; i++) {
+	for (i = 27; i < NR_PIO; i++) {
 		if (pio & (1 << i) && pirqs.handlers[i])
 			pirqs.handlers[i](i);
 		if (pirqs.usbmask & (1 << i))

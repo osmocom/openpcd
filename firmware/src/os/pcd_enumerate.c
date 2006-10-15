@@ -42,6 +42,8 @@
 #include "../openpcd.h"
 #include <os/dbgu.h>
 
+#include "../config.h"
+
 //#define DEBUG_UDP_IRQ
 //#define DEBUG_UDP_IRQ_IN
 //#define DEBUG_UDP_IRQ_OUT
@@ -65,13 +67,18 @@
 #define DEBUGIO(x, args ...)	do { } while (0)
 #endif
 
+#ifdef DEBUG_UDP_EP0
+#define DEBUGE(x, args ...)	DEBUGP(x, ## args)
+#else
+#define DEBUGE(x, args ...)	do { } while (0)
+#endif
 
 #define CONFIG_DFU
 
 #ifdef CONFIG_DFU
 static const struct dfuapi *dfu = DFU_API_LOCATION;
 #define udp_init		dfu->udp_init
-#define udp_ep0_send_data	dfu->ep0_send_data
+//#define udp_ep0_send_data	dfu->ep0_send_data
 #define udp_ep0_send_zlp	dfu->ep0_send_zlp
 #define udp_ep0_send_stall	dfu->ep0_send_stall
 #else
@@ -83,7 +90,7 @@ static struct udp_pcd upcd;
 const struct usb_device_descriptor dev_descriptor = {
 	.bLength = USB_DT_DEVICE_SIZE,
 	.bDescriptorType = USB_DT_DEVICE,
-	.bcdUSB = 0x0200,
+	.bcdUSB = 0x0100,
 	.bDeviceClass = USB_CLASS_VENDOR_SPEC,
 	.bDeviceSubClass = 0xff,
 	.bDeviceProtocol = 0xff,
@@ -91,9 +98,15 @@ const struct usb_device_descriptor dev_descriptor = {
 	.idVendor = USB_VENDOR_ID,
 	.idProduct = USB_PRODUCT_ID,
 	.bcdDevice = 0x0030,	/* Version 0.3 */
+#ifdef CONFIG_USB_STRING
 	.iManufacturer = 3,
 	.iProduct = 4,
-	.iSerialNumber = 0x00,
+	.iSerialNumber = 0,
+#else
+	.iManufacturer = 0,
+	.iProduct = 0,
+	.iSerialNumber = 0,
+#endif
 	.bNumConfigurations = 0x01,
 };
 
@@ -121,7 +134,11 @@ const struct _desc cfg_descriptor = {
 		 .bNumInterfaces = 1,
 #endif
 		 .bConfigurationValue = 1,
+#ifdef CONFIG_USB_STRING
 		 .iConfiguration = 5,
+#else
+		 .iConfiguration = 0,
+#endif
 		 .bmAttributes = USB_CONFIG_ATT_ONE,
 		 .bMaxPower = 250,	/* 500mA */
 		 },
@@ -134,7 +151,11 @@ const struct _desc cfg_descriptor = {
 		.bInterfaceClass = USB_CLASS_VENDOR_SPEC,
 		.bInterfaceSubClass = 0,
 		.bInterfaceProtocol = 0xff,
+#ifdef CONFIG_SB_STRING
 		.iInterface = 6,
+#else
+		.iInterface = 0,
+#endif
 		},
 	.ep= {
 		{
@@ -178,6 +199,53 @@ static const struct epstate epstate[] = {
 	[3] =	{ .state_busy = RCTX_STATE_UDP_EP3_BUSY,
 		  .state_pending = RCTX_STATE_UDP_EP3_PENDING },
 };
+
+/* Send Data through the control endpoint */
+static void udp_ep0_send_data(const char *pData, u_int32_t length)
+{
+	AT91PS_UDP pUdp = AT91C_BASE_UDP;
+	u_int32_t cpt = 0;
+	AT91_REG csr;
+
+	DEBUGE("send_data: %u bytes ", length);
+
+	do {
+		cpt = MIN(length, 8);
+		length -= cpt;
+
+		DEBUGE("fifo_fill ");
+		while (cpt--)
+			pUdp->UDP_FDR[0] = *pData++;
+
+		if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
+			DEBUGE("wait_txcomp_clear ");
+			pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
+			while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
+		}
+
+		DEBUGE("set_txpktrdy ");
+		pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
+		DEBUGE("wait_txcomp ");
+		do {
+			csr = pUdp->UDP_CSR[0];
+
+			/* Data IN stage has been stopped by a status OUT */
+			if (csr & AT91C_UDP_RX_DATA_BK0) {
+				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
+				DEBUGE("stopped by status out ");
+				return;
+			}
+		} while (!(csr & AT91C_UDP_TXCOMP));
+
+	} while (length);
+
+	DEBUGE("clear_txcomp ");
+	if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
+		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
+		while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
+	}
+	DEBUGE("done ");
+}
 
 static void reset_ep(unsigned int ep)
 {
@@ -490,13 +558,17 @@ out:
 void udp_pullup_on(void)
 {
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+#ifdef PCD
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
+#endif
 }
 
 void udp_pullup_off(void)
 {
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+#ifdef PCD
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
+#endif
 }
 
 /* Open USB Device Port  */
@@ -519,8 +591,6 @@ void udp_open(void)
 	/* End-of-Bus-Reset is always enabled */
 
 	/* Set the Pull up resistor */
-	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
 	udp_pullup_on();
 }
 
@@ -533,12 +603,6 @@ void udp_reset(void)
 		;
 	udp_pullup_on();
 }
-
-#ifdef DEBUG_UDP_EP0
-#define DEBUGE(x, args ...)	DEBUGP(x, ## args)
-#else
-#define DEBUGE(x, args ...)	do { } while (0)
-#endif
 
 /* Handle requests on the USB Control Endpoint */
 static void udp_ep0_handler(void)
@@ -628,6 +692,7 @@ static void udp_ep0_handler(void)
 					   MIN(sizeof(cfg_descriptor), wLength));
 			break;
 		case USB_DT_STRING:
+#ifdef CONFIG_USB_STRING
 			/* Return String descriptor */
 			if (desc_index > ARRAY_SIZE(usb_strings))
 				goto out_stall;
@@ -636,6 +701,9 @@ static void udp_ep0_handler(void)
 			udp_ep0_send_data((const char *) usb_strings[desc_index],
 					  MIN(usb_strings[desc_index]->bLength, 
 					      wLength));
+#else
+			goto out_stall;
+#endif
 			break;
 		case USB_DT_CS_DEVICE:
 			/* Return Function descriptor */
@@ -852,8 +920,8 @@ static void udp_ep0_handler(void)
 		upcd.cur_interface = wIndex;
 		upcd.cur_altsett = wValue;
 		/* USB spec mandates that if we only support one altsetting in
-		 * the given interface, we shall respond with STALL in the status
-		 * stage */
+		 * the given interface, we shall respond with STALL in the
+		 * status stage */
 		udp_ep0_send_stall();
 		break;
 	default:

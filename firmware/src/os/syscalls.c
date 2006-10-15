@@ -40,7 +40,7 @@ _ssize_t _read_r(
     size_t len)
 {
 	char c;
-	int  i;
+	unsigned int  i;
 	unsigned char *p;
 	
 	p = (unsigned char*)ptr;

@@ -34,6 +34,8 @@ struct req_ctx {
 
 #define RCTX_STATE_SSC_RX_BUSY		0x20
 
+#define RCTX_STATE_LIBRFID_BUSY		0x30
+
 #define RCTX_STATE_PIOIRQ_BUSY		0x80
 
 #define RCTX_STATE_INVALID		0xff

@@ -31,7 +31,6 @@ void poti_comp_carr(u_int8_t position)
 
 	while (!(spi->SPI_SR & AT91C_SPI_TDRE)) { }
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
-	//for (i = 0; i < 0xff; i++) { }
 	/* shift one left, since it is a seven-bit value written as 8 bit xfer */
 	spi->SPI_TDR = position & 0x7f;
 	while (!(spi->SPI_SR & AT91C_SPI_TDRE)) { }

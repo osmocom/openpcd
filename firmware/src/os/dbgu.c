@@ -41,8 +41,11 @@
 #include <os/led.h>
 #include <os/main.h>
 #include <os/system_irq.h>
+#include <os/pcd_enumerate.h>
 #include <asm/system.h>
 #include <compile.h>
+
+//#define DEBUG_UNBUFFERED
 
 #define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
@@ -324,8 +327,11 @@ void debugp(const char *format, ...)
 
 	dbg_buf[sizeof(dbg_buf)-1] = '\0';			
 	//AT91F_DBGU_Frame(dbg_buf);
-	//AT91F_DBGU_Printk(dbg_buf);
+#ifdef DEBUG_UNBUFFERED
+	AT91F_DBGU_Printk(dbg_buf);
+#else
 	dbgu_rb_append(dbg_buf, strlen(dbg_buf));
+#endif
 }
 #else
 void dbgu_rb_flush(void) {}

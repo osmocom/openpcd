@@ -37,6 +37,8 @@
 #include <pcd/ssc.h>
 #endif
 
+#define RAH NULL
+
 static u_int8_t force_100ask = 1;
 static u_int8_t mod_conductance = 0x3f;
 static u_int8_t cw_conductance = 0x3f;
@@ -48,7 +50,7 @@ static u_int8_t pwm_freq_idx = 0;
 
 static void rc632_modulate_mfin()
 {
-	rc632_reg_write(RAH, RC632_REG_TX_CONTROL, 
+	opcd_rc632_reg_write(RAH, RC632_REG_TX_CONTROL, 
 			RC632_TXCTRL_MOD_SRC_MFIN|RC632_TXCTRL_TX2_INV|
 			RC632_TXCTRL_TX1_RF_EN|RC632_TXCTRL_TX2_RF_EN);
 }
@@ -178,41 +180,41 @@ int _main_dbgu(char key)
 		DEBUGPCRF("%sabling Force100ASK", force_100ask ? "Dis":"En");
 		if (force_100ask) {
 			force_100ask = 0;
-			rc632_clear_bits(RAH, RC632_REG_TX_CONTROL,
-				         RC632_TXCTRL_FORCE_100_ASK);
+			opcd_rc632_clear_bits(RAH, RC632_REG_TX_CONTROL,
+					      RC632_TXCTRL_FORCE_100_ASK);
 		} else {
 			force_100ask = 1;
-			rc632_set_bits(RAH, RC632_REG_TX_CONTROL,
-				       RC632_TXCTRL_FORCE_100_ASK);
+			opcd_rc632_set_bits(RAH, RC632_REG_TX_CONTROL,
+					    RC632_TXCTRL_FORCE_100_ASK);
 		}
 		return 0;
 		break;
 	case 'v':
 		if (mod_conductance > 0) {
 			mod_conductance--;
-			rc632_reg_write(RAH, RC632_REG_MOD_CONDUCTANCE,
-					rsrel_table[mod_conductance]);
+			opcd_rc632_reg_write(RAH, RC632_REG_MOD_CONDUCTANCE,
+					     rsrel_table[mod_conductance]);
 		}
 		break;
 	case 'b':
 		if (mod_conductance < 0x3f) {
 			mod_conductance++;
-			rc632_reg_write(RAH, RC632_REG_MOD_CONDUCTANCE,
-					rsrel_table[mod_conductance]);
+			opcd_rc632_reg_write(RAH, RC632_REG_MOD_CONDUCTANCE,
+					     rsrel_table[mod_conductance]);
 		}
 		break;
 	case 'g':
 		if (cw_conductance > 0) {
 			cw_conductance--;
-			rc632_reg_write(RAH, RC632_REG_CW_CONDUCTANCE, 
-					rsrel_table[cw_conductance]);
+			opcd_rc632_reg_write(RAH, RC632_REG_CW_CONDUCTANCE, 
+					     rsrel_table[cw_conductance]);
 		}
 		break;
 	case 'h':
 		if (cw_conductance < 0x3f) {
 			cw_conductance++;
-			rc632_reg_write(RAH, RC632_REG_CW_CONDUCTANCE, 
-					rsrel_table[cw_conductance]);
+			opcd_rc632_reg_write(RAH, RC632_REG_CW_CONDUCTANCE, 
+					     rsrel_table[cw_conductance]);
 		}
 		break;
 	case '?':

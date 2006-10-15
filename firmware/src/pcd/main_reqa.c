@@ -33,12 +33,21 @@
 #include <os/led.h>
 #include <os/pcd_enumerate.h>
 #include <os/trigger.h>
+#include <pcd/rc632_highlevel.h>
+
+#include <librfid/rfid_reader.h>
+#include <librfid/rfid_layer2.h>
 
 #include "../openpcd.h"
 
 #ifdef WITH_TC
 #include "tc.h"
 #endif
+
+#define RAH NULL
+
+static struct rfid_reader_handle *rh;
+static struct rfid_layer2_handle *l2h;
 
 void _init_func(void)
 {
@@ -52,7 +61,8 @@ void _init_func(void)
 	DEBUGPCRF("turning on RF");
 	rc632_turn_on_rf(RAH);
 	DEBUGPCRF("initializing 14443A operation");
-	rc632_iso14443a_init(RAH);
+	rh = rfid_reader_open(NULL, RFID_READER_OPENPCD);
+	l2h = rfid_layer2_init(rh, RFID_LAYER2_ISO14443A);
 }
 
 #define MODE_REQA	0x01
@@ -62,21 +72,30 @@ void _init_func(void)
 
 static volatile int mode = MODE_REQA;
 
-static const char frame_14443a[] = { 0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+static const char frame_14443a[] = { 
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+};
 
 static void reg_inc(u_int8_t reg)
 {
 	u_int8_t val;
-	rc632_reg_read(RAH, reg, &val);
-	rc632_reg_write(RAH, reg, val++);
+	opcd_rc632_reg_read(RAH, reg, &val);
+	opcd_rc632_reg_write(RAH, reg, val++);
 	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
 }
 
 static void reg_dec(u_int8_t reg)
 {
 	u_int8_t val;
-	rc632_reg_read(RAH, reg, &val);
-	rc632_reg_write(RAH, reg, val--);
+	opcd_rc632_reg_read(RAH, reg, &val);
+	opcd_rc632_reg_write(RAH, reg, val--);
 	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
 }
 
@@ -100,7 +119,7 @@ static u_int16_t cdivs[] = { 128, 64, 32, 16 };
 int _main_dbgu(char key)
 {
 	int ret = 0;
-	static int cdiv_idx = 0;
+	static int cdiv_idx = 2;
 
 	switch (key) {
 	case '?':
@@ -137,7 +156,8 @@ int _main_dbgu(char key)
 		if (ana_out_sel > 0) {
 			ana_out_sel--;
 			DEBUGPCR("switching to analog output mode 0x%x\n", ana_out_sel);
-			rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+			opcd_rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, 
+					     ana_out_sel);
 		}
 		ret = 1;
 		break;
@@ -145,7 +165,8 @@ int _main_dbgu(char key)
 		if (ana_out_sel < 0xc) {
 			ana_out_sel++;
 			DEBUGPCR("switching to analog output mode 0x%x\n", ana_out_sel);
-			rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+			opcd_rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, 
+					     ana_out_sel);
 		}
 		ret = 1;
 		break;
@@ -153,7 +174,7 @@ int _main_dbgu(char key)
 		if (mfout_sel > 0) {
 			mfout_sel--;
 			DEBUGPCR("switching to MFOUT mode 0x%x\n", mfout_sel);
-			rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
+			opcd_rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
 		}
 		ret = 1;
 		break;
@@ -161,7 +182,7 @@ int _main_dbgu(char key)
 		if (mfout_sel < 5) {
 			mfout_sel++;
 			DEBUGPCR("switching to MFOUT mode 0x%x\n", mfout_sel);
-			rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
+			opcd_rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
 		}
 		ret = 1;
 		break;
@@ -208,27 +229,17 @@ void _main_func(void)
 {
 	int status;
 	struct iso14443a_atqa atqa;
-	struct rfid_layer2_handle l2h;
 	volatile int i;
-
-	memset(&atqa, 0, sizeof(atqa));
-
-	/* fake layer2 handle initialization */
-	memset(&l2h, 0, sizeof(l2h));
-	l2h.l2 = &rfid_layer2_iso14443a;
-	l2h.priv.iso14443a.state = ISO14443A_STATE_NONE;
-	l2h.priv.iso14443a.level = ISO14443A_LEVEL_NONE;
 
 	/* FIXME: why does this only work every second attempt without reset or
 	 * power-cycle? */
-	rc632_turn_off_rf();
+	//rc632_turn_off_rf();
 	//rc632_reset();
-	rc632_turn_on_rf();
+	//rc632_turn_on_rf();
 
-	rc632_iso14443a_init(RAH);
-	rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
-	rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
-	for (i = 0; i < 0x3ffff; i++) {}
+	opcd_rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+	opcd_rc632_reg_write(RAH, RC632_REG_MFOUT_SELECT, mfout_sel);
+	for (i = 0; i < 0xfffff; i++) {}
 	//rc632_dump();
 #ifdef WITH_TC
 	tc_cdiv_print();
@@ -236,21 +247,21 @@ void _main_func(void)
 
 	switch (mode) {
 	case MODE_REQA:
-		status = rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_REQA, &atqa);
+		status = iso14443a_transceive_sf(l2h, ISO14443A_SF_CMD_REQA, &atqa);
 		if (status < 0)
 			DEBUGPCRF("error during transceive_sf REQA");
 		else 
 			DEBUGPCRF("received ATQA: %s", hexdump((char *)&atqa, sizeof(atqa)));
 		break;
 	case MODE_WUPA:
-		status = rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_WUPA, &atqa);
+		status = iso14443a_transceive_sf(l2h, ISO14443A_SF_CMD_WUPA, &atqa);
 		if (status < 0)
 			DEBUGPCRF("error during transceive_sf WUPA");
 		else 
 			DEBUGPCRF("received WUPA: %s", hexdump((char *)&atqa, sizeof(atqa)));
 		break;
 	case MODE_ANTICOL:
-		status = rfid_layer2_iso14443a.fn.open(&l2h);
+		status = rfid_layer2_open(l2h);
 		if (status < 0)
 			DEBUGPCR("error during anticol");
 		else
@@ -260,11 +271,11 @@ void _main_func(void)
 		{
 			char rx_buf[4];
 			int rx_len = sizeof(rx_buf);
-			rfid_layer2_iso14443a.fn.setopt(&l2h, RFID_OPT_14443A_SPEED_RX,
+			rfid_layer2_setopt(l2h, RFID_OPT_14443A_SPEED_RX,
 					 &speed_idx, sizeof(speed_idx));
-			rfid_layer2_iso14443a.fn.setopt(&l2h, RFID_OPT_14443A_SPEED_TX,
+			rfid_layer2_setopt(l2h, RFID_OPT_14443A_SPEED_TX,
 					 &speed_idx, sizeof(speed_idx));
-			rfid_layer2_iso14443a.fn.transceive(&l2h, RFID_14443A_FRAME_REGULAR, 
+			rfid_layer2_transceive(l2h, RFID_14443A_FRAME_REGULAR, 
 					    &frame_14443a, sizeof(frame_14443a),
 					    &rx_buf, &rx_len, 1, 0);
 		}

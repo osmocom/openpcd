@@ -138,7 +138,7 @@ static int pwm_usb_in(struct req_ctx *rctx)
 	case OPENPCD_CMD_PWM_FREQ_SET:
 		if (rctx->tot_len < sizeof(*poh)+4)
 			break;
-		freq = (unsigned char *) poh + sizeof(*poh);
+		freq = (u_int32_t *) ((unsigned char *) poh) + sizeof(*poh);
 		pwm_freq_set(0, *freq);
 		break;
 	case OPENPCD_CMD_PWM_FREQ_GET:

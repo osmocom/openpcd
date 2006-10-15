@@ -34,6 +34,16 @@
 #include <os/trigger.h>
 #include <os/pcd_enumerate.h>
 #include <os/main.h>
+#include <pcd/rc632_highlevel.h>
+
+#include <librfid/rfid_reader.h>
+#include <librfid/rfid_layer2.h>
+#include <librfid/rfid_protocol.h>
+
+#define RAH NULL
+
+static struct rfid_reader_handle *rh;
+static struct rfid_layer2_handle *l2h;
 
 void _init_func(void)
 {
@@ -43,9 +53,11 @@ void _init_func(void)
 	rc632_turn_on_rf(RAH);
 	/* FIXME: do we need this? */
 	DEBUGPCRF("initializing 14443A operation");
-	rc632_iso14443a_init(RAH);
+	rh = rfid_reader_open(NULL, RFID_READER_OPENPCD);
+	l2h = rfid_layer2_init(rh, RFID_LAYER2_ISO14443A);
+
 	/* Switch to 848kBps (1subcp / bit) */
-	//rc632_clear_bits(RAH, RC632_REG_RX_CONTROL1, RC632_RXCTRL1_SUBCP_MASK);
+	//opcd_rc632_clear_bits(RAH, RC632_REG_RX_CONTROL1, RC632_RXCTRL1_SUBCP_MASK);
 }
 
 int _main_dbgu(char key)
@@ -76,7 +88,7 @@ int _main_dbgu(char key)
 	if (ret == 1) {
 		ana_out_sel &= 0x0f;
 		DEBUGPCR("switching to analog output mode 0x%x\n", ana_out_sel);
-		rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
+		opcd_rc632_reg_write(RAH, RC632_REG_TEST_ANA_SELECT, ana_out_sel);
 	}
 
 	return ret;
@@ -91,7 +103,7 @@ void _main_func(void)
 
 	trigger_pulse();
 
-	if (rc632_iso14443a_transceive_sf(RAH, ISO14443A_SF_CMD_WUPA, &atqa) < 0) {
+	if (iso14443a_transceive_sf(l2h, ISO14443A_SF_CMD_WUPA, &atqa) < 0) {
 		DEBUGPCRF("error during transceive_sf");
 		led_switch(1, 0);
 	} else {

@@ -6,7 +6,8 @@ RC632:
 - Implement VFIFO handling
 
 USB:
-- Implement VFIFO handling
+- Implement suspend/resume handshake
+- Make sure we don't eat a lot of power before entering the configured state
 
 DFU:
 - fix DFU download (usb control write / zlp at end)
@@ -16,7 +17,7 @@ DFU:
 - Get rid of lots of constant values and replace them by proper defines
 
 Generic:
--
+- why is watchdog apparently not working?
 
 Way Later, for librfid:
 - Implement parts (or all of) 14443 in firmware as alternative configuration

@@ -80,7 +80,7 @@ void tc_cdiv_init(void)
 			      AT91C_TC_ACPA_SET | AT91C_TC_ACPC_CLEAR |
 			      AT91C_TC_BEEVT_SET | AT91C_TC_BCPB_CLEAR |
 			      AT91C_TC_EEVT_XC2 | AT91C_TC_ETRGEDG_RISING |
-			      AT91C_TC_BSWTRG_CLEAR; /* clear on swtrg */
+			      AT91C_TC_BSWTRG_CLEAR | AT91C_TC_ASWTRG_CLEAR;
 
 	tc_cdiv_set_divider(128);
 

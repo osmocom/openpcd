@@ -27,6 +27,7 @@ enum opicc_reg {
 	OPICC_REG_14443A_FDT0,	/* Frame delay time if last bit 0 */
 	OPICC_REG_14443A_FDT1,	/* Frame delay time if last bit 1 */
 	OPICC_REG_14443A_STATE,	/* see 'enum opicc_14443a_state' */
+	OPICC_REG_14443A_ATQA,	/* The ATQA template for 14443A */
 
 	OPICC_REG_RX_CLK_DIV,	/* Clock divider for Rx sample clock */
 	OPICC_REG_RX_CLK_PHASE,	/* Phase shift of Rx sample clock */

@@ -50,7 +50,7 @@ struct req_ctx __ramfunc *req_ctx_find_get(int large,
 	else
 		i = 0;
 
-	for (1; i < NUM_REQ_CTX; i++) {
+	for (; i < NUM_REQ_CTX; i++) {
 		local_irq_save(flags);
 		if (req_ctx[i].state == old_state) {
 			req_ctx[i].state = new_state;

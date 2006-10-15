@@ -28,6 +28,8 @@
 #include "../openpcd.h"
 #include <os/main.h>
 
+#define RAH NULL
+
 void _init_func(void)
 {
 	rc632_init();
@@ -48,13 +50,13 @@ int _main_dbgu(char key)
 			
 		break;
 	case '5':
-		rc632_reg_read(RAH, RC632_REG_RX_WAIT, &value);
+		opcd_rc632_reg_read(RAH, RC632_REG_RX_WAIT, &value);
 		DEBUGPCR("Reading RC632 Reg RxWait: 0x%02xr", value);
 
 		break;
 	case '6':
 		DEBUGPCR("Writing RC632 Reg RxWait: 0x55");
-		rc632_reg_write(RAH, RC632_REG_RX_WAIT, 0x55);
+		opcd_rc632_reg_write(RAH, RC632_REG_RX_WAIT, 0x55);
 		break;
 	case '7':
 		rc632_dump();

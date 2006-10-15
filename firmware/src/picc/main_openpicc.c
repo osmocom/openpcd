@@ -35,8 +35,8 @@
 #include <picc/ssc_picc.h>
 #include <picc/load_modulation.h>
 
-static const u_int16_t cdivs[] = { 128, 64, 32, 16 };
-static u_int8_t cdiv_idx = 0;
+static const u_int16_t cdivs[] = { 8192, 2048, 1024, 512, 128, 64, 32, 16 };
+static u_int8_t cdiv_idx = 6;
 
 static u_int16_t duty_percent = 22;
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -53,12 +53,12 @@ void _init_func(void)
 	poti_init();
 	load_mod_init();
 	tc_cdiv_init();
-	//tc_fdt_init();
+	tc_fdt_init();
 	pwm_init();
 	adc_init();
 	ssc_rx_init();
-	// ssc_tx_init();
-	
+	ssc_tx_init();
+
 	/* high-level protocol */
 	decoder_init();
 	opicc_usbapi_init();
@@ -80,7 +80,7 @@ static void help(void)
 	DEBUGPCR("v: decrease load_mod   b: increase load_mod\r\n"
 		 "B: read button         S: toggle nSLAVE_RESET\r\n"
 		 "a: SSC stop            s: SSC start\r\n"
-		 "d: SSC mode select");
+		 "d: SSC mode select     T: TC_CDIV_HELP enable\r\n");
 }
 
 int _main_dbgu(char key)
@@ -88,6 +88,7 @@ int _main_dbgu(char key)
 	static u_int8_t poti = 64;
 	static u_int8_t pll_inh = 1;
 	static u_int8_t ssc_mode = 1;
+	static u_int8_t sync_enabled = 0;
 
 	DEBUGPCRF("main_dbgu");
 
@@ -218,12 +219,25 @@ int _main_dbgu(char key)
 		ssc_rx_start();
 		break;
 	case 'd':
-		ssc_rx_mode_set(++ssc_mode);
+		ssc_mode++;
+		if (ssc_mode >= 6)
+			ssc_mode = 0;
+		ssc_rx_mode_set(ssc_mode);
 		DEBUGPCRF("SSC MODE %u", ssc_mode);
+		break;
+	case 'T':
+		if (sync_enabled) {
+			tc_cdiv_sync_disable();
+			sync_enabled = 0;
+		} else  {
+			tc_cdiv_sync_enable();
+			sync_enabled = 1;
+		}
 		break;
 	}
 
 	tc_cdiv_print();
+	//tc_fdt_print();
 
 	return -EINVAL;
 }
@@ -236,5 +250,6 @@ void _main_func(void)
 	/* next we deal with incoming reqyests from USB EP1 (OUT) */
 	usb_in_process();
 
+	udp_unthrottle();
 	ssc_rx_unthrottle();
 }

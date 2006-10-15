@@ -30,23 +30,6 @@
 static struct req_ctx dummy_rctx;
 static struct req_ctx empty_rctx;
 
-static void usbtest_tx_transfer(unsigned int num_pkts)
-{
-	unsigned int i;
-
-#if 0
-#warning please reimplement refill userspecified rctx 
-	for (i = 0; i < num_pkts; i++) {
-		/* send 16 packets of 64byte */
-		while (udp_refill_ep(2, &dummy_rctx) < 0) 
-			;
-	}
-	/* send one packet of 0 byte */
-	while (udp_refill_ep(2, &empty_rctx) < 0) 
-		;
-#endif
-}
-
 static int usbtest_rx(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;

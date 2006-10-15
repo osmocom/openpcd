@@ -569,7 +569,11 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 				USB_DT_DFU_SIZE,
 		.bNumInterfaces = 1,
 		.bConfigurationValue = 1,
+#ifdef CONFIG_USB_STRING
 		.iConfiguration = 3,
+#else
+		.iConfiguration = 0,
+#endif
 		.bmAttributes = USB_CONFIG_ATT_ONE,
 		.bMaxPower = 100,
 		},
@@ -582,7 +586,11 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 		.bInterfaceClass	= 0xfe,
 		.bInterfaceSubClass	= 0x01,
 		.bInterfaceProtocol	= 0x02,
+#ifdef CONFIG_USB_STRING
 		.iInterface		= 4,
+#else
+		.iInterface		= 0,
+#endif
 		}, 
 	.uif[1] = {
 		.bLength		= USB_DT_INTERFACE_SIZE,
@@ -593,7 +601,11 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 		.bInterfaceClass	= 0xfe,
 		.bInterfaceSubClass	= 0x01,
 		.bInterfaceProtocol	= 0x02,
+#ifdef CONFIG_USB_STRING
 		.iInterface		= 5,
+#else
+		.iInterface		= 0,
+#endif
 		}, 
 
 	.func_dfu = DFU_FUNC_DESC,

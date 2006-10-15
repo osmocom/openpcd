@@ -43,9 +43,9 @@ static void pll_lock_change_cb(u_int32_t pio)
 	DEBUGPCRF("PLL LOCK: %d", pll_is_locked());
 #if 1
 	if (pll_is_locked())
-		led_switch(1, 1);
+		led_switch(2, 1);
 	else
-		led_switch(1, 0);
+		led_switch(2, 0);
 #endif
 }
 

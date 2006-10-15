@@ -20,6 +20,7 @@ static u_int16_t opicc_regs[_OPICC_NUM_REGS] = {
 	[OPICC_REG_14443A_FDT0]		= 1236,
 	[OPICC_REG_14443A_FDT1]		= 1172,
 	[OPICC_REG_14443A_STATE]	= ISO14443A_ST_POWEROFF,
+	[OPICC_REG_14443A_ATQA]		= 0x0001,
 	[OPICC_REG_RX_CLK_DIV]		= 32,
 	[OPICC_REG_RX_CLK_PHASE]	= 0,
 	[OPICC_REG_RX_CONTROL]		= 0,
@@ -62,9 +63,10 @@ static int opicc_reg_usb_in(struct req_ctx *rctx)
 		break;
 	case OPENPCD_CMD_PICC_REG_WRITE:
 		if (rctx->tot_len < sizeof(*poh) + sizeof(u_int16_t)) {
-			poh->flags = OPENPCD_FLAG_ERROR;
-		}
-		opicc_reg_write(poh->reg, *val16);
+			/* we only have an 8bit write */
+			opicc_reg_write(poh->reg, poh->val);
+		} else
+			opicc_reg_write(poh->reg, *val16);
 		break;
 	default:
 		return USB_ERR(USB_ERR_CMD_UNKNOWN);

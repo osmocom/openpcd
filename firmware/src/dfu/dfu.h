@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <usb_ch9.h>
 #include <usb_dfu.h>
+#include "../config.h"
 
 /* USB DFU functional descriptor */
 #define DFU_FUNC_DESC  {						\
@@ -38,6 +39,7 @@
 }
 
 /* USB Interface descriptor in Runtime mode */
+#ifdef CONFIG_USB_STRING
 #define DFU_RT_IF_DESC	{						\
 	{								\
 	.bLength		= USB_DT_INTERFACE_SIZE,		\
@@ -61,6 +63,31 @@
 	.iInterface		= 2,					\
 	},								\
 }
+#else
+#define DFU_RT_IF_DESC	{						\
+	{								\
+	.bLength		= USB_DT_INTERFACE_SIZE,		\
+	.bDescriptorType	= USB_DT_INTERFACE,			\
+	.bInterfaceNumber	= 0x01,					\
+	.bAlternateSetting	= 0x00,					\
+	.bNumEndpoints		= 0x00,					\
+	.bInterfaceClass	= 0xfe,					\
+	.bInterfaceSubClass	= 0x01,					\
+	.bInterfaceProtocol	= 0x01,					\
+	.iInterface		= 0,					\
+	}, {								\
+	.bLength		= USB_DT_INTERFACE_SIZE,		\
+	.bDescriptorType	= USB_DT_INTERFACE,			\
+	.bInterfaceNumber	= 0x02,					\
+	.bAlternateSetting	= 0x00,					\
+	.bNumEndpoints		= 0x00,					\
+	.bInterfaceClass	= 0xfe,					\
+	.bInterfaceSubClass	= 0x01,					\
+	.bInterfaceProtocol	= 0x01,					\
+	.iInterface		= 0,					\
+	},								\
+}
+#endif
 
 #define __dfufunctab  __attribute__ ((section (".dfu.functab")))
 #define __dfudata __attribute__ ((section (".data.shared")))

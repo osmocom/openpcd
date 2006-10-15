@@ -124,6 +124,9 @@ exit:
         .endfunc
 
 
+#define LED_TRIGGER
+#define CALL_PIO_IRQ_DEMUX
+
 	.text
 	.arm
 	.section .fastrun, "ax"
@@ -140,25 +143,32 @@ fiq_handler:
 		   r13	stack
 		   r14	lr
 		 */
-#if 0
-		mov 	r11, #PIO_LED1
-		str	r11, [r10, #PIOA_CODR] /* enable LED */
-		str	r11, [r10, #PIOA_SODR] /* disable LED */
-#endif
 
 		ldr	r8, [r10, #PIOA_ISR]
 		tst	r8, #PIO_DATA		/* check for PIO_DATA change */
 		ldrne	r11, [r10, #PIOA_PDSR]
 		tstne	r11, #PIO_DATA		/* check for PIO_DATA == 1 */
 		strne	r9, [r12, #TC_CCR]	/* software trigger */
+#ifdef LED_TRIGGER
+		movne 	r11, #PIO_LED1
+		strne	r11, [r10, #PIOA_CODR] /* enable LED */
+#endif
 
+#if 1
 		movne	r11, #PIO_DATA
 		strne	r11, [r10, #PIOA_IDR]	/* disable further PIO_DATA FIQ */
+#endif
 
 		/*- Mark the End of Interrupt on the AIC */
 		ldr	r11, =AT91C_BASE_AIC
 		str	r11, [r11, #AIC_EOICR]
 
+#ifdef LED_TRIGGER
+		mov 	r11, #PIO_LED1
+		str	r11, [r10, #PIOA_SODR] /* disable LED */
+#endif
+
+#ifdef CALL_PIO_IRQ_DEMUX
 		/* push r0, r1-r3, r12, r14 onto FIQ stack */
 		stmfd	sp!, { r0-r3, r12, lr}
 		mov	r0, r8
@@ -172,43 +182,9 @@ fiq_handler:
 		bx	r11 
 
 		/* msr	CPSR_c, #I_BIT | F_BIT | ARM_MODE_FIQ */
-
 		ldmia	sp!, { r0-r3, r12, lr }
-
-#if 0
-/*- Save and r0 in FIQ_Register */
-		mov	r9, r0
-		ldr	r0, [r11, #AIC_FVR]
-		str	r8, [r11, #AIC_FVR]
-		/* msr	CPSR_c, #I_BIT | F_BIT | ARM_MODE_SVC */
-
-		/*- Save scratch/used registers and LR in User Stack */
-		stmfd	sp!, { r1-r3, r12, lr}
-
-		led1on
-
-		/*- Branch to the routine pointed by the AIC_FVR */
-		mov	r14, pc
-		bx	r0
-
-		/*- Restore scratch/used registers and LR from User Stack */
-		ldmia	sp!, { r1-r3, r12, lr}
-
-		/*- Leave Interrupts disabled and switch back in FIQ mode */
-		/* msr	CPSR_c, #I_BIT | F_BIT | ARM_MODE_FIQ */
-
-		/*- Mark the End of Interrupt on the AIC */
-		ldr	r0, =AT91C_BASE_AIC
-		str	r0, [r0, #AIC_EOICR]
-
-		/*- Restore the R0 ARM_MODE_SVC register */
-		mov	r0,r9
-
-		ldr	r10, =PIOA_SODR
-		mov	r11, #(1 << LED1)
-		str	r11, [r10]
-
 #endif
+
 		/*- Restore the Program Counter using the LR_fiq directly in the PC */
 		subs        pc, lr, #4
 

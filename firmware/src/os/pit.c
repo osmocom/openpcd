@@ -106,7 +106,6 @@ void timer_add(struct timer_list *tl)
 static void pit_irq(u_int32_t sr)
 {
 	struct timer_list *tl, *next;
-	unsigned long flags;
 
 	if (!(sr & 0x1))
 		return;
@@ -133,6 +132,17 @@ void pit_mdelay(u_int32_t ms)
 	end = (AT91F_PITGetPIIR(AT91C_BASE_PITC) + ms) % 20;
 
 	while (end < AT91F_PITGetPIIR(AT91C_BASE_PITC)) { }
+}
+
+void mdelay(u_int32_t ms)
+{
+	return pit_mdelay(ms);
+}
+
+void usleep(u_int32_t us)
+{
+	return;
+	return pit_mdelay(us/1000);
 }
 
 void pit_init(void)

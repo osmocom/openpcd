@@ -14,11 +14,6 @@ static u_int8_t enabled;
 
 static void pio_data_change(u_int32_t pio)
 {
-	DEBUGPCRF("PIO=%d", pio);
-
-	if (pio != 27)
-		return;
-
 	/* FIXME: start ssc if we're in one-shot mode */
 	//ssc_rx_start();
 }
@@ -34,7 +29,7 @@ static void __ramfunc cdsync_cb(void)
 			DEBUGP("SWTRG CV=0x%08x ", *AT91C_TC0_CV);
 #ifdef DISABLE
 			DEBUGP("CDIV_SYNC_FLIP ");
-			*AT91C_PIOA_IDR = PIO_DATA;
+			//now in fiq *AT91C_PIOA_IDR = PIO_DATA;
 #endif
 			//ssc_rx_start();
 		}
@@ -70,6 +65,9 @@ void tc_cdiv_sync_enable(void)
 
 	DEBUGP("CDIV_SYNC_ENABLE ");
 	tc_cdiv_sync_reset();
+#ifndef DISABLE
+	*AT91C_PIOA_IER = PIO_DATA;
+#endif
 }
 
 extern void (*fiq_handler)(void);
