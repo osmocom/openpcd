@@ -1,0 +1,42 @@
+PICCSIM design
+
+ISO14443 anticollision:
+- Configure TC 
+	- to reset TC2 on every falling edge
+	- to use FORCE_FAST for TC IRQ
+	- to enable TC2 ETRGS
+- CARRIER_DIV is switched to 212kHz / 424kHz
+	- this results in SSC Rx is 4x (2x?) oversampling
+- Set SSC Rx start condition to 4x/2x SOF pattern
+- upon reception of first falling edge, we
+	- end up in TC FIQ
+	- read out TC0 current value
+	- reconfigure TC0 RA/RB to be in-phase with previously-read TC0
+	  value (subtracting some fixed offset depending on FIQ latency)
+	- reconfigure TC2 
+		- to use external event on every rising edge
+		- to reset(trigger) on every external event
+		- to clear TIOA2 on RC compare (RC is high)
+		- to set TIOA2 on RA compare (RA set later)
+		- disable TC2 IRQ (and FIQ FAST_FORCE)
+- Wait for SSC Rx Interrupt (DMA complete, or PIO)
+	- Read and decode single 32bit word
+	- determine whether it is REQA or WUPA
+		- abort if not, start over
+	- depending on last bit 0/1, configure TC2 RA (FDT)
+	- recconfig TC0 to produce 1.6MHz CARRIER_DIV clock for SSC Tx
+		- make sure this is done synchronously
+		- 
+	- set up SSC Tx 
+		- DMA with pre-encoded (and user-configured) ATQA
+		- start Tx at a rising edge of TF (asserted by TC2 RA)
+		- Send Interrupt once TX DMA is done
+- Once TC2 RA compare happens, the rising edge of TIOA2 will trigger SSC 
+- Wait for SSC Tx DMA to finish
+- Repeat similar steps for ANTICOL/SELECT command, differences:
+	- single-byte compare after frame Rx is not sufficient
+		- evaluate number of valid bits ASAP
+	- we might receive and transmit split frame at non-byte-boundaries
+		- just shift a prepared ANTICOL/Select response 
+		- make sure parity is handled correctly!
+- Once we've completed the select, we go on with normal
