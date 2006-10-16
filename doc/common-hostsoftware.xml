@@ -1,0 +1,44 @@
+<section>Device Firmware Upgrade</section>
+<para>
+Since the device firmware is Free Software licensed under GNU GPL, 
+we encourage and enable users to enhance and adapt the firmware according to
+their needs.  In order to really benefit from this freedom, we have embedded
+an easy mechanism to update the device firmware without any special tools /
+adapters / cables / programmers or the like.  
+</para>
+<para>
+The OpenPICC implements the USB Device Firmware Upgrade speficication,
+as released by the USB Association.  Using this protocol, it is possible to
+update the device firmware via special-purpose USB control requests.
+</para>
+<para>
+A software implementation of the USB DFU host side was already available for
+Linux under the name of "dfu-programmer".  However, this program did not
+implement the true standard, but some vendor-specific dialect of it.
+Therefore, dfu-programmer has been enhanced to have full native support
+for standard DFU.
+</para>
+</section> <!-- DFU -->
+
+<section>Emergency Firmware Flash</section>
+<para>
+The AT91SAM7 microcontroller used in the device contains a USB flash loader
+(called SAM-BA) in read-only memory.  By setting a jumper on the PCB and
+powering up the device for 20 seconds, this loader can be copied into the
+first 8kb of flash memory, overwriting the existing content.
+</para>
+<para>
+So if the DFU loader has become inoperable, e.g. because of bugs in
+experimental DFU modifications, SAM-BA can be employed to rescue the system.
+</para>
+<para>
+Apart from proprietary Windows software by Atmel, there's the Free Software
+sam7utils project which provides a host program called 'sam7' to interface
+with SAM-BA and facilitate a full-flash rewrite with DFU and the device firmware.
+</para>
+<para>
+For more information on the flash procedure, we refer to the AT91SAM7 product
+documentation, as well as the sam7utils documentation.
+</para>
+</section> <!-- SAM-BA -->
+

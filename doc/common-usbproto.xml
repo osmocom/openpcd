@@ -1,0 +1,190 @@
+<section>
+<title>USB Protocol</title>
+<para>
+The USB protocol is completely non-standard.  Since OpenPICC is a very
+special-purpose device, it's obvious that no standard USB protocol will be
+applicable.  However, our vendor-specific protocol is completely open and
+documented to allow for development of interoperable applications.
+</para>
+
+<section>
+<Title>USB Endpoints</title>
+<para>
+Since the SAM7 hardware only provides four USB endpoints, we have to use them
+according to their endpoint type, rather than to their function within the
+protocol. We have to overload and (de)multiplex within one endpoint quite a
+bit.
+</para>
+<para>
+EP0 - Control Endpoint
+EP1 - Bulk Out endpoint (host -> device)
+EP2 - Bulik In endpoint (device -> host)
+EP3 - Interrupt In endpoint (device -> host)
+</para>
+<para>
+The control endpoint behaves according to the USB specification.  It only
+takes care of usb configuration and management.  No application data is
+transferred over it.
+</para>
+</section> <!-- USB Endpoints -->
+
+<section>
+<title>USB packets, transfers</title>
+<para>
+In order to understand this devices' USB prootocol, some basics about any
+communication with USB endpoints need to be known.
+</para>
+<para>
+USB endpoints exchange a stream of data by means of USB transfers.  Every
+transfer is conveyed as multiple transaction.  Every transaction transports
+multiple USB packets.  The Endpoint buffer size of the SAM7 usb device
+controller is 64bytes for EP1, EP2 and EP3.  Therefore, a single packet can be
+up to 64 bytes in size. As soon as a packet smaller than the endpoint size
+(64byte) is received, the end of that particular USB transfer is detected.
+If the transfer size is an integral size of the endpoint size, a zero-length-packet (ZLP) is sent to explicitly signal the end of the transfer.
+</para>
+<para>
+The buffer management inside the SAM7 firmware can deal with USB transfers of
+up to 2048 bytes in size.  To optimize memory efficiency, all buffers are
+statically pre-allocated, and the majority of USB buffers is only 64bytes in
+size.  This way, the memory consumption for small transfers (such as register read/write transfers) can be kept low.
+</para>
+<para>
+Large transfers (&gt; 64 bytes, but &let; 2024 bytes) should be used only
+when they are absolutely required.
+</para>
+</section> <!-- USB packets, transfers -->
+
+<section>
+<title>Host software interaction with USB Endpoints</title>
+<para>
+Any host software operating the USB device should take into consideration
+that memory is a scarce resource on the SAM7, especially for
+applications with relatively high speed compared to the USB 1.1 full speed bandwith), such as higher-bitrate 847kHz ISO14443 communication.
+</para>
+<para>
+Therefore it is important to serve device requests on the BULK IN and
+INTERRUPT IN endpoints as soon as possible.  In most cases, the application
+will simply keep those two pipes open all the time, by re-submitting an USB
+request block as soon as the previous one at that endpiont has completed.
+</para>
+<para>
+The BULK OUT endpoint will obviously only be filled with requests from the
+host software when there are any such requests.
+</para>
+<para>
+On the highest level of the protocol, there are three different classes of device requests:
+</para>
+<para>
+1. uni-directional without high-level acknowledgement, such as a register
+write without explicit request for a response.  This means that the host
+software will only send a single BULK OUT transfer.  This transfer is
+acknowledged inherently by the USB protocol, and the host software can be sure
+that the transfer was correctly received by the device.  
+</para>
+<para>
+2. bi-directional with a single response, such as a register read. This means
+that the host sends a single BULK OUT transfer, to which the device replies
+with a single BULK IN transfer.
+</para>
+<para>
+3. bi-directional with multiple responses.  This means that even though the
+host only sends a single BULK OUT transfer, there will be multiple BULK IN
+transfers in response.
+</para>
+</section> <!-- Host software interaction -->
+
+<section>
+<title>The usb transfer header</title>
+<para>
+Application data transferred over EP1, EP2 and EP3 is prefixed with a
+four-byte header, 'struct openpcd_hdr'.
+</para>
+<para>
+The first byte is the command byte.  The high nibble of the command byte
+specifies the command class, whereas the the low nibble selects the particular
+command within a given class.
+</para>
+<para>
+The second byte specifies flags.  There are currently two flags:
+</para>
+<para>
+The RESPOND flag signifies that the sender of this transfer explicitly
+requests a response back from the other side.
+</para>
+<para>
+The ERROR flag signifies that this transfer indicates some error
+</para>
+<para>
+The MULTIPLE flag signifies that this is part of a response that consists of
+multiple transfers.
+</para>
+<para>
+The LAST flag signifies that the current transfer is the last transfer
+of a multiple-transfer response.
+</para>
+<para>
+The third byte is called 'register' for historical purpose.  It should
+actually rather be called address or index.  Its significance differs
+according to the actual command that is being performed.
+</para>
+<para>
+The fourth byte is called 'val' for 'value'. Again, its purpose is command
+specific.  In case of e.g. a register write, it is the value to be written
+into the register.
+</para>
+</section> <!-- USB Transfer Header -->
+
+<section>
+<title>The individual USB protocol commands</title>
+
+<section>
+<title>Generic USB commands: CMD_CLS_GENERIC</title>
+
+<section>
+<title>CMD_GET_VERSION</title>
+<para>
+This command is used to obtain the version number of the USB device. This
+might be used to differentiate different hardware revisions by the host software.
+</para>
+<para>
+The response to this command contains the version number in the
+variable-length 'data' section of the transfer.
+</para>
+</section>
+
+<section>
+<title>CMD_SET_LED</title>
+<para>
+Using this command, the host software can control the LED's present in the
+OpenPICC.  The LED can be specified in the 'reg' section of the header.
+Currently there are two LED's, LED 1 (green) and LED 2 (red).  The 'val'
+header field controls whether the LED should be switched on (1) or off (0).
+</para>
+</section>
+
+<section>
+<title>CMD_GET_SERIAL</title>
+<para>
+This command is used to obtain the serial number of the OpenPICC device.
+The serial number is returned in the 'data' section of the response transfer.
+</para>
+</section>
+
+</section> <!-- Generic USB commands -->
+
+<section>
+<title>USB Testing commands</title>
+<section>
+<title>CMD_USBTEST_IN</title>
+<para>
+</para>
+</section>
+<section>
+<title>CMD_USBTEST_OUT</title>
+<para>
+</para>
+</section>
+</section> <!-- USB testing commands -->
+
+

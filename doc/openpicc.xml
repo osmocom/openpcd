@@ -1,0 +1,275 @@
+<?xml vesion='1.0' encoding='ISO-8859-1'?>
+<!DOCTYPE article PUBLIC '-//OASIS//DTD DocBook XML V4.3//EN' 'http://www.docbook.org/xml/4.3/docbookx.dtd'>
+
+<article id="openpicc-reference">
+
+<articleinfo>
+	<title>OpenPICC - A ISO 14443 A+B PICC RFID simulator</title>
+	<authorgroup>
+		<author>
+			<personname>
+				<first>Harald</first>
+				<surname>Welte</surname>
+			</personname>
+			<email>hwelte@hmw-consulting.de</email>
+		</author>
+		<author>
+			<personname>
+				<first>Milosch</first>
+				<surname>Meriac</surname>
+			</personname>
+			<email>meriac@bitmanufaktur.de</email>
+		</author>
+	</authorgroup>
+	<copyright>
+		<year>2006</year>
+		<holder>Harald Welte &lt;hwelte@hmw-consultin.de&gt; </holder>
+	</copyright>
+	<date>Oct 12, 2006</date>
+	<edition>1</edition>
+	<releaseinfo>
+		$Revision: 1.0 $
+	</releaseinfo>
+
+	<abstract>
+		<para>
+		This is the reference documentation for the OpenPICC RFID
+		simulator for ISO 14443.
+		</para>
+		<para>
+
+		</para>
+	</abstract>
+</articleinfo>
+
+<section>
+<title>Introduction</title>
+<para>
+The OpenPICC project is about desinging and building both hardware and software
+for a user-programmable simulator of the PICC (Transponder) side of the ISO
+14443 A+B (and later ISO15693) RFID protocols.
+</para>
+<para>
+The hardware is based on the Atmel AT91SAM7S256 microcontroller, featuring a
+48MHz, 32bit ARM7TDMI core with many integrated peripherals, such as USB
+device, SSC, ADC, 256kByte Flash, 64kByte SRAM, ...
+</para>
+<para>
+The SAM7 attaches to a host PC using a USB 1.1 interface. The SAM7 firmware
+implements encoding/decoding, the auxiliary hardware modulation/demodulation.
+The host PC therefore transmits and sends raw ISO 14443-3 frames, and
+implements higher protocol levels such as ISO 14443-4 or even a Smartcard OS
+simulation according to 7816-4.
+</para>
+<para>
+All device firmware and host software source code is released under GNU General
+Public License.  The hardware design (schematics, PCB) is released under
+"Creative Commons share-alike attribution" License.
+</para>
+</section> <!-- Introduction -->
+
+<section>
+<title>Hardware</title>
+<para>
+FIXME: to be filled by milosch
+</para>
+
+<xi:xinclude href="common-hardware.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+</section>
+
+
+<section>
+<title>Software</title>
+
+<xi:include href="common-usbproto.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+<section>
+<title>PICC specific commands</title>
+<section>
+<title>CMD_PICC_REG_WRITE</title>
+<para>
+Using this command, a given OpenPICC register can be written to.
+</para>
+</section>
+<section>
+<title>CMD_PICC_REG_READ</title>
+<para>
+Using this command, a given OpenPICC register can be read.
+</para>
+</section>
+</section> <!-- PICC specific commands -->
+
+<section>
+<title>ADC specific commands</title>
+</section> <!-- ADC specific commands -->
+
+<section>
+<title>GPIO IRQ commands</title>
+<para>
+Using these commands, the host software can request a USB interrupt
+transfer to be sent once a given GPIO pin changes its level
+</para>
+</section> <!-- GPIO IRQ commands -->
+
+</section> <!-- USB protocol commands -->
+</section> <!-- USB protocol -->
+
+<xi:include href="common-targetsoftware.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+<section> <!-- Target Software -->
+
+<section>
+<title>The OpenPICC register set</title>
+<para>
+Most of the behaviour of the OpenPICC simulator can be controlled using the
+OpenPICC register set.  This is not really a register set that corresponds to
+hardware registers.  The registers are actually implemented in software, and
+act as global variables present in SAM7 RAM, which influence the OpenPICC
+firmware operation.
+</para>
+<para>
+This interface was chosen because it is something that software developers
+(more specificially: driver developers) are used to.
+</para>
+
+<section>
+<title>OPICC_REG_14443A_UIDLEN</title>
+<para>
+This register defines the length of the 14443-A UID or 14443-B PUPI.  The
+length value is specified in bytes.
+</para>
+<para>
+Permitted values for 14443-A are: 4, 7 or 10.
+</para>
+<para>
+Permitted values for 14443-B are: 4.
+</para>
+</section> 
+
+<section>
+<title>OPICC_REG_14443A_FDT0</title>
+<para>
+ISO 14443A synchronous frame delay time in case last bit of PCD->PICC frame
+was 0.  According to the ISO 14443-3 specification, this has to be 1236.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_14443A_FDT1</title>
+<para>
+ISO 14443-3A synchronous frame delay time in case last bit of PCD->PICC frame
+was 1.  According to the ISO 14443-3A specification, this has to be 1172.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_14443A_ATQA</title>
+<para>
+The ATQA register contains a template for the 14443-3A ATQA.  Only the lowest
+five bits (0...4, bit frame anti-collision) and the bits 8..11 are used, the
+rest will be masked and or specified by the OpenPICC firmware.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_14443A_STATE</title>
+<para>
+The PICC state according to ISO 14443-3A. Possible values are:
+ISO14443A_ST_POWEROFF, ISO14443A_ST_IDLE, ISO14443A_ST_READY,
+ISO14443A_ST_ACTIVE, ISO14443A_ST_HALT, ISO14443A_ST_READY2,
+ISO14443A_ST_ACTIVE2.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_RX_CLK_DIV</title>
+<para>
+The receive clock divider register. This specifies the relationship
+between SSC sample clock and re-generated carrier clock.  
+</para>
+<para>
+For ISO14443-A at 106kBp/s, this is usually set to 32 in order to produce
+a four-times oversampled signal. Values for higher baudrtes are TBD.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_RX_CLK_PHASE</title>
+<para>
+This register defines the phase of the receive sample clock. Values
+are given relative to the rx sample clock synchronization pulse caused
+by the first falling edge within the frame.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_RX_CONTROL</title>
+<para>
+The receive control register controls the OpenPICC receive path
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_TX_CLK_DIV</title>
+<para>
+The transmit clock divider register determines the sample clock rate of the SSC
+transmit path.  Since 14443-A and -B use a 847.5kHz subcarrier, the sample
+rate will have to be configured to 1.695MHz, and thus a clock divider of 8
+programmed into this register.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_TX_CLK_PHASE</title>
+<para>
+The transmit clock phase register defines the phase relationship between carrier clock and SSC Tx clock.
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_TX_CONTROL</title>
+<para>
+The transmit control register is split in two sections: Lower nibble switches between BPSK (1) and MANCHESTER (2), whereas the higher nibble is used to configure the modulation depth (0..3).
+</para>
+</section>
+
+<section>
+<title>OPICC_REG_RX_COMP_LEVEL</title>
+<para>
+The demodulated Rx signal is digitized using a comparator.  Using this
+register, the comparator reference value can be specified.  The value is
+conveyed as a 7bit value in the range of 0..127.
+</para>
+</section>
+
+<section>
+<title>OPICC_SREG_14443A_UID</title>
+<para>
+This string register contains the 14443-3A UID or 14443-3B PUPI.
+</para>
+</section>
+
+</section> <!-- The OpenPICC register set -->
+
+</section> <!-- Target Software -->
+
+</section> 
+
+</section> <!-- The OpenPICC register set -->
+
+</section> <!-- Target Software -->
+
+<section>
+<title>Host Software</title>
+<para>
+TBD
+</para>
+
+<xi:include href="common-hostsoftware.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+</section> <!-- Host Software -->
+
+</section> <!-- Software -->
+
+</article>
