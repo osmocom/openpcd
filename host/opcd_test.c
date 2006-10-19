@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 
 	print_welcome();
 
-	if (!strcmp(argv[0], "opicc_test"))
+	if (!strcmp(argv[0], "./opicc_test"))
 		od = opcd_init(1);
 	else
 		od = opcd_init(0);
