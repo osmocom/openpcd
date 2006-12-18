@@ -23,6 +23,7 @@
 
 extern const char *hexdump(const void *data, unsigned int len);
 void AT91F_DBGU_Init(void);
+void AT91F_DBGU_Fini(void);
 void AT91F_DBGU_Printk(	char *buffer);
 void AT91F_DBGU_Frame(	char *buffer);
 int AT91F_DBGU_Get( char *val);
