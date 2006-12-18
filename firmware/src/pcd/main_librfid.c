@@ -112,6 +112,7 @@ static int init_proto(void)
 		opcdh->reg = 0x03;
 		opcdh->val = l2h->l2->id;
 
+		detect_rctx->tot_len = sizeof(*opcdh) + sizeof(*l2c);
 #if 0
 		/* copy UID / PUPI into data section */
 		rfid_layer2_getopt(l2h, RFID_OPT_LAYER2_UID, (void *)l2c->uid, 
@@ -122,8 +123,6 @@ static int init_proto(void)
 		rfid_layer2_getopt(l2h, RFID_OPT_LAYER2_PROTO_SUPP,
 					&l2c->proto_supported, &size);
 
-		detect_rctx->tot_len = sizeof(*opcdh) + sizeof(*l2c);
-		
 		switch (l2h->l2->id) {
 		case RFID_LAYER2_ISO14443A:
 			break;
@@ -134,7 +133,8 @@ static int init_proto(void)
 		}
 #endif
 		req_ctx_set_state(detect_rctx, RCTX_STATE_UDP_EP3_PENDING);
-	}
+	} else
+		DEBUGPCRF("=>>>>>>>>>>>>>>no req_ctx for L2!");
 	ph = rfid_protocol_scan(l2h);
 	if (!ph)
 		return 3;
@@ -179,7 +179,8 @@ static int init_proto(void)
 		}
 #endif
 		req_ctx_set_state(detect_rctx, RCTX_STATE_UDP_EP3_PENDING);
-	}
+	} else
+		DEBUGPCRF("=>>>>>>>>>>>>>>no req_ctx for L2!");
 	led_switch(1, 1);
 
 	return 4;
@@ -207,7 +208,7 @@ void _main_func(void)
 		rfid_layer2_close(l2h);
 
 	rc632_turn_off_rf(NULL);
-	{ volatile int i; for (i = 0; i < 0x3ffff; i++) ; }
+	{ volatile int i; for (i = 0; i < 0xfffff; i++) ; }
 	rc632_turn_on_rf(NULL);
 
 	led_switch(1, 0);
