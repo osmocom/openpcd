@@ -42,7 +42,7 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 
 	DEBUGPCRF("PIO_ISR_STATUS = 0x%08x", pio);
 
-	for (i = 27; i < NR_PIO; i++) {
+	for (i = 0; i < NR_PIO; i++) {
 		if (pio & (1 << i) && pirqs.handlers[i])
 			pirqs.handlers[i](i);
 		if (pirqs.usbmask & (1 << i))
@@ -106,6 +106,7 @@ int pio_irq_register(u_int32_t pio, irq_handler_t *handler)
 	pio_irq_disable(pio);
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, pio);
 	pirqs.handlers[num] = handler;
+	DEBUGPCRF("registering handler %p for PIOA %u", handler, num);
 
 	return 0;
 }
