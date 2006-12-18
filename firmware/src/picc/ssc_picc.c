@@ -36,8 +36,6 @@
 #include <os/led.h>
 #include "../openpcd.h"
 
-#include <picc/tc_cdiv_sync.h>
-
 //#define DEBUG_SSC_REFILL
 
 /* definitions for four-times oversampling */
@@ -123,6 +121,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		 * (at least not yet in the current hardware) */
 		//start_cond = AT91C_SSC_START_EDGE_RF;
 		start_cond = AT91C_SSC_START_CONTINOUS;
+				//AT91C_SSC_START_RISE_RF;
 		sync_len = 0;
 		data_len = 32;
 		num_data = 16;
@@ -136,7 +135,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 			(((num_data-1) & 0x0f) << 8) | 
 			(((sync_len-1) & 0x0f) << 16);
 	ssc->SSC_RCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | 
-			AT91C_SSC_CKI | start_cond;
+			(0x2 << 6) | AT91C_SSC_CKI | start_cond;
 
 	/* Enable Rx DMA */
 	AT91F_PDC_EnableRx(rx_pdc);
@@ -204,6 +203,7 @@ static inline void init_opcdhdr(struct req_ctx *rctx)
 	rctx->tot_len = sizeof(opcd_ssc_hdr);
 }
 
+#define DEBUG_SSC_REFILL 1
 #ifdef DEBUG_SSC_REFILL
 #define DEBUGR(x, args ...) DEBUGPCRF(x, ## args)
 #else
@@ -307,6 +307,7 @@ static int8_t ssc_rx_refill(void)
 static void __ramfunc ssc_irq(void)
 {
 	u_int32_t ssc_sr = ssc->SSC_SR;
+	int i, *tmp, emptyframe = 0;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 
 	if (ssc_sr & AT91C_SSC_ENDRX) {
@@ -316,15 +317,56 @@ static void __ramfunc ssc_irq(void)
 		 * packet.  */
 		if (ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT) {
 			DEBUGP("DISABLE_RX ");
-			AT91F_SSC_DisableRx(AT91C_BASE_SSC);
+			ssc_rx_stop();
 		}
 		//AT91F_SSC_DisableIt(AT91C_BASE_SSC, SSC_RX_IRQ_MASK);
 #endif
+#if 0
+/* Experimental start SSC on frame, stop on FFFFFFFF */
+		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
+			//ssc->SSC_RCMR = (ssc->SSC_RCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
+			tmp = (u_int32_t*)ssc_state.rx_ctx[0]->data;
+			for(i = ssc_state.rx_ctx[0]->size / 4; i >= 0 ; i--) {
+				if( *tmp++ == 0xFFFFFFFF ) {
+					*(tmp-1) = 0xAAAAAAAA; // debug marker
+					/* No modulation for a long time, stop sampling 
+					 * and prepare for next frame */
+					DEBUGP("RESTART RX ");
+					ssc_rx_stop();
+					ssc_rx_mode_set(ssc_state.mode);
+					ssc_rx_start();
+					led_toggle(1);
+					break;
+				}
+			}
+		}
+#endif
+		/* Ignore empty frames */
+		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
+			tmp = (u_int32_t*)ssc_state.rx_ctx[0]->data + MAX_HDRSIZE;
+			emptyframe = 1;
+			for(i = (ssc_state.rx_ctx[0]->size-MAX_HDRSIZE) / 4 - 8/*WTF?*/; i > 0; i--) {
+				if( *tmp++ != 0xFFFFFFFF ) {
+					DEBUGPCR("NONEMPTY(%08x, %i): %08x", tmp, i, *(tmp-1));
+					emptyframe = 0;
+					break;
+				} else {
+					//DEBUGPCR("DUNNO(%08x, %i): %08x", tmp, i, tmp[i]);
+				}
+			}
+		}
 		//DEBUGP("Sending primary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
 		/* Mark primary RCTX as ready to send for usb */
-		req_ctx_set_state(ssc_state.rx_ctx[0], 
-				  RCTX_STATE_UDP_EP2_PENDING);
-				  //RCTX_STATE_FREE);
+		if(!emptyframe) {
+			DEBUGP("NONEMPTY");
+			req_ctx_set_state(ssc_state.rx_ctx[0], 
+					  RCTX_STATE_UDP_EP2_PENDING);
+					  //RCTX_STATE_FREE);
+		} else {
+			DEBUGP("EMPTY");
+			req_ctx_put(ssc_state.rx_ctx[0]);
+		}
+
 		/* second buffer gets propagated to primary */
 		ssc_state.rx_ctx[0] = ssc_state.rx_ctx[1];
 		ssc_state.rx_ctx[1] = NULL;
@@ -356,7 +398,7 @@ static void __ramfunc ssc_irq(void)
 						    AT91C_SSC_OVRUN);
 #endif
 	}
-
+	
 	if (ssc_sr & AT91C_SSC_OVRUN)
 		DEBUGP("RX_OVERRUN ");
 
@@ -401,6 +443,14 @@ static void __ramfunc ssc_irq(void)
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SSC);
 }
 
+void ssc_print(void)
+{
+	DEBUGP("PDC_RPR=0x%08x ", rx_pdc->PDC_RPR);
+	DEBUGP("PDC_RCR=0x%08x ", rx_pdc->PDC_RCR);
+	DEBUGP("PDC_RNPR=0x%08x ", rx_pdc->PDC_RNPR);
+	DEBUGP("PDC_RNCR=0x%08x ", rx_pdc->PDC_RNCR);
+}
+
 
 void ssc_rx_unthrottle(void)
 {
@@ -410,12 +460,18 @@ void ssc_rx_unthrottle(void)
 
 void ssc_rx_start(void)
 {
+	volatile int i;
 	//DEBUGPCRF("starting SSC RX\n");	
 
 	/* Enable Reception */
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
 	AT91F_SSC_EnableRx(AT91C_BASE_SSC);
+	
+	// Clear the flipflop
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
+	for(int i = 0; i<0xff; i++) { }
+	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 }
 
 void ssc_rx_stop(void)
@@ -462,15 +518,17 @@ static int ssc_usb_in(struct req_ctx *rctx)
 
 void ssc_rx_init(void)
 { 
-	tc_cdiv_sync_init(); 
-
 	rx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 
 	AT91F_SSC_CfgPMC();
 
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 
-			    OPENPCD_PIO_MFOUT_SSC_RX | OPENPCD_PIO_SSP_CKIN,
+			    OPENPCD_PIO_MFOUT_SSC_RX | OPENPCD_PIO_SSP_CKIN |
+			    OPENPICC_PIO_FRAME,
 			    0);
+	
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
+	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SSC,
 			      OPENPCD_IRQ_PRIO_SSC,

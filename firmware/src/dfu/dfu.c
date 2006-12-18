@@ -42,8 +42,10 @@
  * and therefore have to omit flashing */
 //#define DEBUG_DFU_NOFLASH
 
+#ifdef DEBUG
 #define DEBUG_DFU_EP0
 //#define DEBUG_DFU_RECV
+#endif
 
 #ifdef DEBUG_DFU_EP0
 #define DEBUGE DEBUGP
@@ -78,7 +80,9 @@ static void __dfufunc udp_init(void)
 
 	/* Enable UDP PullUp (USB_DP_PUP) : enable & Clear of the
 	 * corresponding PIO Set in PIO mode and Configure in Output */
+#if defined(PCD)
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+#endif
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
 }
 
@@ -899,7 +903,9 @@ void __dfufunc dfu_main(void)
 	/* End-of-Bus-Reset is always enabled */
 
 	/* Clear for set the Pull up resistor */
+#if defined(PCD)
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUP);
+#endif
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
 
 	flash_init();

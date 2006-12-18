@@ -30,7 +30,7 @@
 #include <os/pwm.h>
 #include <os/tc_cdiv.h>
 #include <os/pio_irq.h>
-#include <picc/poti.h>
+#include <picc/da.h>
 #include <picc/pll.h>
 #include <picc/ssc_picc.h>
 #include <picc/load_modulation.h>
@@ -50,7 +50,7 @@ void _init_func(void)
 	/* low-level hardware initialization */
 	pio_irq_init();
 	pll_init();
-	poti_init();
+	da_init();
 	load_mod_init();
 	tc_cdiv_init();
 	tc_fdt_init();
@@ -64,12 +64,13 @@ void _init_func(void)
 	opicc_usbapi_init();
 
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_PIO_BOOTLDR);
+	da_comp_carr(64);
 }
 
 static void help(void)
 {
-	DEBUGPCR("q: poti decrease       q: poti increase\r\n"
-		 "e: poti retransmit     P: PLL inhibit toggle");
+	DEBUGPCR("q: da decrease       w: da increase\r\n"
+		 "e: da retransmit     P: PLL inhibit toggle");
 	DEBUGPCR("o: decrease duty       p: increase duty\r\n"
 		 "k: stop pwm            l: start pwn\r\n"
 		 "n: decrease freq       m: incresae freq");
@@ -96,18 +97,18 @@ int _main_dbgu(char key)
 	case 'q':
 		if (poti > 0)
 			poti--;
-		poti_comp_carr(poti);
-		DEBUGPCRF("Poti: %u", poti);
+		da_comp_carr(poti);
+		DEBUGPCRF("DA: %u", poti);
 		break;
 	case 'w':
-		if (poti < 127)
+		if (poti < 255)
 			poti++;
-		poti_comp_carr(poti);
-		DEBUGPCRF("Poti: %u", poti);
+		da_comp_carr(poti);
+		DEBUGPCRF("DA: %u", poti);
 		break;
 	case 'e':
-		poti_comp_carr(poti);
-		DEBUGPCRF("Poti: %u", poti);
+		da_comp_carr(poti);
+		DEBUGPCRF("DA: %u", poti);
 		break;
 	case 'P':
 		pll_inh++;
@@ -238,6 +239,7 @@ int _main_dbgu(char key)
 
 	tc_cdiv_print();
 	//tc_fdt_print();
+	ssc_print();
 
 	return -EINVAL;
 }

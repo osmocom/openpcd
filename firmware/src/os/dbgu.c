@@ -157,6 +157,17 @@ void AT91F_DBGU_Init(void)
 			  "Toggle LED2\r\n9) Reset\n\r");
 }
 
+/*
+ * Disable the PIO assignments for the DBGU
+ */
+void AT91F_DBGU_Fini(void)
+{
+	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS;
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PA10_DTXD);
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, AT91C_PA9_DRXD);
+	// Maybe FIXME, do more? -- Henryk Plötz <henryk@ploetzli.ch>
+}
+
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_DBGU_Printk
 //* \brief This function is used to send a string through the DBGU channel (Very low level debugging)
