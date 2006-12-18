@@ -1,0 +1,172 @@
+<?xml vesion='1.0' encoding='ISO-8859-1'?>
+<!DOCTYPE article PUBLIC '-//OASIS//DTD DocBook XML V4.3//EN' 'http://www.docbook.org/xml/4.3/docbook.dtd'>
+
+<article id="openpcd-reference">
+
+<articleinfo>
+	<title>OpenPCD - A 13.56MHz RFID reader</title>
+	<authorgroup>
+		<author>
+			<personname>
+				<first>Harald</first>
+				<surname>Welte</surname>
+			</personname>
+			<email>hwelte@hmw-consulting.de</email>
+		</author>
+		<author>
+			<personname>
+				<first>Milosch</first>
+				<surname>Meriac</surname>
+			</personname>
+			<email>meriac@bitmanufaktur.de</email>
+		</author>
+	</authorgroup>
+	<copyright>
+		<year>2006</year>
+		<holder>Harald Welte &lt;hwelte@hmw-consultin.de&gt; </holder>
+	</copyright>
+	<date>Oct 12, 2006</date>
+	<edition>1</edition>
+	<releaseinfo>
+		$Revision: 1.0 $
+	</releaseinfo>
+
+	<abstract>
+		<para>
+		This is the reference documentation for the OpenPCD RFID
+		reader.
+		</para>
+		<para>
+
+		</para>
+	</abstract>
+</articleinfo>
+
+<section>
+<title>Introduction</title>
+<para>
+The OpenPCD project is about desinging and building both hardware and software
+for a user-programmable reader (proximity coupling device, PCD) of the ISO
+14443 A+B (and later ISO15693) RFID protocols.
+</para>
+<para>
+The hardware is based on the Atmel AT91SAM7S128 microcontroller, featuring a
+48MHz, 32bit ARM7TDMI core with many integrated peripherals, such as USB
+device, SSC, ADC, 128kByte Flash, 32kByte SRAM, ...
+</para>
+<para>
+Next to the AT91SAM7, there is the Pilips CL RC 632 RFID reader ASIC. It
+is attached via SPI (Serial Peripheral Interface) to the AT91SAM7.
+</para>
+<para>
+The SAM7 attaches to a host PC using a USB 1.1 interface. The SAM7 firmware
+implements various forms of interface between the RC632 and the host PC.
+There are multiple firmware images available, some of them acting as a dumb
+transceiver, while others implement the full ISO 14443 protocol suite inside
+the SAM7 firmware.
+</para>
+<para>
+All device firmware and host software source code is released under GNU General
+Public License.  The hardware design (schematics, PCB) is released under
+"Creative Commons share-alike attribution" License.
+</para>
+</section> <!-- Introduction -->
+
+<section>
+<title>Hardware</title>
+<para>
+FIXME: to be filled by milosch
+</para>
+
+<xi:xinclude href="common-hardware.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+</section>
+
+
+<section>
+<title>Software</title>
+
+<xi:include href="common-usbproto.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+<section>
+<title>PICC specific commands</title>
+<section>
+<title>CMD_PICC_REG_WRITE</title>
+<para>
+Using this command, a given OpenPICC register can be written to.
+</para>
+</section>
+<section>
+<title>CMD_PICC_REG_READ</title>
+<para>
+Using this command, a given OpenPICC register can be read.
+</para>
+</section>
+</section> <!-- PICC specific commands -->
+
+<section>
+<title>ADC specific commands</title>
+</section> <!-- ADC specific commands -->
+
+<section>
+<title>GPIO IRQ commands</title>
+<para>
+Using these commands, the host software can request a USB interrupt
+transfer to be sent once a given GPIO pin changes its level
+</para>
+</section> <!-- GPIO IRQ commands -->
+
+</section> <!-- USB protocol commands -->
+</section> <!-- USB protocol -->
+
+<xi:include href="common-targetsoftware.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+<section>
+<title>The main_dumbreader firmware</title>
+<para>
+The main_dumbreader firmware implements a very basic PCD/VCD firmware, where
+the USB device only implements an access layer to the RC632 registers and
+FIFO.  All protocol and application logic has to be implemented on the host
+PC.
+</para>
+<para>
+This provides the greatest flexibility to the host software, since it can
+easily alter the behaviour of the device completely.  Host development is
+easier than cross-compilation and remote debugging required for firmware
+development.
+</para>
+<para>
+Therefore, this firmware is the choice for most security researchers, since
+all timing and every bit of the protocol can be dealt with on the host.
+</para>
+</section> <!-- main_dumbreader -->
+
+<section>
+<title>The main_librfid firmware</title>
+<para>
+This firmware is called 'main_librfid' because it contains a full copy of the 
+librfid library, cross compiled for ARM.  The librfid library implements
+various 13.56MHz RFID protocols from layer 2 to layer 4 and higher, including
+ISO 14443, ISO 15693, Mifare classic, Mifare ultralight and others.
+</para>
+<para>
+The USB protocol of this firmware has not yet been fully speicified, also
+there currently is no finished host software that could interface this
+firmware yet.  Stay tuned for upcoming news on this subject.
+</para>
+
+</section> <!-- Target Software -->
+
+<section>
+<title>Host Software</title>
+<para>
+TBD
+</para>
+
+<xi:include href="common-hostsoftware.xml" parse="xml" xmlns:xi="http://www.w3.org/2003/XInclude"/>
+
+</section> <!-- Host Software -->
+
+</section> <!-- Software -->
+
+</article>

@@ -1,0 +1,17 @@
+<section>
+<title>Target Software</title>
+<para>
+The software doesn't use any operating system.  Everything is implemented from
+scratch. Some of the API's (e.g. timer API) are modelled after the
+corresponding Linux kernel API's.  However, this does not imply that any of the
+actual implementation is shared.  The reason for matching the Linux API's is
+merely because they are well-understood and there's lots of example code using
+them.
+</para>
+<para>
+The SAM7 firmware is compiled using GNU GCC 4.0.2 for ARM. It uses GNU Make for
+processing the Makefiles.  All development of the system happened on Linux,
+therefore your milage of compiling it on Windows might vary, but should
+theoretically work.
+</para>
+

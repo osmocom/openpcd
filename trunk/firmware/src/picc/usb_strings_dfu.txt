@@ -1,0 +1,5 @@
+bitmanufaktur.de IT Solutions and hmw-consulting.de
+OpenPICC RFID Simulator - DFU Mode
+OpenPIIC DFU Configuration
+OpenPICC DFU Interface - Application Partition
+OpenPICC DFU Interface - Bootloader Partition
