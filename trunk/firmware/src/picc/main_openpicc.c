@@ -239,6 +239,7 @@ int _main_dbgu(char key)
 
 	tc_cdiv_print();
 	//tc_fdt_print();
+	ssc_print();
 
 	return -EINVAL;
 }
