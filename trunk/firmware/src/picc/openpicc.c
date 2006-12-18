@@ -14,6 +14,7 @@
  * OpenPICC Register set
  ********************************************************************/
 
+#ifdef DEBUG
 /* Our registers, including their power-up default values */
 static u_int16_t opicc_regs[_OPICC_NUM_REGS] = {
 	[OPICC_REG_14443A_UIDLEN]	= 4,
@@ -42,6 +43,7 @@ void opicc_reg_write(enum opicc_reg reg, u_int16_t val)
 		opicc_regs[reg] = val;
 	return;
 }
+#endif
 
 /********************************************************************
  * OpenPICC USB Commandset (access to register set, ...)

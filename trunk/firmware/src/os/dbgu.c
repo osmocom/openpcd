@@ -139,7 +139,7 @@ void AT91F_DBGU_Init(void)
 
 	//* Enable Transmitter & receivier
 	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = AT91C_US_RXEN | AT91C_US_TXEN;
-
+	
 	//* Enable USART IT error and AT91C_US_ENDRX
 	AT91F_US_EnableIt((AT91PS_USART) AT91C_BASE_DBGU, AT91C_US_RXRDY);
 
@@ -155,6 +155,17 @@ void AT91F_DBGU_Init(void)
 	AT91F_DBGU_Printk("\n\rDEBUG Interface:\n\r"
 			  "0) Set Pull-up 1) Clear Pull-up 2) Toggle LED1 3) "
 			  "Toggle LED2\r\n9) Reset\n\r");
+}
+
+/*
+ * Disable the PIO assignments for the DBGU
+ */
+void AT91F_DBGU_Fini(void)
+{
+	((AT91PS_USART) AT91C_BASE_DBGU)->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS;
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PA10_DTXD);
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, AT91C_PA9_DRXD);
+	// Maybe FIXME, do more? -- Henryk Plötz <henryk@ploetzli.ch>
 }
 
 //*----------------------------------------------------------------------------

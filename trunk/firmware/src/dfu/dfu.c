@@ -42,8 +42,10 @@
  * and therefore have to omit flashing */
 //#define DEBUG_DFU_NOFLASH
 
+#ifdef DEBUG
 #define DEBUG_DFU_EP0
 //#define DEBUG_DFU_RECV
+#endif
 
 #ifdef DEBUG_DFU_EP0
 #define DEBUGE DEBUGP
