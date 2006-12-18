@@ -266,7 +266,9 @@ ASFLAGS = $(ADEFS) -Wa,-adhlns=$(<:.S=.lst),--g$(DEBUGF) -Iinclude/ -D__ASSEMBLY
 #    To add libxyz.a, libabc.a and libefsl.a: 
 #    EXTRA_LIBS = xyz abc efsl
 #EXTRA_LIBS = efsl
+ifeq ($(TARGET),main_librfid)
 EXTRA_LIBS = rfid
+endif
 
 #Support for newlibc-lpc (file: libnewlibc-lpc.a)
 #NEWLIBLPC = -lnewlib-lpc
