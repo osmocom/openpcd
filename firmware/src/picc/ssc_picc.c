@@ -36,6 +36,8 @@
 #include <os/led.h>
 #include "../openpcd.h"
 
+#include <picc/tc_cdiv_sync.h>
+
 //#define DEBUG_SSC_REFILL
 
 /* definitions for four-times oversampling */
@@ -468,10 +470,8 @@ void ssc_rx_start(void)
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
 	AT91F_SSC_EnableRx(AT91C_BASE_SSC);
 	
-	// Clear the flipflop
-	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
-	for(int i = 0; i<0xff; i++) { }
-	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
+	/* Clear the flipflop */
+	tc_cdiv_sync_reset();
 }
 
 void ssc_rx_stop(void)
@@ -518,6 +518,9 @@ static int ssc_usb_in(struct req_ctx *rctx)
 
 void ssc_rx_init(void)
 { 
+	tc_cdiv_sync_init();
+	tc_cdiv_sync_enable();
+
 	rx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 
 	AT91F_SSC_CfgPMC();

@@ -1,73 +1,77 @@
 /* Synchronize TC_CDIV divided sample clock with the SOF of the packet */
 
-#define PIO_DATA	AT91C_PIO_PA27
-
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
 #include <os/dbgu.h>
 #include "../openpcd.h"
 
 //#define USE_IRQ
-#define DISABLE
 
 static u_int8_t enabled;
 
 static void pio_data_change(u_int32_t pio)
 {
-	/* FIXME: start ssc if we're in one-shot mode */
-	//ssc_rx_start();
+	DEBUGP("PIO_FRAME_IRQ: ");
+	/* we get one interrupt for each change. If now, after the
+	 * change the level is high, then it must have been a rising
+	 * edge */
+	if (*AT91C_PIOA_PDSR & OPENPICC_PIO_FRAME) {
+		*AT91C_TC0_CCR = AT91C_TC_SWTRG;
+		DEBUGPCR("CDIV_SYNC_FLIP SWTRG CV=0x%08x",
+			  *AT91C_TC0_CV);
+	} else
+		DEBUGPCR("");
 }
 
+#if 0
 static void __ramfunc cdsync_cb(void)
 {
-	if (*AT91C_PIOA_ISR & PIO_DATA) {
+	DEBUGP("PIO_IRQ: ");
+	if (*AT91C_PIOA_ISR & OPENPICC_PIO_FRAME) {
+		DEBUGP("PIO_FRAME_IRQ: ");
 		/* we get one interrupt for each change. If now, after the
-		 * change the level is low, then it must have been a falling
+		 * change the level is high, then it must have been a rising
 		 * edge */
-		if (*AT91C_PIOA_PDSR & PIO_DATA) {
+		if (*AT91C_PIOA_PDSR & OPENPICC_PIO_FRAME) {
 			*AT91C_TC0_CCR = AT91C_TC_SWTRG;
-			DEBUGP("SWTRG CV=0x%08x ", *AT91C_TC0_CV);
-#ifdef DISABLE
-			DEBUGP("CDIV_SYNC_FLIP ");
-			//now in fiq *AT91C_PIOA_IDR = PIO_DATA;
-#endif
-			//ssc_rx_start();
-		}
-	}
-#if 0
-	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_PIOA);
-	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_FIQ);
-#endif
-	DEBUGPCR("");
+			DEBUGPCR("CDIV_SYNC_FLIP SWTRG CV=0x%08x",
+				  *AT91C_TC0_CV);
+		} else
+			DEBUGPCR("");
+	} else
+		DEBUGPCR("");
 }
+#endif
 
-/* re-enable cdiv_sync FIQ after it has been disabled by our one-shot logic */
 void tc_cdiv_sync_reset(void)
 {
-#ifdef DISABLE
 	if (enabled) {
 		u_int32_t tmp = *AT91C_PIOA_ISR;
-		DEBUGP("CDIV_SYNC_FLOP ");
-		*AT91C_PIOA_IER = PIO_DATA;
+		volatile int i;
+		DEBUGPCRF("CDIV_SYNC_FLOP");
+
+		/* reset the hardware flipflop */
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA,
+				      OPENPICC_PIO_SSC_DATA_CONTROL);
+		for (i = 0; i < 0xff; i++) ;
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA,
+				    OPENPICC_PIO_SSC_DATA_CONTROL);
 	}
-#endif
 }
 
 void tc_cdiv_sync_disable(void)
 {
 	enabled = 0;	
-	*AT91C_PIOA_IDR = PIO_DATA;
+	*AT91C_PIOA_IDR = OPENPICC_PIO_FRAME;
 }
 
 void tc_cdiv_sync_enable(void)
 {
 	enabled = 1;
 
-	DEBUGP("CDIV_SYNC_ENABLE ");
+	DEBUGPCRF("CDIV_SYNC_ENABLE ");
 	tc_cdiv_sync_reset();
-#ifndef DISABLE
-	*AT91C_PIOA_IER = PIO_DATA;
-#endif
+	*AT91C_PIOA_IER = OPENPICC_PIO_FRAME;
 }
 
 extern void (*fiq_handler)(void);
@@ -93,7 +97,7 @@ void tc_cdiv_sync_init(void)
 	*AT91C_AIC_FFER = (1 << AT91C_ID_PIOA);
 
 	/* register pio irq handler */
-	pio_irq_register(PIO_DATA, &pio_data_change);
+	pio_irq_register(OPENPICC_PIO_FRAME, &pio_data_change);
 #endif
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_PIOA);
 
