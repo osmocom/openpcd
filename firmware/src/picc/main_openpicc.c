@@ -45,6 +45,8 @@ static u_int8_t pwm_freq_idx = 0;
 
 static u_int8_t load_mod = 0;
 
+#define DA_BASELINE 192
+
 void _init_func(void)
 {
 	/* low-level hardware initialization */
@@ -64,7 +66,7 @@ void _init_func(void)
 	opicc_usbapi_init();
 
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_PIO_BOOTLDR);
-	da_comp_carr(64);
+	da_comp_carr(DA_BASELINE);
 }
 
 static void help(void)
@@ -86,7 +88,7 @@ static void help(void)
 
 int _main_dbgu(char key)
 {
-	static u_int8_t poti = 64;
+	static u_int8_t poti = DA_BASELINE;
 	static u_int8_t pll_inh = 1;
 	static u_int8_t ssc_mode = 1;
 	static u_int8_t sync_enabled = 0;
