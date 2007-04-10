@@ -32,15 +32,16 @@ extern void AT91F_Default_FIQ_handler (void);
 void
 AT91F_LowLevelInit (void)
 {
-  int i;
+  volatile int i;
+  
+  //* Debounce power supply
+  for(i=0;i<1024;i++);
+  
   AT91PS_PMC pPMC = AT91C_BASE_PMC;
   //* Set Flash Waite sate
   //  Single Cycle Access at Up to 30 MHz, or 40
   //  if MCK = 47923200 I have 50 Cycle for 1 usecond ( flied MC_FMR->FMCN
   AT91C_BASE_MC->MC_FMR = ((AT91C_MC_FMCN) & (48 << 16)) | AT91C_MC_FWS_1FWS;
-
-  //* Watchdog Disable
-  AT91C_BASE_WDTC->WDTC_WDMR = AT91C_WDTC_WDDIS;
 
   //* Set MCK at 47 923 200
   // 1 Enabling the Main Oscillator:

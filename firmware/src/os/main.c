@@ -78,7 +78,9 @@ int main(void)
 		/* Call application specific main idle function */
 		_main_func();
 		dbgu_rb_flush();
-		//wdt_restart();
+		
+		/* restart watchdog timer */
+		wdt_restart();
 #ifdef CONFIG_IDLE
 		//cpu_idle();
 #endif

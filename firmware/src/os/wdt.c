@@ -23,7 +23,7 @@
 #include <os/dbgu.h>
 #include <os/system_irq.h>
 
-#define WDT_DEBUG
+/*#define WDT_DEBUG*/
  
 static void wdt_irq(u_int32_t sr)
 {
@@ -39,12 +39,11 @@ void wdt_init(void)
 {
 	sysirq_register(AT91SAM7_SYSIRQ_WDT, &wdt_irq);
 #ifdef WDT_DEBUG
-	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0xfff << 16) |
+	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0xff << 16) |
 			 AT91C_WDTC_WDDBGHLT | AT91C_WDTC_WDIDLEHLT |
 			 AT91C_WDTC_WDFIEN);
 #else
-	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0xfff << 16) |
-			 AT91C_WDTC_WDDBGHLT | AT91C_WDTC_WDIDLEHLT |
-			 AT91C_WDTC_WDRSTEN);
+	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0x80 << 16) |
+			 AT91C_WDTC_WDRSTEN | 0x80);
 #endif
 }
