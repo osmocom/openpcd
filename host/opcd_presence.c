@@ -1,5 +1,6 @@
 /* opcd_test - Low-Level test program for OpenPCD
- * (C) 2006 by Harald Welte <laforge@gnumonks.org>
+ *
+ * (C) 2006 by Milosch Meriac <meriac@openpcd.de>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 
@@ -14,8 +15,6 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
-#define __user
 
 #include <stdio.h>
 #include <stdlib.h>

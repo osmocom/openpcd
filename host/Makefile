@@ -5,7 +5,7 @@ CFLAGS=-Wall -I../firmware/include
 all: opcd_presence opcd_test opcd_sh
 
 clean:
-	-rm -f *.o opcd_test
+	-rm -f *.o opcd_test opcd_sh opcd_presence
 	$(MAKE) -C ausb clean
 
 ausb/libausb.a:
