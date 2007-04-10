@@ -50,7 +50,7 @@ static int usb_in(struct req_ctx *rctx)
 	usb_cmd_fn *hdlr;
 	int ret;
 
-	DEBUGP("usb_in(cls=%d) ", OPENPCD_CMD_CLS(poh->cmd));
+/*	DEBUGP("usb_in(cls=%d) ", OPENPCD_CMD_CLS(poh->cmd));*/
 
 	if (rctx->tot_len < sizeof(*poh))
 		return -EINVAL;
@@ -71,7 +71,7 @@ static int usb_in(struct req_ctx *rctx)
 		udp_refill_ep(2);
 	}
 
-	DEBUGPCR("");
+/*	DEBUGPCR("");*/
 	return (ret & USB_RET_ERR) ? 1 : 0;
 }
 
@@ -92,8 +92,8 @@ void usb_in_process(void)
 
 	while (rctx = req_ctx_find_get(0, RCTX_STATE_UDP_RCV_DONE,
 				       RCTX_STATE_MAIN_PROCESSING)) {
-		DEBUGPCRF("found used ctx %u: len=%u", 
-			  req_ctx_num(rctx), rctx->tot_len);
+/*		DEBUGPCRF("found used ctx %u: len=%u", 
+			  req_ctx_num(rctx), rctx->tot_len);*/
 		usb_in(rctx);
 	}
 	udp_unthrottle();
