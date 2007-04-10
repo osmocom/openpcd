@@ -275,6 +275,10 @@ ifeq ($(TARGET),main_reqa)
 EXTRA_LIBS = rfid
 endif
 
+ifeq ($(TARGET),main_presence)
+EXTRA_LIBS = rfid
+endif
+
 #Support for newlibc-lpc (file: libnewlibc-lpc.a)
 #NEWLIBLPC = -lnewlib-lpc
 
