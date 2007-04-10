@@ -1,4 +1,5 @@
-/* opcd_test - Low-Level test program for OpenPCD
+/* opcd_presence - posts lst seen tag id to selected web page. This tool
+ * depends on the main_presence firmware
  *
  * (C) 2006 by Milosch Meriac <meriac@openpcd.de>
  *
