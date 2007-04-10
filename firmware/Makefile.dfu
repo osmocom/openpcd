@@ -79,7 +79,7 @@ SRC =
 # use file-extension c for "c-only"-files
 
 SRCARM  = src/start/Cstartup_SAM7.c lib/lib_AT91SAM7.c \
-	  src/dfu/dfu.c src/dfu/dbgu.c src/dfu/flash.c
+	  src/dfu/dfu.c src/dfu/dbgu.c src/os/flash.c
 
 # List C++ source files here.
 # use file-extension cpp for C++-files (use extension .cpp)

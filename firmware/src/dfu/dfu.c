@@ -30,7 +30,7 @@
 
 #include <dfu/dfu.h>
 #include <dfu/dbgu.h>
-#include <dfu/flash.h>
+#include <os/flash.h>
 #include <os/pcd_enumerate.h>
 #include "../openpcd.h"
 
@@ -234,7 +234,7 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
 		return RET_ZLP;
 	}
-	if (ptr + len > (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE) {
+	if (ptr + len >= (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE - ENVIRONMENT_SIZE ) {
 		DEBUGP("end of write exceeds flash end ");
 		dfu_state = DFU_STATE_dfuERROR;
 		dfu_status = DFU_STATUS_errADDRESS;

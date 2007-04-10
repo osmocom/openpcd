@@ -34,7 +34,7 @@
 # - 19. Apr. 2006  - option FLASH_TOOL (default lpc21isp); variable IMGEXT (mth)
 # - 19. Mai. 2006  - USE_THUMB_MODE switch, ROM_RUN->RUN_FROM_ROM RAM_RUN->RUN_FROM_RAM
 
-LIBRFID_DIR:=../../librfid/
+LIBRFID_DIR:=../librfid/
 
 FLASH_TOOL = AT91FLASH
 #FLASH_TOOL = UVISION
@@ -91,7 +91,8 @@ SRCARM += src/os/pcd_enumerate.c src/os/fifo.c src/os/dbgu.c \
 	  src/os/main.c src/os/syscalls.c src/os/usb_handler.c \
 	  src/os/usb_benchmark.c src/os/tc_cdiv.c src/os/pit.c \
 	  src/os/pwm.c src/os/pio_irq.c src/os/usbcmd_generic.c \
-	  src/os/wdt.c src/os/blinkcode.c src/os/system_irq.c
+	  src/os/wdt.c src/os/blinkcode.c src/os/system_irq.c \
+	  src/os/flash.c
 
 ifeq ($(BOARD), PCD)
 # PCD support code
