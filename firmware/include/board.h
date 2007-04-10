@@ -7,7 +7,8 @@
 /*--------------*/
 /* Master Clock */
 /*--------------*/
-#define EXT_OSC		18432000	// External Crystal Oscillator
-#define MCK		47923200	// Resulting PLL CLock
+#define EXT_OSC			18432000	// External Crystal Oscillator
+#define MCK			47923200	// Resulting PLL CLock
+#define ENVIRONMENT_SIZE	 ( AT91C_IFLASH_PAGE_SIZE )
 
 #endif/*__BOARD_H__*/
