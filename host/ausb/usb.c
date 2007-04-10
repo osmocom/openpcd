@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <usb.h>
 #include <sys/ioctl.h>
+#include "usb.h"
 #include <linux/usbdevice_fs.h>
 
 #define MAX_READ_WRITE	4096

@@ -26,7 +26,7 @@
 #include <sys/types.h>
 
 #include "ausb/ausb.h"
-#include "../firmware/include/openpcd.h"
+#include <openpcd.h>
 
 #include "opcd_usb.h"
 
@@ -83,7 +83,6 @@ static void opcd_dump_hdr(struct openpcd_hdr *hdr)
 
 static void handle_interrupt(struct usbdevfs_urb *uurb, void *userdata)
 {
-	struct opcd_handle *od = userdata;
 	ausb_dev_handle *ah;
 	struct openpcd_hdr *opcdh;
 

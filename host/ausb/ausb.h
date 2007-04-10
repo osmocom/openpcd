@@ -9,6 +9,9 @@
  * Distributed under the terms of GNU LGPL, Version 2.1
  */
 
+#ifndef __user
+#define __user
+#endif/*__user*/
 
 #include <usb.h>
 #include <linux/usbdevice_fs.h>
