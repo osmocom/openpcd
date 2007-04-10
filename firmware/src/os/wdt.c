@@ -23,7 +23,9 @@
 #include <os/dbgu.h>
 #include <os/system_irq.h>
 
-/*#define WDT_DEBUG*/
+#ifdef  WDT_DEBUG
+#undef  WDT_DEBUG
+#endif/*WDT_DEBUG*/
  
 static void wdt_irq(u_int32_t sr)
 {
