@@ -22,6 +22,7 @@
 #include <include/openpcd.h>
 #include <os/dbgu.h>
 #include "rc632.h"
+#include "rc632_highlevel.h"
 #include <os/led.h>
 #include <os/pcd_enumerate.h>
 #include <os/usb_handler.h>
@@ -33,7 +34,6 @@
 void _init_func(void)
 {
 	rc632_init();
-	rc632_test(RAH);
 }
 
 int _main_dbgu(char key)
@@ -63,6 +63,7 @@ int _main_dbgu(char key)
 		break;
 	case 'P':
 		rc632_power(1);
+		rc632_init();
 		break;
 	case 'p':
 		rc632_power(0);
@@ -74,6 +75,16 @@ int _main_dbgu(char key)
 
 void _main_func(void)
 {
+	static int i;
+	
+	if(i<4096)
+	    i++;
+	else
+	{
+	    led_toggle(1);
+	    i=0;
+	}
+	
 	/* first we try to get rid of pending to-be-sent stuff */
 	usb_out_process();
 
