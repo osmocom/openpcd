@@ -24,9 +24,9 @@ extern void rc632_exit(void);
 
 extern void rc632_unthrottle(void);
 
-#ifdef DEBUG
 extern int rc632_test(struct rfid_asic_handle *hdl);
 extern int rc632_dump(void);
-#endif
+
+extern void rc632_power(u_int8_t up);
 
 #endif
