@@ -30,7 +30,7 @@
 
 #include <usb.h>
 
-#include "../firmware/include/openpcd.h"
+#include <openpcd.h>
 #include "opcd_usb.h"
 
 static int get_number(const char *optarg, unsigned int min,
