@@ -912,7 +912,14 @@ void __dfufunc dfu_main(void)
 
 	AT91F_DBGU_Printk("You may now start the DFU up/download process\r\n");
 	/* do nothing, since all of DFU is interrupt driven */
-	while (1) ;
+	int i = 0;
+	while (1) {
+	    /* Occasionally reset watchdog */
+	    i = (i+1) % 10000;
+	    if( i== 0) {
+		AT91F_WDTRestart(AT91C_BASE_WDTC);
+	    }
+	}
 }
 
 const struct dfuapi __dfufunctab dfu_api = {
