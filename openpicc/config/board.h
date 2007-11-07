@@ -50,14 +50,16 @@
 #define MCKKHz		(MCK/1000)	//
 
 /*-----------------*/
-/* LED declaration */
+/* Pins            */
 /*-----------------*/
 
-//#define LED_GREEN	(1L<<23)
 #define LED_GREEN	AT91C_PIO_PA25
-//#define LED_RED		(1L<<20)
 #define LED_RED		AT91C_PIO_PA12
 #define LED_MASK	(LED_GREEN|LED_RED)
+
+#define OPENPICC_PIO_SS2_DT_THRESH AT91C_PIO_PA8
+#define OPENPICC_PIO_PLL_INHIBIT   AT91C_PIO_PA24
+#define OPENPICC_PIO_PLL_LOCK      AT91C_PIO_PA4
 
 /*-----------------*/
 /* task priorities */

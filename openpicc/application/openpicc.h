@@ -32,5 +32,6 @@ typedef signed char s_int8_t;
 typedef signed short s_int16_t;
 typedef int s_int32_t;
 
+#define DA_BASELINE 200
 
 #endif/*__OPENPICC_H__*/

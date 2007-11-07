@@ -74,6 +74,7 @@ ARM_SRC= \
   application/led.c \
   application/cmd.c \
   application/env.c \
+  application/da.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

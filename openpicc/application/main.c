@@ -38,6 +38,8 @@
 #include "led.h"
 #include "env.h"
 #include "cmd.h"
+#include "da.h"
+#include "pll.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -79,6 +81,8 @@ int main (void)
     prvSetupHardware ();
 
     vLedInit();
+    
+    da_init();
     
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
 	NULL, TASK_USB_PRIORITY, NULL);
