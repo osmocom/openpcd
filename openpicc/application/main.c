@@ -41,6 +41,7 @@
 #include "da.h"
 #include "pll.h"
 #include "pio_irq.h"
+#include "ssc_picc.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -82,6 +83,8 @@ int main (void)
     prvSetupHardware ();
     
     pio_irq_init();
+    
+    ssc_tx_init();
 
     vLedInit();
     

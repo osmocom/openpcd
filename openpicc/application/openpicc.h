@@ -24,6 +24,8 @@
 #ifndef __OPENPICC_H__
 #define __OPENPICC_H__
 
+#include "board.h"
+
 typedef unsigned char bool_t;
 typedef unsigned char u_int8_t;
 typedef unsigned short u_int16_t;
@@ -31,6 +33,8 @@ typedef unsigned long u_int32_t;
 typedef signed char s_int8_t;
 typedef signed short s_int16_t;
 typedef int s_int32_t;
+
+#define int16_t s_int16_t
 
 #define DA_BASELINE 200
 
