@@ -39,7 +39,7 @@
 #include "env.h"
 #include "cmd.h"
 #include "da.h"
-#include "pll.h"
+//#include "pll.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)

@@ -61,25 +61,6 @@
 #define OPENPICC_PIO_PLL_INHIBIT   AT91C_PIO_PA24
 #define OPENPICC_PIO_PLL_LOCK      AT91C_PIO_PA4
 
-#define OPENPCD_PIO_UDP_CNX     NO_UDP_CNX
-#define OPENPCD_PIO_UDP_PUPv4   AT91C_PIO_PA16
-#define OPENPCD_PIO_LED1        AT91C_PIO_PA25
-#define OPENPCD_PIO_LED2        AT91C_PIO_PA12
-#define PIO_BOOTLDR             AT91C_PIO_PA6
-
-#define OPENPCD_VENDOR_ID       0x16c0
-#define OPENPCD_PRODUCT_ID      0x076b
-#define OPENPICC_PRODUCT_ID     0x076c
-
-#define USB_PRODUCT_ID          OPENPICC_PRODUCT_ID
-#define USB_VENDOR_ID   OPENPCD_VENDOR_ID
-
-/*----------------------*/
-/* interrupt priorities */
-/*----------------------*/
-
-#define OPENPCD_IRQ_PRIO_UDP    (AT91C_AIC_PRIOR_LOWEST+2)
-
 /*-----------------*/
 /* task priorities */
 /*-----------------*/
