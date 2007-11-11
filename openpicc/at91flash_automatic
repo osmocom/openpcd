@@ -33,11 +33,26 @@ flash $FLASH_FILE
 ENDOFMYTEXT
 }
 
+blink_thinklight() {
+    if [ ! -w /proc/acpi/ibm/light ]; then return; fi
+    OLDSTATUS=`grep status < /proc/acpi/ibm/light | awk '{print $2;}'`
+    if [ "${OLDSTATUS}" = "off" ]; then
+	echo "on" > /proc/acpi/ibm/light
+	sleep 1
+	echo "off" > /proc/acpi/ibm/light
+    else
+	echo "off" > /proc/acpi/ibm/light
+	sleep 1
+	echo "on" > /proc/acpi/ibm/light
+    fi
+}
+
 flashing_failed() {
-    :
+    aplay /usr/kde/3.5/share/sounds/KDE_Error.wav > /dev/null 2>&1
 }
 flashing_successful() {
-    :
+    blink_thinklight &
+    aplay /usr/kde/3.5/share/sounds/KDE_Notify.wav > /dev/null 2>&1
 }
 
 do_detect() {
