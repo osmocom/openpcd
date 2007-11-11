@@ -4,6 +4,7 @@
 #include <queue.h>
 #include <USB-CDC.h>
 #include <board.h>
+#include <string.h>
 
 #include "env.h"
 #include "cmd.h"
@@ -13,6 +14,20 @@
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
 xTaskHandle xCmdRecvUsbTask;
+
+/* Whether to require a colon (':') be typed before long commands, similar to e.g. vi
+ * This makes a distinction between long commands and short commands: long commands may be
+ * longer than one character and/or accept optional parameters, short commands are only one
+ * character with no arguments (typically some toggling command). Short commands execute
+ * immediately when the character is pressed, long commands must be completed with return.
+ * */
+static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
+/* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
+ * their character in the string SHORT_COMMANDS
+ * */
+static const char *SHORT_COMMANDS = "c+-l?h";
+/* Note that the long/short command distinction only applies to the USB serial console
+ * */
 
 /**********************************************************************/
 void DumpUIntToUSB(unsigned int data)
@@ -255,25 +270,43 @@ void vCmdCode(void *pvParameters) {
 	}
 }
 
+
+
 // A task to read commands from USB
 void vCmdRecvUsbCode(void *pvParameters) {
 	portBASE_TYPE len=0;
+	portBASE_TYPE short_command=1, submit_it=0;
 	cmd_type next_command = { source: SRC_USB, command: ""};
 	(void) pvParameters;
     
 	for( ;; ) {
 		if(vUSBRecvByte(&next_command.command[len], 1, 100)) {
+			if(USE_COLON_FOR_LONG_COMMANDS) {
+				if(len == 0 && next_command.command[len] == ':')
+					short_command = 0;
+			} else {
+				if(strchr(SHORT_COMMANDS, next_command.command[len]) == NULL)
+					short_command = 0;
+			}
 			next_command.command[len+1] = 0;
 			DumpStringToUSB(next_command.command + len);
 			if(next_command.command[len] == '\n' || next_command.command[len] == '\r') {
 				next_command.command[len] = 0;
-				if(len > 0) {
+				submit_it = 1;
+			}
+			if(short_command==1) {
+				submit_it = 1;
+			}
+			if(submit_it) {
+				if(len > 0 || short_command) {
 			    		if( xQueueSend(xCmdQueue, &next_command, 0) != pdTRUE) {
 			    			DumpStringToUSB("Queue full, command can't be processed.\n");
 			    		}
-			    		len=0;
 				}
-			} else len++;
+		    		len=0;
+		    		submit_it=0;
+		    		short_command=1;
+			} else if( len>0 || next_command.command[len] != ':') len++;
 			if(len >= MAX_CMD_LEN-1) {
 				DumpStringToUSB("ERROR: Command too long. Ignored.");
 				len=0;
