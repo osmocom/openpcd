@@ -10,6 +10,7 @@
 #include "cmd.h"
 #include "openpicc.h"
 #include "led.h"
+#include "da.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -184,6 +185,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * The transmit interval is ");
 		    DumpUIntToUSB(env.e.speed);
 		    DumpStringToUSB("00ms\n\r");
+		    DumpStringToUSB(" * The comparator threshold is ");
+		    DumpUIntToUSB(da_get_value());
+		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
 			" *****************************************************\n\r"
@@ -193,16 +197,16 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case '-':
 		    if(cmd == '+')
 		    {
-			if(env.e.speed<9)
-			    env.e.speed++;
+			if(da_get_value() < 255)
+			    da_comp_carr(da_get_value()+1);
 		    }
 		    else
-			if(env.e.speed>1)
-			    env.e.speed--;
+			if(da_get_value() > 0)
+			    da_comp_carr(da_get_value()-1);;
 		    			
-		    DumpStringToUSB(" * Transmit interval set to ");
-		    vUSBSendByte(((char)(env.e.speed))+'0');		    
-		    DumpStringToUSB("00ms\n\r");
+		    DumpStringToUSB(" * Comparator threshold set to ");
+		    DumpUIntToUSB(da_get_value());		    
+		    DumpStringToUSB("\n\r");
 		    break;
 		case 'L':
 		    led = (led+1)%4;
@@ -226,7 +230,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * c    - print configuration\n\r"
 			" * 0    - receive only mode\n\r"
 			" * 1..4 - automatic transmit at selected power levels\n\r"
-			" * +,-  - faster/slower transmit speed\n\r"
+			" * +,-  - decrease/increase comparator threshold\n\r"
 			" * l    - cycle LEDs\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"

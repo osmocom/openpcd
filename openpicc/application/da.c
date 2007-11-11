@@ -26,6 +26,7 @@
 #include <lib_AT91SAM7.h>
 
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
+static u_int8_t last_value;
 
 void da_comp_carr(u_int8_t position)
 {
@@ -43,6 +44,12 @@ void da_comp_carr(u_int8_t position)
 	while (!(spi->SPI_SR & AT91C_SPI_TDRE)) { }
 	for (i = 0; i < 0xff; i++) { }
 	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SS2_DT_THRESH);
+	last_value = position;
+}
+
+u_int8_t da_get_value(void)
+{
+	return last_value;
 }
 
 void da_init(void)

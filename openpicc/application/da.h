@@ -2,6 +2,7 @@
 #define _DA_H
 
 extern void da_comp_carr(u_int8_t position);
+extern u_int8_t da_get_value(void);
 extern void da_init(void);
 
 #endif
