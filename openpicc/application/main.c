@@ -39,7 +39,8 @@
 #include "env.h"
 #include "cmd.h"
 #include "da.h"
-//#include "pll.h"
+#include "pll.h"
+#include "pio_irq.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -79,17 +80,21 @@ void vApplicationIdleHook(void)
 int main (void)
 {
     prvSetupHardware ();
+    
+    pio_irq_init();
 
     vLedInit();
     
     da_init();
+    
+    pll_init();
     
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
 	NULL, TASK_USB_PRIORITY, NULL);
 	
     vCmdInit();
     
-    vLedSetGreen(1);    
+    //vLedSetGreen(1);    
 
     vTaskStartScheduler ();
     

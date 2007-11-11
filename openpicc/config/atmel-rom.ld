@@ -29,6 +29,7 @@ SECTIONS
 		__data_beg_src__ = __end_of_text__;
 		*(.data)
 		*(.data.*)
+		*(.fastrun)
 		*(.ramfunc)
 		__data_end__ = .;
 	} >ram AT>flash
