@@ -45,6 +45,7 @@
 #include "ssc_picc.h"
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
+#include "tc_fdt.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -95,7 +96,7 @@ int main (void)
     pll_init();
     
     tc_cdiv_init();
-    tc_cdiv_sync_init();
+    tc_fdt_init();
     ssc_tx_init();
     //ssc_rx_init();
 

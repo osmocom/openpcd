@@ -29,11 +29,14 @@
  *
  */
 
+#include <FreeRTOS.h>
+#include <task.h>
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
 #include "dbgu.h"
 
 #include "openpicc.h"
+#include "led.h"
 #include "tc_cdiv.h"
 #include "tc_fdt.h"
 
@@ -54,6 +57,8 @@ void tc_frame_end_set(u_int16_t count)
 
 static void tc_fdt_irq(void)
 {
+	portSAVE_CONTEXT();
+	vLedSetGreen(1);
 	u_int32_t sr = tcfdt->TC_SR;
 	DEBUGP("tc_fdt_irq: TC2_SR=0x%08x TC2_CV=0x%08x ", 
 		sr, tcfdt->TC_CV);
@@ -77,6 +82,9 @@ static void tc_fdt_irq(void)
 		DEBUGP("Compare_C ");
 	}
 	DEBUGPCR("");
+	AT91F_AIC_AcknowledgeIt();
+	vLedSetGreen(0);
+	portRESTORE_CONTEXT();
 }
 
 void tc_fdt_print(void)
@@ -123,4 +131,3 @@ void tc_fdt_init(void)
 	tcfdt->TC_IER = AT91C_TC_CPAS | AT91C_TC_CPBS | AT91C_TC_CPCS | 
 			AT91C_TC_ETRGS;
 }
-

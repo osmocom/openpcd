@@ -30,6 +30,7 @@
 #include <AT91SAM7.h>
 #include <lib_AT91SAM7.h>
 
+#include <FreeRTOS.h>
 //#include <os/usb_handler.h>
 #include "dbgu.h"
 #include "led.h"
@@ -314,6 +315,7 @@ static int8_t ssc_rx_refill(void)
 
 static void __ramfunc ssc_irq(void)
 {
+	portSAVE_CONTEXT();
 	u_int32_t ssc_sr = ssc->SSC_SR;
 //	int i, *tmp, emptyframe = 0;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
@@ -451,6 +453,7 @@ static void __ramfunc ssc_irq(void)
 #endif
 	DEBUGPCR("I");
 	AT91F_AIC_ClearIt(AT91C_ID_SSC);
+	portRESTORE_CONTEXT();
 }
 
 void ssc_print(void)

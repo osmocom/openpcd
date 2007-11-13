@@ -30,7 +30,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "pc+-l?h";
+static const char *SHORT_COMMANDS = "!pc+-l?h";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -263,6 +263,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    vUSBSendByte( (char)led + '0' );
 		    DumpStringToUSB("\n\r");
 		    break;
+		case '!':
+		    tc_cdiv_sync_reset();
+		    break;
 		case 'H':	
 		case '?':
 		    DumpStringToUSB(
@@ -281,6 +284,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * l    - cycle LEDs\n\r"
 			" * p    - print PIO pins\n\r"
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
+			" * !    - reset tc_cdiv_sync\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"
 			" *****************************************************\n\r"

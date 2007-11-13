@@ -144,7 +144,7 @@ void pio_irq_init(void)
 {
 	AT91F_PIOA_CfgPMC();
 	AT91F_AIC_ConfigureIt(AT91C_ID_PIOA,
-			      AT91C_AIC_PRIOR_LOWEST,
+			      OPENPICC_IRQ_PRIO_PIO,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &pio_irq_demux);
 	AT91F_AIC_EnableIt(AT91C_ID_PIOA);
 }
