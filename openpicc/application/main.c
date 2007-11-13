@@ -39,9 +39,11 @@
 #include "env.h"
 #include "cmd.h"
 #include "da.h"
+#include "adc.h"
 #include "pll.h"
 #include "pio_irq.h"
 #include "ssc_picc.h"
+#include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 
 /**********************************************************************/
@@ -85,16 +87,18 @@ int main (void)
     
     pio_irq_init();
     
+    vLedInit();
+    
+    da_init();
+    adc_init();
+    
+    pll_init();
+    
+    tc_cdiv_init();
     tc_cdiv_sync_init();
     ssc_tx_init();
     //ssc_rx_init();
 
-    vLedInit();
-    
-    da_init();
-    
-    pll_init();
-    
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
 	NULL, TASK_USB_PRIORITY, NULL);
 	

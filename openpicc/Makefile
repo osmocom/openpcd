@@ -75,11 +75,13 @@ ARM_SRC= \
   application/cmd.c \
   application/env.c \
   application/da.c \
+  application/adc.c \
   application/pll.c \
   application/pio_irq.c \
   application/ssc_picc.c \
   application/tc_cdiv_sync.c \
   application/tc_fdt.c \
+  application/tc_cdiv.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

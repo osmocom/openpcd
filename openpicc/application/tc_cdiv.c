@@ -23,12 +23,12 @@
 
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
-#include <os/dbgu.h>
+#include "dbgu.h"
 
-#include "../openpcd.h"
-#include <os/tc_cdiv.h>
+#include "openpicc.h"
+#include "tc_cdiv.h"
 
-static AT91PS_TCB tcb = AT91C_BASE_TCB;
+AT91PS_TCB tcb = AT91C_BASE_TCB;
 
 /* set carrier divider to a specific */
 void tc_cdiv_set_divider(u_int16_t div)
@@ -56,10 +56,10 @@ void tc_cdiv_init(void)
 {
 	/* Cfg PA28(TCLK1), PA0(TIOA0), PA1(TIOB0), PA20(TCLK2) as Periph B */
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, 
-			    OPENPCD_PIO_CARRIER_IN |
-			    OPENPCD_PIO_CARRIER_DIV_OUT |
-			    OPENPCD_PIO_CDIV_HELP_OUT |
-			    OPENPCD_PIO_CDIV_HELP_IN);
+			    OPENPICC_PIO_CARRIER_IN |
+			    OPENPICC_PIO_CARRIER_DIV_OUT |
+			    OPENPICC_PIO_CDIV_HELP_OUT |
+			    OPENPICC_PIO_CDIV_HELP_IN);
 
 	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC, 
 				    ((unsigned int) 1 << AT91C_ID_TC0));

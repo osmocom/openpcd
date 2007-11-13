@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <lib_AT91SAM7.h>
 
-static AT91PS_TCB tcb;
+extern AT91PS_TCB tcb;
 
 extern void tc_cdiv_phase_add(int16_t inc);
 extern void tc_cdiv_set_divider(u_int16_t div);

@@ -11,6 +11,8 @@
 #include "openpicc.h"
 #include "led.h"
 #include "da.h"
+#include "adc.h"
+#include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
 
@@ -229,6 +231,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * Number of PIO IRQs handled: ");
 		    i = pio_irq_get_count() & (~(unsigned int)0);
 		    DumpUIntToUSB(i);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * current field strength: ");
+		    DumpUIntToUSB(adc_get_field_strength());
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"

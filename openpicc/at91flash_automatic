@@ -88,6 +88,7 @@ while true; do
 	    else
 		echo "UART at $UART"
 	    fi
+	    sleep 1
 	    if do_flash; then
 		echo
 		attention
