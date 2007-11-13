@@ -5,12 +5,12 @@
 #include "dbgu.h"
 #include "pio_irq.h"
 #include "openpicc.h"
+#include "led.h"
 
 #define USE_IRQ
 
 static u_int8_t enabled;
 
-#if 0
 static void pio_data_change(u_int32_t pio)
 {
 	(void)pio;
@@ -24,28 +24,8 @@ static void pio_data_change(u_int32_t pio)
 			  *AT91C_TC0_CV);
 	} else
 		DEBUGPCR("");
+	vLedSetGreen(0);
 }
-
-#else
-
-static void __ramfunc cdsync_cb(void)
-{
-	DEBUGP("PIO_IRQ: ");
-	if (*AT91C_PIOA_ISR & OPENPICC_PIO_FRAME) {
-		DEBUGP("PIO_FRAME_IRQ: ");
-		/* we get one interrupt for each change. If now, after the
-		 * change the level is high, then it must have been a rising
-		 * edge */
-		if (*AT91C_PIOA_PDSR & OPENPICC_PIO_FRAME) {
-			*AT91C_TC0_CCR = AT91C_TC_SWTRG;
-			DEBUGPCR("CDIV_SYNC_FLIP SWTRG CV=0x%08x",
-				  *AT91C_TC0_CV);
-		} else
-			DEBUGPCR("");
-	} else
-		DEBUGPCR("");
-}
-#endif
 
 void tc_cdiv_sync_reset(void)
 {
@@ -54,6 +34,7 @@ void tc_cdiv_sync_reset(void)
 		(void)tmp;
 		volatile int i;
 		DEBUGPCRF("CDIV_SYNC_FLOP");
+		vLedSetGreen(1);
 
 		/* reset the hardware flipflop */
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA,
@@ -87,24 +68,12 @@ void tc_cdiv_sync_init(void)
 	enabled = 0;
 
 	AT91F_PIOA_CfgPMC();
-
-#ifdef USE_IRQ
-	/* Configure IRQ */
-	AT91F_AIC_ConfigureIt(AT91C_ID_PIOA,
-			      AT91C_AIC_PRIOR_HIGHEST, 
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&cdsync_cb);
-#else
-	/* Configure FIQ */
-	AT91F_AIC_ConfigureIt(AT91C_ID_FIQ,
-			      //0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &cdsync_cb);
-			      0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&fiq_handler);
-	/* enable fast forcing for PIOA interrupt */
-	*AT91C_AIC_FFER = (1 << AT91C_ID_PIOA);
-
-	/* register pio irq handler */
+	
+	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
+	
 	pio_irq_register(OPENPICC_PIO_FRAME, &pio_data_change);
-#endif
 	AT91F_AIC_EnableIt(AT91C_ID_PIOA);
-
+	
+	vLedSetGreen(0);
 	tc_cdiv_sync_disable();
 }

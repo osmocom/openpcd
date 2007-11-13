@@ -38,6 +38,7 @@ struct pioirq_state {
 };
 
 static struct pioirq_state pirqs;
+static unsigned long count = 0;
 
 /* low-level handler, used by Cstartup_app.S PIOA fast forcing and
  * by regular interrupt handler below */
@@ -45,6 +46,7 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 {
 	u_int8_t send_usb = 0;
 	int i;
+	count++;
 
 	DEBUGPCRF("PIO_ISR_STATUS = 0x%08x", pio);
 
@@ -99,6 +101,12 @@ void pio_irq_enable(u_int32_t pio)
 void pio_irq_disable(u_int32_t pio)
 {
 	AT91F_PIO_InterruptDisable(AT91C_BASE_PIOA, pio);
+}
+
+/* Return the number of PIO IRQs received */ 
+long pio_irq_get_count(void)
+{
+	return count;
 }
 
 int pio_irq_register(u_int32_t pio, irq_handler_t *handler)

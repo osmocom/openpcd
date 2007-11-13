@@ -11,6 +11,8 @@
 #include "openpicc.h"
 #include "led.h"
 #include "da.h"
+#include "tc_cdiv_sync.h"
+#include "pio_irq.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -26,7 +28,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "c+-l?h";
+static const char *SHORT_COMMANDS = "pc+-l?h";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -90,6 +92,29 @@ int atoiEx(const char * nptr, char * * eptr)
 	out:
 	if(eptr != NULL) *eptr = (char*)nptr+i;
 	return sign * curval;
+}
+
+static const struct { int pin; char * description; } PIO_PINS[] = {
+	{OPENPICC_PIO_PLL_LOCK, "pll lock   "},
+	{OPENPICC_PIO_FRAME,    "frame start"},
+};
+void print_pio(void)
+{
+        int data = *AT91C_PIOA_PDSR;
+        unsigned int i;
+	DumpStringToUSB(
+		" *****************************************************\n\r"
+        	" * Current PIO readings:                             *\n\r"
+        	" *****************************************************\n\r"
+        	" *\n\r");
+	for(i=0; i<sizeof(PIO_PINS)/sizeof(PIO_PINS[0]); i++) {
+        	DumpStringToUSB(" * ");
+        	DumpStringToUSB(PIO_PINS[i].description);
+        	DumpStringToUSB(": ");
+        	DumpUIntToUSB((data & PIO_PINS[i].pin) ? 1 : 0 );
+        	DumpStringToUSB("\n\r");
+	}
+	DumpStringToUSB(" *****************************************************\n\r");
 }
 
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
@@ -157,6 +182,19 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			DumpStringToUSB("\n\r");
 		    }
 		    break;
+		case 'Z':
+		    i=atoiEx(args, &args);
+		    if(i==0) {
+			tc_cdiv_sync_disable();
+			DumpStringToUSB("cdiv_sync disabled \n\r");
+		    } else {
+			tc_cdiv_sync_enable();
+			DumpStringToUSB("cdiv_sync enabled \n\r");
+		    }
+		    break;
+		case 'P':
+		    print_pio();
+		    break;
 		case 'C':
 		    DumpStringToUSB(
 			" *****************************************************\n\r"
@@ -187,6 +225,10 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB("00ms\n\r");
 		    DumpStringToUSB(" * The comparator threshold is ");
 		    DumpUIntToUSB(da_get_value());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * Number of PIO IRQs handled: ");
+		    i = pio_irq_get_count() & (~(unsigned int)0);
+		    DumpUIntToUSB(i);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
@@ -232,6 +274,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * 1..4 - automatic transmit at selected power levels\n\r"
 			" * +,-  - decrease/increase comparator threshold\n\r"
 			" * l    - cycle LEDs\n\r"
+			" * p    - print PIO pins\n\r"
+			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"
 			" *****************************************************\n\r"

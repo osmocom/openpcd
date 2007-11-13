@@ -42,6 +42,7 @@
 #include "pll.h"
 #include "pio_irq.h"
 #include "ssc_picc.h"
+#include "tc_cdiv_sync.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -84,7 +85,9 @@ int main (void)
     
     pio_irq_init();
     
+    tc_cdiv_sync_init();
     ssc_tx_init();
+    //ssc_rx_init();
 
     vLedInit();
     
