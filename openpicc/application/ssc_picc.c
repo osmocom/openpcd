@@ -313,9 +313,8 @@ static int8_t ssc_rx_refill(void)
 #define ISO14443A_FDT_SHORT_1	1236
 #define ISO14443A_FDT_SHORT_0	1172
 
-static void __ramfunc ssc_irq(void)
+static void __ramfunc ssc_irq_inner(void)
 {
-	portSAVE_CONTEXT();
 	u_int32_t ssc_sr = ssc->SSC_SR;
 //	int i, *tmp, emptyframe = 0;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
@@ -453,6 +452,12 @@ static void __ramfunc ssc_irq(void)
 #endif
 	DEBUGPCR("I");
 	AT91F_AIC_ClearIt(AT91C_ID_SSC);
+}
+
+static void __ramfunc ssc_irq_outer(void) __attribute__ ((naked));
+static void __ramfunc ssc_irq_outer(void) {
+	portSAVE_CONTEXT();
+	ssc_irq_inner();
 	portRESTORE_CONTEXT();
 }
 
@@ -546,7 +551,7 @@ void ssc_rx_init(void)
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_SSC,
 			      OPENPICC_IRQ_PRIO_SSC,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&ssc_irq);
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&ssc_irq_outer);
 
 	/* don't divide clock inside SSC, we do that in tc_cdiv */
 	ssc->SSC_CMR = 0;
