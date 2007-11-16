@@ -29,6 +29,8 @@
 #include "led.h"
 /**********************************************************************/
 
+#define BLINK_TIME 10
+
 void vLedSetRed(bool_t on)
 {
     if(on)
@@ -38,12 +40,30 @@ void vLedSetRed(bool_t on)
 }
 /**********************************************************************/
 
-extern void vLedSetGreen(bool_t on)
+void vLedBlinkRed(void)
+{
+	volatile int i=0;
+	vLedSetRed(1);
+	for(i=0; i<BLINK_TIME; i++) (void)i;
+	vLedSetRed(0);
+}
+/**********************************************************************/
+
+void vLedSetGreen(bool_t on)
 {
     if(on)
 	AT91F_PIO_ClearOutput( AT91C_BASE_PIOA, LED_GREEN );
     else
         AT91F_PIO_SetOutput( AT91C_BASE_PIOA, LED_GREEN );
+}
+/**********************************************************************/
+
+void vLedBlinkGreen(void)
+{
+	volatile int i=0;
+	vLedSetGreen(1);
+	for(i=0; i<BLINK_TIME; i++) (void)i;
+	vLedSetGreen(0);
 }
 /**********************************************************************/
 
