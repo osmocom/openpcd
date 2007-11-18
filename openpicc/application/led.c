@@ -44,7 +44,7 @@ void vLedBlinkRed(void)
 {
 	volatile int i=0;
 	vLedSetRed(1);
-	for(i=0; i<BLINK_TIME; i++) (void)i;
+	for(i=0; i<BLINK_TIME; i++) {vLedSetRed(0);vLedSetRed(1);}
 	vLedSetRed(0);
 }
 /**********************************************************************/
@@ -62,7 +62,7 @@ void vLedBlinkGreen(void)
 {
 	volatile int i=0;
 	vLedSetGreen(1);
-	for(i=0; i<BLINK_TIME; i++) (void)i;
+	for(i=0; i<BLINK_TIME; i++) {vLedSetGreen(0);vLedSetGreen(1);}
 	vLedSetGreen(0);
 }
 /**********************************************************************/
