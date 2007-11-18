@@ -11,6 +11,7 @@ typedef struct {
 } cmd_type;
 
 portBASE_TYPE vCmdInit(void);
+extern void DumpUIntToUSB(unsigned int data);
 extern void DumpStringToUSB(char *string);
 extern void DumpBufferToUSB(char* buffer, int len);
 extern xQueueHandle xCmdQueue;

@@ -82,6 +82,7 @@ ARM_SRC= \
   application/tc_cdiv_sync.c \
   application/tc_fdt.c \
   application/tc_cdiv.c \
+  application/usb_print.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

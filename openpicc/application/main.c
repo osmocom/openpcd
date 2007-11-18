@@ -46,6 +46,7 @@
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
+#include "usb_print.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -79,12 +80,14 @@ void vApplicationIdleHook(void)
     	//vLedSetGreen(0);
     	disabled_green = 1;
     }
+    usb_print_flush();
 }
 
 /**********************************************************************/
 int main (void)
 {
     prvSetupHardware ();
+    usb_print_init();
     
     pio_irq_init();
     

@@ -15,6 +15,7 @@
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
+#include "usb_print.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -47,17 +48,13 @@ void DumpUIntToUSB(unsigned int data)
     } while(data);
 
     while(i--)
-        vUSBSendByte(*p++);
+        usb_print_char(*p++);
 }
 /**********************************************************************/
 
 void DumpStringToUSB(char* text)
 {
-    unsigned char data;
-
-    if(text)
-        while((data=*text++)!=0)
-            vUSBSendByte(data);
+    usb_print_string(text);
 }
 /**********************************************************************/
 
@@ -71,8 +68,8 @@ void DumpBufferToUSB(char* buffer, int len)
     int i;
 
     for(i=0; i<len; i++) {
-	vUSBSendByte(HexChar( *buffer  >>   4));
-	vUSBSendByte(HexChar( *buffer++ & 0xf));
+	usb_print_char(HexChar( *buffer  >>   4));
+	usb_print_char(HexChar( *buffer++ & 0xf));
     }
 }
 /**********************************************************************/
