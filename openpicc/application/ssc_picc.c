@@ -50,15 +50,6 @@
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
 
-enum ssc_mode {
-	SSC_MODE_NONE,
-	SSC_MODE_14443A_SHORT,
-	SSC_MODE_14443A_STANDARD,
-	SSC_MODE_14443B,
-	SSC_MODE_EDGE_ONE_SHOT,
-	SSC_MODE_CONTINUOUS,
-};
-
 struct ssc_state {
 	struct req_ctx *rx_ctx[2];
 	enum ssc_mode mode;
