@@ -4,6 +4,7 @@
 #include <queue.h>
 #include <USB-CDC.h>
 #include <board.h>
+#include <compile.h>
 #include <string.h>
 
 #include "env.h"
@@ -15,6 +16,7 @@
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
+#include "ssc_picc.h"
 #include "usb_print.h"
 
 xQueueHandle xCmdQueue;
@@ -31,7 +33,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?h";
+static const char *SHORT_COMMANDS = "!pc+-l?hq9";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -199,6 +201,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" *****************************************************\n\r"
 			" * Current configuration:                            *\n\r"
 			" *****************************************************\n\r"
+			" * Version " COMPILE_SVNREV "\n\r"
+			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"
 			" *\n\r");
 		    DumpStringToUSB(" * Uptime is ");
 		    s=xTaskGetTickCount()/1000;
@@ -263,6 +267,13 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case '!':
 		    tc_cdiv_sync_reset();
 		    break;
+		case 'Q':
+		    ssc_rx_start();
+		    while(0) {
+		    	DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
+		    	DumpStringToUSB("\n\r");
+		    }
+		    break;
 		case 'H':	
 		case '?':
 		    DumpStringToUSB(
@@ -271,6 +282,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * (C) 2007 Milosch Meriac <meriac@openbeacon.de>    *\n\r"
 			" * (C) 2007 Henryk Plötz <henryk@ploetzli.ch>        *\n\r"
 			" *****************************************************\n\r"
+			" * Version " COMPILE_SVNREV "\n\r"
+			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"
 			" *\n\r"
 			" * s    - store transmitter settings\n\r"
 			" * test - test critical sections\n\r"
@@ -282,10 +295,16 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * p    - print PIO pins\n\r"
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * !    - reset tc_cdiv_sync\n\r"
+			" * q    - start rx\n\r"
+			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"
 			" *****************************************************\n\r"
 			);
+		    break;
+		case '9':
+		    AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
+			AT91C_RSTC_PERRST|AT91C_RSTC_EXTRST);
 		    break;
 	    }
     
@@ -385,6 +404,9 @@ portBASE_TYPE vCmdInit(void) {
 		TASK_CMD_PRIORITY, &xCmdRecvUsbTask) != pdPASS) {
 		return 0;
 	}
+	
+	ssc_rx_mode_set(SSC_MODE_CONTINUOUS);
+	DumpStringToUSB("SSC mode set to continuous\n\r");
 	
 	return 1;
 }
