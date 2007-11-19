@@ -118,11 +118,14 @@ $(DEMO_APP_THMUB_OBJ)  : %.o : %.c $(LDSCRIPT) Makefile config/FreeRTOSConfig.h
 $(FREERTOS_THUMB_OBJ)  : %.o : %.c $(LDSCRIPT) Makefile config/FreeRTOSConfig.h
 	$(CC) -c $(THUMB_FLAGS) $(CFLAGS) $< -o $@
 
-$(ARM_OBJ) : %.o : %.c $(LDSCRIPT) Makefile config/FreeRTOSConfig.h
+$(ARM_OBJ) : %.o : %.c $(LDSCRIPT) Makefile config/FreeRTOSConfig.h config/board.h config/compile.h
 	$(CC) -c $(CFLAGS) $< -o $@
 
 clean :
 	touch Makefile
 	find -name '*.o' -exec rm \{\} \;
-	rm -f openpicc.bin openpicc.elf openpicc.map openpicc.asm
+	rm -f openpicc.bin openpicc.elf openpicc.map openpicc.asm config/compile.h
 
+.PHONY: config/compile.h
+config/compile.h:
+	scripts/mkcompile_h > config/compile.h
