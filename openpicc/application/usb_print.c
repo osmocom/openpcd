@@ -18,6 +18,8 @@
  */
 
 #include <FreeRTOS.h>
+#include <task.h> 
+#include <semphr.h>
 #include <USB-CDC.h>
 #include <string.h>
 
@@ -28,6 +30,7 @@
 static char ringbuffer[BUFLEN];
 static int ringstart, ringstop;
 static int default_flush = 1;
+static xSemaphoreHandle print_semaphore;
 
 void usb_print_buffer(const char* buffer, int start, int stop) {
 	usb_print_buffer_f(buffer,start,stop,default_flush);
@@ -90,16 +93,41 @@ int usb_print_set_default_flush(int flush)
 }
 
 
+/* Must NOT be called from ISR context */
 void usb_print_flush(void)
 {
-	while(ringstart != ringstop) {
-		vUSBSendByte(ringbuffer[ringstart]);
-		ringstart = (ringstart+1) % BUFLEN;
+	int oldstop, newstart;
+	taskENTER_CRITICAL();
+	if(print_semaphore == NULL)
+		usb_print_init();
+	if(print_semaphore == NULL) {
+		taskEXIT_CRITICAL();
+		return;
 	}
+	taskEXIT_CRITICAL();
+	
+	xSemaphoreTake(print_semaphore, portMAX_DELAY);
+	
+	taskENTER_CRITICAL();
+	oldstop = ringstop;
+	newstart = ringstart;
+	taskEXIT_CRITICAL();
+	 
+	while(newstart != oldstop) {
+		vUSBSendByte(ringbuffer[newstart]);
+		newstart = (newstart+1) % BUFLEN;
+	}
+	
+	taskENTER_CRITICAL();
+	ringstart = newstart;
+	taskEXIT_CRITICAL();
+	
+	xSemaphoreGive(print_semaphore);
 }
 
 void usb_print_init(void)
 {
 	memset(ringbuffer, 0, BUFLEN);
 	ringstart = ringstop = 0;
+	vSemaphoreCreateBinary( print_semaphore );
 }
