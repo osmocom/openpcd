@@ -147,13 +147,23 @@ void pio_irq_init_once(void)
 	if(!initialized) pio_irq_init();
 }
 
+#define USE_FIQ
+extern void fiq_handler(void);
 void pio_irq_init(void)
 {
 	initialized = 1;
 	AT91F_PIOA_CfgPMC();
+#ifdef USE_FIQ
+        AT91F_AIC_ConfigureIt(AT91C_ID_FIQ,
+                              //0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &cdsync_cb);
+                              0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &fiq_handler);
+        /* enable fast forcing for PIOA interrupt */
+        *AT91C_AIC_FFER = (1 << AT91C_ID_PIOA);
+#else
 	AT91F_AIC_ConfigureIt(AT91C_ID_PIOA,
 			      OPENPICC_IRQ_PRIO_PIO,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &pio_irq_demux);
+#endif
 	AT91F_AIC_EnableIt(AT91C_ID_PIOA);
 	(void)pio_irq_demux; // FIXME NO IRQ
 }

@@ -41,6 +41,7 @@ typedef enum {
 typedef struct {
 	volatile ssc_dma_buffer_state_t state;
 	u_int32_t len;  /* Length of the content */
+	enum ssc_mode reception_mode;
 	u_int8_t data[SSC_DMA_BUFFER_SIZE];
 } ssc_dma_buffer_t;
 

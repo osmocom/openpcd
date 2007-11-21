@@ -315,6 +315,7 @@ static void __ramfunc ssc_irq_short_inner(void)
 		}*/
 		
 		ssc_state.buffer[0]->state = FULL;
+		ssc_state.buffer[0]->reception_mode = ssc_state.mode;
 		vLedSetGreen(1);
 		task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
 		DumpStringToUSB("Sent ");

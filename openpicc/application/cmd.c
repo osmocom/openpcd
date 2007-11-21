@@ -422,8 +422,5 @@ portBASE_TYPE vCmdInit(void) {
 		return 0;
 	}
 	
-	ssc_rx_mode_set(SSC_MODE_CONTINUOUS);
-	DumpStringToUSB("SSC mode set to continuous\n\r");
-	
 	return 1;
 }

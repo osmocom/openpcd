@@ -1,7 +1,7 @@
 MEMORY 
 {
 	flash	: ORIGIN = 0x00100000, LENGTH = 256K - 1K /* save 1K for environment on top of flash */
-	ram		: ORIGIN = 0x00200000, LENGTH = 64K
+	ram		: ORIGIN = 0x00200028, LENGTH = 64K-28
 }
 
 __stack_end__ = 0x00200000 + 64K - 4;

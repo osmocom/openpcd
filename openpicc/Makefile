@@ -83,6 +83,7 @@ ARM_SRC= \
   application/tc_fdt.c \
   application/tc_cdiv.c \
   application/usb_print.c \
+  application/iso14443_layer3a.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

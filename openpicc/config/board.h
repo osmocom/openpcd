@@ -95,6 +95,9 @@
 #define TASK_USB_PRIORITY	( tskIDLE_PRIORITY + 2 )
 #define TASK_USB_STACK		( 512 )
 
+#define TASK_ISO_PRIORITY	( tskIDLE_PRIORITY + 3 )
+#define TASK_ISO_STACK		( 512 )
+
 #define TASK_NRF_PRIORITY	( tskIDLE_PRIORITY + 3 )
 #define TASK_NRF_STACK		( 512 )
 

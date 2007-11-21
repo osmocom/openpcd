@@ -19,9 +19,11 @@ static void pio_data_change(u_int32_t pio)
 	 * change the level is high, then it must have been a rising
 	 * edge */
 	if (*AT91C_PIOA_PDSR & OPENPICC_PIO_FRAME) {
+		vLedSetGreen(1);
 		*AT91C_TC0_CCR = AT91C_TC_SWTRG;
 		DEBUGPCR("CDIV_SYNC_FLIP SWTRG CV=0x%08x",
 			  *AT91C_TC0_CV);
+		vLedSetGreen(0);
 	} else
 		DEBUGPCR("");
 	//vLedSetGreen(0);
@@ -60,7 +62,6 @@ void tc_cdiv_sync_enable(void)
 	*AT91C_PIOA_IER = OPENPICC_PIO_FRAME;
 }
 
-extern void (*fiq_handler)(void);
 void tc_cdiv_sync_init(void)
 {
 	pio_irq_init_once();
@@ -69,7 +70,6 @@ void tc_cdiv_sync_init(void)
 	enabled = 0;
 
 	AT91F_PIOA_CfgPMC();
-	
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	
 	pio_irq_register(OPENPICC_PIO_FRAME, &pio_data_change);
