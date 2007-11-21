@@ -40,6 +40,7 @@
     .equ  F_BIT, 0x40               /* when F bit is set, FIQ is disabled */
 
 .equ AT91C_BASE_AIC,  (0xFFFFF000)
+.equ AT91C_BASE_MC,   (0xFFFFFF00)
 .equ AT91C_BASE_PIOA, 0xFFFFF400
 .equ AT91C_BASE_TC0,  0xFFFA0000
 .equ AT91C_TC_SWTRG,  (1 << 2)
@@ -53,6 +54,7 @@
 .equ AIC_EOICR,       (304)
 /*.equ PIO_LED1,        (1 << 25)*/
 .equ PIO_LED1,        (1 << 12)
+.equ MC_RCR,          0xFFFFFF00
 
 start:
 _start:
@@ -126,11 +128,25 @@ _mainCRTStartup:
 
 .end_set_loop:
 
+	/* Load absolute address and jump there to get from pc=0x0000... to pc=0x0010... */
+    ldr lr, _here
+    bx lr
+   
+.here:
+	/* Perform remap FIXME doesn't work (not even the absolute jump above seems to help)*/
+	/*ldr     r0, =AT91C_BASE_MC
+	mov     r1, #0x01
+	str     r1, [r0, #0]*/
+	
+	/* call main */
 	mov		r0, #0          /* no arguments  */
 	mov		r1, #0          /* no argv either */
 
     ldr lr, =main	
 	bx	lr
+
+_here:
+	.word .here 
 
 endless_loop:
 	b               endless_loop
