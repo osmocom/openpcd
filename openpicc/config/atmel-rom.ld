@@ -32,7 +32,10 @@ SECTIONS
 		*(.data)
 		*(.data.*)
 		__data_end__ = .;
-
+	} > ram
+	
+	.bss :
+	{
 		__bss_beg__ = .;
 		*(.bss)
 		*(.bss.*)
