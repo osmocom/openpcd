@@ -31,15 +31,20 @@
 #include <lib_AT91SAM7.h>
 
 #include <FreeRTOS.h>
-//#include <os/usb_handler.h>
+#include "queue.h"
+#include "task.h"
+
 #include "dbgu.h"
 #include "led.h"
+#include "cmd.h"
 #include "board.h"
 #include "openpicc.h"
 
 #include "ssc_picc.h"
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
+
+#include "usb_print.h"
 
 //#define DEBUG_SSC_REFILL
 
@@ -50,8 +55,29 @@
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
 
+static ssc_dma_buffer_t dma_buffers[SSC_DMA_BUFFER_COUNT];
+xQueueHandle ssc_rx_queue = NULL;
+
+#define TEST_WHETHER_NOT_ENABLING_IT_HELPS
+#define TEST_WHETHER_THIS_INTERRUPT_WORKS_AT_ALL
+
+static ssc_dma_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t oldstate, 
+	ssc_dma_buffer_state_t newstate)
+{
+	ssc_dma_buffer_t* result = NULL; 
+	int i=0;
+	for(i=0; i<SSC_DMA_BUFFER_COUNT; i++) {
+		if(dma_buffers[i].state == oldstate) {
+			result = &dma_buffers[i];
+			result->state = newstate;
+			break;
+		}
+	}
+	return result;
+}
+
 struct ssc_state {
-	struct req_ctx *rx_ctx[2];
+	ssc_dma_buffer_t* buffer[2];
 	enum ssc_mode mode;
 };
 static struct ssc_state ssc_state;
@@ -129,7 +155,9 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 	//ssc->SSC_RFMR = AT91C_SSC_MSBF | (data_len-1) & 0x1f |
 	ssc->SSC_RFMR = ((data_len-1) & 0x1f) |
 			(((num_data-1) & 0x0f) << 8) | 
-			(((sync_len-1) & 0x0f) << 16);
+			(((sync_len-1) & 0x0f) << 16)
+			//| AT91C_SSC_MSBF
+			;
 	ssc->SSC_RCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | 
 			(0x2 << 6) | AT91C_SSC_CKI | start_cond;
 
@@ -137,8 +165,11 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 	AT91F_PDC_EnableRx(rx_pdc);
 
 	/* Enable RX interrupts */
+#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
+
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN | AT91C_SSC_CP0 |
 			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
+#endif
 out_set_mode:
 	ssc_state.mode = ssc_mode;
 }
@@ -176,7 +207,9 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 			(((sync_len-1) & 0x0f) << 16);
 	ssc->SSC_TCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | start_cond;
 
+#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_TXSYN);
+#endif
 	AT91F_SSC_EnableTx(AT91C_BASE_SSC);
 #if 0
 	/* Enable RX interrupts */
@@ -208,108 +241,129 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 #define DEBUGR(x, args ...)
 #endif
 
+static volatile portBASE_TYPE overflows;
+portBASE_TYPE ssc_get_overflows(void) {
+	return overflows;
+}
+
+int ssc_count_free(void) {
+	int i,free = 0;
+	for(i=0; i<SSC_DMA_BUFFER_COUNT; i++) {
+		if(dma_buffers[i].state == FREE) free++;
+	}
+	return free;
+}
+
 static int __ramfunc __ssc_rx_refill(int secondary)
 {
-	(void)secondary;
-// FIXME
-/*	struct req_ctx *rctx;
-
-	rctx = req_ctx_find_get(1, RCTX_STATE_FREE, RCTX_STATE_SSC_RX_BUSY);
-	if (!rctx) {
+	ssc_dma_buffer_t *buffer;
+	
+	buffer = ssc_find_dma_buffer(FREE, PENDING);
+	if (!buffer) {
 		DEBUGP("no_rctx_for_refill! ");
+		overflows++;
 		return -1;
 	}
-	init_opcdhdr(rctx);
+	//init_opcdhdr(buffer);
 	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
-		req_ctx_num(rctx), rctx->size);
-	rctx->tot_len = ssc_dmasize[ssc_state.mode]*4 + 
-			sizeof(struct openpcd_hdr);
+		req_ctx_num(buffer), buffer->size);
+	buffer->len = ssc_dmasize[ssc_state.mode]*4;
 	if (secondary) {
-		AT91F_PDC_SetNextRx(rx_pdc, rctx->data+MAX_HDRSIZE,
+		AT91F_PDC_SetNextRx(rx_pdc, buffer->data,
 				    ssc_dmasize[ssc_state.mode]);
-		ssc_state.rx_ctx[1] = rctx;
+		ssc_state.buffer[1] = buffer;
 	} else {
-		AT91F_PDC_SetRx(rx_pdc, rctx->data+MAX_HDRSIZE,
+		AT91F_PDC_SetRx(rx_pdc, buffer->data,
 				ssc_dmasize[ssc_state.mode]);
-		ssc_state.rx_ctx[0] = rctx;
+		ssc_state.buffer[0] = buffer;
 	}
-*/
-	tc_cdiv_sync_reset();
+
+	//tc_cdiv_sync_reset();
 	
 	return 0;
 }
 
-#if 0
-static char dmabuf1[512];
-static char dmabuf2[512];
-
-/* Try to refill RX dma descriptors. Return values:
- *  0) no dma descriptors empty
- *  1) filled next/secondary descriptor
- *  2) filled both primary and secondary descriptor
- * -1) no free request contexts to use
- * -2) only one free request context, but two free descriptors
- */
-static int8_t ssc_rx_refill(void)
-{
-	struct req_ctx *rctx;
-	DEBUGR("refill ");
-#if 1
-	rctx = req_ctx_find_get(1, RCTX_STATE_FREE, RCTX_STATE_SSC_RX_BUSY);
-	DEBUGP("SSC_SR=0x%08x ", ssc->SSC_SR);
-	if (AT91F_PDC_IsRxEmpty(rx_pdc)) {
-		DEBUGR("filling primary SSC RX dma ctx: %u (len=%u) ",
-			req_ctx_num(rctx), rctx->size);
-		rctx->tot_len = rctx->size;
-		AT91F_PDC_SetRx(rx_pdc, rctx->data+MAX_HDRSIZE,
-				(rctx->size-MAX_HDRSIZE)>>2);
-		ssc_state.rx_ctx[0] = rctx;
-
-		/* If primary is empty, secondary must be empty, too */
-		rctx = req_ctx_find_get(1, RCTX_STATE_FREE, 
-					RCTX_STATE_SSC_RX_BUSY);
-		if (!rctx) {
-			DEBUGPCRF("no rctx for secondary refill!");
-			return -2;
-		}
-		init_opcdhdr(rctx);
-	}
-
-	if (AT91F_PDC_IsNextRxEmpty(rx_pdc)) {
-		DEBUGR("filling secondary SSC RX dma ctx: %u (len=%u) ",
-			req_ctx_num(rctx), rctx->size);
-		rctx->tot_len = rctx->size;
-		AT91F_PDC_SetNextRx(rx_pdc, rctx->data+MAX_HDRSIZE,
-				    (rctx->size-MAX_HDRSIZE)>2);
-		ssc_state.rx_ctx[1] = rctx;
-		return 2;
-	} else {
-		/* we were unable to fill*/
-		DEBUGPCRF("prim/secnd DMA busy, can't refill");
-		req_ctx_put(rctx);	
-		return 0;
-	}
-#else
-	if (AT91F_PDC_IsRxEmpty(rx_pdc))
-		AT91F_PDC_SetRx(rx_pdc, dmabuf1, sizeof(dmabuf1)>>2);
-	
-	if (AT91F_PDC_IsNextRxEmpty(rx_pdc))
-		AT91F_PDC_SetNextRx(rx_pdc, dmabuf2, sizeof(dmabuf2)>>2);
-	else
-		DEBUGPCRF("prim/secnd DMA busy, can't refill");
-#endif
-}
-#endif
-
 #define ISO14443A_FDT_SHORT_1	1236
 #define ISO14443A_FDT_SHORT_0	1172
 
-static void __ramfunc ssc_irq_inner(void)
+static void __ramfunc ssc_irq_short_inner(void) __attribute__ ((naked));
+static void __ramfunc ssc_irq_short_inner(void)
 {
+	portENTER_SWITCHING_ISR();
+	portBASE_TYPE task_woken = pdFALSE;
+	static volatile int i = 0, flush;
+	vLedSetRed(1);
 	u_int32_t ssc_sr = ssc->SSC_SR;
-//	int i, *tmp, emptyframe = 0;
-	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
+	(void)ssc_sr;
+	
+	i++;
+	flush = usb_print_set_default_flush(0);
+	DumpStringToUSB("b ");
+	DumpUIntToUSB(ssc_sr);
+	DumpStringToUSB("\t");
+	DumpUIntToUSB(ssc_count_free());
+	DumpStringToUSB("\t");
+	DumpUIntToUSB(ssc->SSC_IMR);
+	DumpStringToUSB("\n\r");
+	
+	
+	if (ssc_sr & AT91C_SSC_ENDRX) {
+		//ssc_rx_stop();
+		/*if(i>10000) {
+			AT91F_AIC_DisableIt(AT91C_ID_SSC);
+			DumpStringToUSB("SSC IRQ Disabled\n\r");
+		}*/
+		
+		ssc_state.buffer[0]->state = FULL;
+		vLedSetGreen(1);
+		task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
+		DumpStringToUSB("Sent ");
+		DumpUIntToUSB((int)ssc_state.buffer[0]);
+		DumpStringToUSB("\n\r");
+		vLedSetGreen(0);
+		ssc_state.buffer[0] = ssc_state.buffer[1];
+		ssc_state.buffer[1] = NULL;
+		if(__ssc_rx_refill(1) == -1) {
+			AT91F_AIC_DisableIt(AT91C_ID_SSC);
+			DumpStringToUSB("SSC IRQ Disabled\n\r");
+		}
+		
+		DumpStringToUSB("a ");
+		DumpUIntToUSB(ssc->SSC_SR);
+		DumpStringToUSB("\t");
+		DumpUIntToUSB(ssc_count_free());
+		DumpStringToUSB("\n\r");
+	}
+	
+	usb_print_string(task_woken?"SSC: Task woken\n\r":"");
+	usb_print_set_default_flush(flush);
+	
+	AT91F_AIC_ClearIt(AT91C_ID_SSC);
+	AT91F_AIC_AcknowledgeIt();
+	
+	vLedSetRed(0);
+	portEXIT_SWITCHING_ISR(task_woken);
+}
+/*static void __ramfunc ssc_irq_short_outer(void) __attribute__ ((naked));
+static void __ramfunc ssc_irq_short_outer(void) {
+	portSAVE_CONTEXT();
+	ssc_irq_short_inner();
+	portRESTORE_CONTEXT();
+}*/
 
+static void __ramfunc ssc_irq(void) __attribute__ ((naked));
+static void __ramfunc ssc_irq(void)
+{
+	portENTER_SWITCHING_ISR();
+	vLedSetRed(1);
+	portBASE_TYPE task_woken = pdFALSE;
+
+#ifdef TEST_WHETHER_THIS_INTERRUPT_WORKS_AT_ALL
+	u_int32_t ssc_sr = ssc->SSC_SR;
+	int i, emptyframe = 0;
+	u_int32_t *tmp;
+	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
+	
 	if (ssc_sr & AT91C_SSC_ENDRX) {
 #if 1
 		/* in a one-shot sample, we don't want to keep
@@ -343,43 +397,53 @@ static void __ramfunc ssc_irq_inner(void)
 #endif
 		/* Ignore empty frames */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
-// FIXME
-//			tmp = (u_int32_t*)ssc_state.rx_ctx[0]->data + MAX_HDRSIZE;
-//			emptyframe = 1;
-//			for(i = (ssc_state.rx_ctx[0]->size-MAX_HDRSIZE) / 4 - 8/*WTF?*/; i > 0; i--) {
-//				if( *tmp++ != 0xFFFFFFFF ) {
-//					DEBUGPCR("NONEMPTY(%08x, %i): %08x", tmp, i, *(tmp-1));
-//					emptyframe = 0;
-//					break;
-//				} else {
-//					//DEBUGPCR("DUNNO(%08x, %i): %08x", tmp, i, tmp[i]);
-//				}
-//			}
+			tmp = (u_int32_t*)ssc_state.buffer[0]->data;
+			emptyframe = 1;
+			for(i = (ssc_state.buffer[0]->len) / 4 - 8/*WTF?*/; i > 0; i--) {
+				if( *tmp++ != 0xFFFFFFFF ) {
+					DEBUGPCR("NONEMPTY(%08x, %i): %08x", tmp, i, *(tmp-1));
+					emptyframe = 0;
+					break;
+				} else {
+					//DEBUGPCR("DUNNO(%08x, %i): %08x", tmp, i, tmp[i]);
+				}
+			}
 		}
 		//DEBUGP("Sending primary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
 		/* Mark primary RCTX as ready to send for usb */
-//		if(!emptyframe) {
-// FIXME
-//			DEBUGP("NONEMPTY");
-//			req_ctx_set_state(ssc_state.rx_ctx[0], 
-//					  RCTX_STATE_UDP_EP2_PENDING);
-//					  //RCTX_STATE_FREE);
-//		} else {
-//			DEBUGP("EMPTY");
-//			req_ctx_put(ssc_state.rx_ctx[0]);
-//		}
+		if(!emptyframe) {
+			//unsigned int i;
+			DEBUGP("NONEMPTY");
+			//gaportENTER_CRITICAL();
+			ssc_state.buffer[0]->state = FULL;
+			//gaportEXIT_CRITICAL();
+			task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
+			/*vLedBlinkRed();
+			vLedSetRed(1); for(i=0; i<50; i++) (void)i; vLedSetRed(0); 
+			for(i=0; i<ssc_state.buffer[0]->len*8; i++) {
+				vLedSetRed( ssc_state.buffer[0]->data[i/8] & (1<<(i%8)) );
+			}
+			vLedBlinkRed();*/
+		} else {
+			DEBUGP("EMPTY");
+			//gaportENTER_CRITICAL();
+			ssc_state.buffer[0]->state = FREE;
+			//gaportEXIT_CRITICAL();			
+		}
 
 		/* second buffer gets propagated to primary */
-		ssc_state.rx_ctx[0] = ssc_state.rx_ctx[1];
-		ssc_state.rx_ctx[1] = NULL;
+		ssc_state.buffer[0] = ssc_state.buffer[1];
+		ssc_state.buffer[1] = NULL;
 		if (ssc_sr & AT91C_SSC_RXBUFF) {
-//			DEBUGP("RXBUFF! ");
-//			if (ssc_state.rx_ctx[0]) {
-//				//DEBUGP("Sending secondary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
-//				req_ctx_set_state(ssc_state.rx_ctx[0],
-//						  RCTX_STATE_UDP_EP2_PENDING);
-//						  //RCTX_STATE_FREE);
-//			}
+// FIXME
+			DEBUGP("RXBUFF! ");
+			if (ssc_state.buffer[0]) {
+				//DEBUGP("Sending secondary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
+				//gaportENTER_CRITICAL();
+				ssc_state.buffer[0]->state = FULL;
+				//gaportEXIT_CRITICAL();
+				task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
+			}
 			if (__ssc_rx_refill(0) == -1)
 				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 						    AT91C_SSC_RXBUFF |
@@ -409,8 +473,6 @@ static void __ramfunc ssc_irq_inner(void)
 	
 	if (ssc_sr & AT91C_SSC_TXSYN)
 		DEBUGP("TXSYN ");
-#if 0
-	led_toggle(1);
 
 	switch (ssc_state.mode) {
 	case SSC_MODE_14443A_SHORT:
@@ -443,13 +505,10 @@ static void __ramfunc ssc_irq_inner(void)
 #endif
 	DEBUGPCR("I");
 	AT91F_AIC_ClearIt(AT91C_ID_SSC);
-}
-
-static void __ramfunc ssc_irq_outer(void) __attribute__ ((naked));
-static void __ramfunc ssc_irq_outer(void) {
-	portSAVE_CONTEXT();
-	ssc_irq_inner();
-	portRESTORE_CONTEXT();
+	AT91F_AIC_AcknowledgeIt();
+	
+	vLedSetRed(0);
+	portEXIT_SWITCHING_ISR(task_woken);
 }
 
 void ssc_print(void)
@@ -463,8 +522,10 @@ void ssc_print(void)
 
 void ssc_rx_unthrottle(void)
 {
+#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
+#endif
 }
 
 void ssc_rx_start(void)
@@ -472,8 +533,10 @@ void ssc_rx_start(void)
 	//DEBUGPCRF("starting SSC RX\n");	
 
 	/* Enable Reception */
+#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
+#endif
 	AT91F_SSC_EnableRx(AT91C_BASE_SSC);
 	
 	/* Clear the flipflop */
@@ -527,6 +590,9 @@ void ssc_rx_init(void)
 { 
 	tc_cdiv_sync_init();
 	tc_cdiv_sync_enable();
+	
+	if(ssc_rx_queue == NULL)
+		ssc_rx_queue = xQueueCreate(10, sizeof(ssc_state.buffer[0]));
 
 	rx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 
@@ -542,7 +608,8 @@ void ssc_rx_init(void)
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_SSC,
 			      OPENPICC_IRQ_PRIO_SSC,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&ssc_irq_outer);
+			      AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE, (THandler)&ssc_irq);
+	(void)ssc_irq_short_inner; // FIXME SHORT IRQ IMPLEMENTATION
 
 	/* don't divide clock inside SSC, we do that in tc_cdiv */
 	ssc->SSC_CMR = 0;
@@ -555,10 +622,10 @@ void ssc_rx_init(void)
 	ssc->SSC_RFMR = 31 | AT91C_SSC_MSBF | (14 << 8);
 #endif
 	
+	ssc_rx_mode_set(SSC_MODE_NONE);
+	
 	__ssc_rx_refill(0);
 	__ssc_rx_refill(1);
-
-	ssc_rx_mode_set(SSC_MODE_NONE);
 #if 0
 	AT91F_PDC_EnableRx(rx_pdc);
 

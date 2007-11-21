@@ -34,7 +34,8 @@ void AT91F_LowLevelInit (void)
     AT91C_BASE_MC->MC_FMR = ((AT91C_MC_FMCN) & (75 << 16)) | AT91C_MC_FWS_1FWS;
 
     //* Watchdog Enable
-    AT91C_BASE_WDTC->WDTC_WDMR = (0x80 << 16) | AT91C_WDTC_WDRSTEN | 0x80;
+    AT91C_BASE_WDTC->WDTC_WDMR = (0x480 << 16) | AT91C_WDTC_WDRSTEN | 0x480;
+    //AT91C_BASE_WDTC->WDTC_WDMR = 0x8000;
 
     //* Set MCK at 47 923 200
     // 1 Enabling the Main Oscillator:

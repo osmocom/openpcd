@@ -42,7 +42,7 @@ static void pll_lock_change_cb(u_int32_t pio)
 {
 	(void)pio;
 	DEBUGPCRF("PLL LOCK: %d", pll_is_locked());
-#if 1
+#if 0
 	vLedSetRed(pll_is_locked());
 #endif
 }

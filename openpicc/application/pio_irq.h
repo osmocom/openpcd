@@ -12,5 +12,6 @@ extern long pio_irq_get_count(void);
 extern int pio_irq_register(u_int32_t pio, irq_handler_t *func);
 extern void pio_irq_unregister(u_int32_t pio);
 extern void pio_irq_init(void);
+extern void pio_irq_init_once(void);
 
 #endif

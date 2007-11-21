@@ -24,7 +24,7 @@ static void pio_data_change(u_int32_t pio)
 			  *AT91C_TC0_CV);
 	} else
 		DEBUGPCR("");
-	vLedSetGreen(0);
+	//vLedSetGreen(0);
 }
 
 void tc_cdiv_sync_reset(void)
@@ -34,7 +34,7 @@ void tc_cdiv_sync_reset(void)
 		(void)tmp;
 		volatile int i;
 		DEBUGPCRF("CDIV_SYNC_FLOP");
-		vLedSetGreen(1);
+		//vLedSetGreen(1);
 
 		/* reset the hardware flipflop */
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA,
@@ -63,6 +63,7 @@ void tc_cdiv_sync_enable(void)
 extern void (*fiq_handler)(void);
 void tc_cdiv_sync_init(void)
 {
+	pio_irq_init_once();
 	DEBUGPCRF("initializing");
 
 	enabled = 0;
@@ -72,8 +73,7 @@ void tc_cdiv_sync_init(void)
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	
 	pio_irq_register(OPENPICC_PIO_FRAME, &pio_data_change);
-	AT91F_AIC_EnableIt(AT91C_ID_PIOA);
 	
-	vLedSetGreen(0);
+	//vLedSetGreen(0);
 	tc_cdiv_sync_disable();
 }

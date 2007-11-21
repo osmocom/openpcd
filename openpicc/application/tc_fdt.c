@@ -55,9 +55,11 @@ void tc_frame_end_set(u_int16_t count)
 	tcfdt->TC_RB = count;
 }
 
-static void tc_fdt_irq_inner(void)
+static void tc_fdt_irq(void) __attribute__ ((naked));
+static void tc_fdt_irq(void)
 {
-	vLedSetGreen(1);
+	portSAVE_CONTEXT();
+	//vLedSetGreen(1);
 	u_int32_t sr = tcfdt->TC_SR;
 	DEBUGP("tc_fdt_irq: TC2_SR=0x%08x TC2_CV=0x%08x ", 
 		sr, tcfdt->TC_CV);
@@ -82,13 +84,7 @@ static void tc_fdt_irq_inner(void)
 	}
 	DEBUGPCR("");
 	AT91F_AIC_AcknowledgeIt();
-	vLedSetGreen(0);
-}
-
-static void tc_fdt_irq_outer(void) __attribute__ ((naked));
-static void tc_fdt_irq_outer(void) {
-	portSAVE_CONTEXT();
-	tc_fdt_irq_inner();
+	//vLedSetGreen(0);
 	portRESTORE_CONTEXT();
 }
 
@@ -130,8 +126,9 @@ void tc_fdt_init(void)
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_TC2,
 			      OPENPCD_IRQ_PRIO_TC_FDT,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &tc_fdt_irq_outer);
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &tc_fdt_irq);
 	AT91F_AIC_EnableIt(AT91C_ID_TC2);
+	(void)tc_fdt_irq;// FIXME NO IRQ
 
 	tcfdt->TC_IER = AT91C_TC_CPAS | AT91C_TC_CPBS | AT91C_TC_CPCS | 
 			AT91C_TC_ETRGS;

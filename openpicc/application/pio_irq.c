@@ -85,15 +85,12 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 }
 
 /* regular interrupt handler, in case fast forcing for PIOA disabled */
-static void pio_irq_demux_inner(void)
+static void pio_irq_demux(void) __attribute__ ((naked));
+static void pio_irq_demux(void)
 {
+	portSAVE_CONTEXT();
 	u_int32_t pio = AT91F_PIO_GetInterruptStatus(AT91C_BASE_PIOA);
 	__pio_irq_demux(pio);
-}
-static void pio_irq_demux_outer(void) __attribute__ ((naked));
-static void pio_irq_demux_outer(void) {
-	portSAVE_CONTEXT();
-	pio_irq_demux_inner();
 	portRESTORE_CONTEXT();	
 }
 
@@ -144,11 +141,19 @@ void pio_irq_unregister(u_int32_t pio)
 	pirqs.handlers[num] = NULL;
 }
 
+static int initialized = 0;
+void pio_irq_init_once(void)
+{
+	if(!initialized) pio_irq_init();
+}
+
 void pio_irq_init(void)
 {
+	initialized = 1;
 	AT91F_PIOA_CfgPMC();
 	AT91F_AIC_ConfigureIt(AT91C_ID_PIOA,
 			      OPENPICC_IRQ_PRIO_PIO,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &pio_irq_demux_outer);
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &pio_irq_demux);
 	AT91F_AIC_EnableIt(AT91C_ID_PIOA);
+	(void)pio_irq_demux; // FIXME NO IRQ
 }

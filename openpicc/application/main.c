@@ -74,13 +74,66 @@ static inline void prvSetupHardware (void)
 void vApplicationIdleHook(void)
 {
     static char disabled_green = 0;
+    //static int i=0;
     /* Restart watchdog, has been enabled in Cstartup_SAM7.c */
     AT91F_WDTRestart(AT91C_BASE_WDTC);
+    //vLedSetGreen(i^=1);
     if(!disabled_green) {
     	//vLedSetGreen(0);
     	disabled_green = 1;
     }
     usb_print_flush();
+}
+
+void vMainTestSSCRXConsumer (void *pvParameters)
+{
+	int i, dumped;
+	static int pktcount=0;
+	unsigned int j;
+	u_int32_t *tmp;
+	(void)pvParameters;
+	while(1) {
+		ssc_dma_buffer_t* buffer;
+		if(xQueueReceive(ssc_rx_queue, &buffer, portMAX_DELAY)) {
+			portENTER_CRITICAL();
+			buffer->state = PROCESSING;
+			portEXIT_CRITICAL();
+			/*vLedBlinkGreen();
+			for(i=0; i<buffer->len*8; i++) {
+				vLedSetGreen( buffer->data[i/8] & (1<<(i%8)) );
+			}
+			vLedBlinkGreen();*/
+			//i = usb_print_set_default_flush(0);
+			
+			tmp = (u_int32_t*)buffer->data;
+			dumped = 0;
+			for(i = buffer->len / sizeof(*tmp); i >= 0 ; i--) {
+				if( *tmp != 0x00000000 ) {
+					if(dumped == 0) {
+						DumpUIntToUSB(buffer->len);
+						DumpStringToUSB(", ");
+						DumpUIntToUSB(pktcount++);
+						DumpStringToUSB(": ");
+					} else {
+						DumpStringToUSB(" ");
+					}
+					dumped = 1;
+					for(j=0; j<sizeof(*tmp)*8; j++) {
+						usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
+					}
+					usb_print_flush();
+					//DumpBufferToUSB((char*)(tmp), sizeof(*tmp));
+				}
+				tmp++;
+			}
+			if(dumped) DumpStringToUSB("\n\r");
+			
+			//usb_print_set_default_flush(i);
+			portENTER_CRITICAL();
+			buffer->state = FREE;
+			portEXIT_CRITICAL();
+		}
+	}
 }
 
 /**********************************************************************/
@@ -99,9 +152,20 @@ int main (void)
     pll_init();
     
     tc_cdiv_init();
+    tc_cdiv_set_divider(16);
     tc_fdt_init();
+#if 0
     ssc_tx_init();
-    //ssc_rx_init();
+#else
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_MOD_PWM);
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, OPENPICC_MOD_SSC | 
+			    OPENPICC_SSC_DATA | OPENPICC_SSC_DATA |
+			    AT91C_PIO_PA15, 0);
+#endif
+    ssc_rx_init();
+
+    xTaskCreate (vMainTestSSCRXConsumer, (signed portCHAR *) "SSC_CONSUMER", TASK_USB_STACK,
+	NULL, TASK_USB_PRIORITY, NULL);
 
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
 	NULL, TASK_USB_PRIORITY, NULL);

@@ -193,6 +193,13 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			DumpStringToUSB("cdiv_sync enabled \n\r");
 		    }
 		    break;
+		case 'D':
+		    i=atoiEx(args, &args);
+		    tc_cdiv_set_divider(i);
+		    DumpStringToUSB("tc_cdiv set to ");
+		    DumpUIntToUSB(i);
+		    DumpStringToUSB("\n\r");
+		    break;
 		case 'P':
 		    print_pio();
 		    break;
@@ -235,6 +242,15 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * current field strength: ");
 		    DumpUIntToUSB(adc_get_field_strength());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC RX overflows: ");
+		    DumpUIntToUSB(ssc_get_overflows());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC free buffers: ");
+		    DumpUIntToUSB(ssc_count_free());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC status: ");
+		    DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
@@ -296,6 +312,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * !    - reset tc_cdiv_sync\n\r"
 			" * q    - start rx\n\r"
+			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"
