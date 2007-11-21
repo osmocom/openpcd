@@ -23,30 +23,32 @@ SECTIONS
 
 	__end_of_text__ = .;
 
-        .data :
-        {
-                __data_beg__ = .;
-                __data_beg_src__ = __end_of_text__;
-                *(.data)
-                *(.data.*)
-                *(.ramfunc)
-                __data_end__ = .;
-        } >ram AT>flash
+	.data : 
+	{
+		__data_beg__ = .;
+		__data_beg_src__ = __end_of_text__;
+		*(.data)
+		*(.data.*)
+		*(.fastrun)
+		*(.ramfunc)
+		__data_end__ = .;
+	} >ram AT>flash
 
-        .bss :
-        {
-                __bss_beg__ = .;
-                *(.bss)
-                *(.bss.*)
-        } >ram
+	.bss : 
+	{
+		__bss_beg__ = .;
+		*(.bss)
+		*(.bss.*)
+	} >ram
 
-        /* Align here to ensure that the .bss section occupies space up to
-        _end.  Align after .bss to ensure correct alignment even if the
-        .bss section disappears because there are no input sections.  */
-        . = ALIGN(32 / 8);
+	/* Align here to ensure that the .bss section occupies space up to
+	_end.  Align after .bss to ensure correct alignment even if the
+	.bss section disappears because there are no input sections.  */
+	. = ALIGN(32 / 8);
 }
-        . = ALIGN(32 / 8);
-        _end = .;
-        _bss_end__ = . ; __bss_end__ = . ; __end__ = . ;
-        PROVIDE (end = .);
+	. = ALIGN(32 / 8);
+	_end = .;
+	_bss_end__ = . ; __bss_end__ = . ; __end__ = . ;
+	PROVIDE (end = .);
+
 
