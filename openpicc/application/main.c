@@ -86,12 +86,36 @@ void vApplicationIdleHook(void)
     usb_print_flush();
 }
 
+void main_help_print_buffer(ssc_dma_buffer_t *buffer, int *pktcount)
+{
+	u_int32_t *tmp = (u_int32_t*)buffer->data;
+	int i, dumped = 0;
+	unsigned int j;
+	for(i = buffer->len / sizeof(*tmp); i >= 0 ; i--) {
+		if( *tmp != 0x00000000 ) {
+			if(dumped == 0) {
+				DumpUIntToUSB(buffer->len);
+				DumpStringToUSB(", ");
+				DumpUIntToUSB((*pktcount)++);
+				DumpStringToUSB(": ");
+			} else {
+				DumpStringToUSB(" ");
+			}
+			dumped = 1;
+			for(j=0; j<sizeof(*tmp)*8; j++) {
+				usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
+			}
+			usb_print_flush();
+			//DumpBufferToUSB((char*)(tmp), sizeof(*tmp));
+		}
+		tmp++;
+	}
+	if(dumped) DumpStringToUSB("\n\r");
+}
+
 void vMainTestSSCRXConsumer (void *pvParameters)
 {
-	int i, dumped;
 	static int pktcount=0;
-	unsigned int j;
-	u_int32_t *tmp;
 	(void)pvParameters;
 	while(1) {
 		ssc_dma_buffer_t* buffer;
@@ -106,28 +130,7 @@ void vMainTestSSCRXConsumer (void *pvParameters)
 			vLedBlinkGreen();*/
 			//i = usb_print_set_default_flush(0);
 			
-			tmp = (u_int32_t*)buffer->data;
-			dumped = 0;
-			for(i = buffer->len / sizeof(*tmp); i >= 0 ; i--) {
-				if( *tmp != 0x00000000 ) {
-					if(dumped == 0) {
-						DumpUIntToUSB(buffer->len);
-						DumpStringToUSB(", ");
-						DumpUIntToUSB(pktcount++);
-						DumpStringToUSB(": ");
-					} else {
-						DumpStringToUSB(" ");
-					}
-					dumped = 1;
-					for(j=0; j<sizeof(*tmp)*8; j++) {
-						usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
-					}
-					usb_print_flush();
-					//DumpBufferToUSB((char*)(tmp), sizeof(*tmp));
-				}
-				tmp++;
-			}
-			if(dumped) DumpStringToUSB("\n\r");
+			main_help_print_buffer(buffer, &pktcount);
 			
 			//usb_print_set_default_flush(i);
 			portENTER_CRITICAL();

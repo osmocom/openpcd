@@ -40,9 +40,11 @@ static enum ISO14443_STATES state = STARTING_UP;
 
 #define LAYER3_DEBUG usb_print_string
 
+extern void main_help_print_buffer(ssc_dma_buffer_t *buffer, int *pktcount);
 void iso14443_layer3a_state_machine (void *pvParameters)
 {
 	unsigned long int last_pll_lock = ~0;
+	int pktcount=0;
 	(void)pvParameters;
 	while(1) {
 		ssc_dma_buffer_t* buffer = NULL;
@@ -106,14 +108,14 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 			case POWERED_OFF:
 				if(switch_on == 1) {
 					state=IDLE;
+					ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+					ssc_rx_start();
 					continue;
 				}
 				break;
 			case IDLE:
 			case HALT:
 				/* Wait for REQA or WUPA (HALT: only WUPA) */
-				ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
-				ssc_rx_start();
 				need_receive = 1;
 			default:
 				break;
@@ -125,10 +127,16 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				buffer->state = PROCESSING;
 				portEXIT_CRITICAL();
 				
+				DumpStringToUSB("Frame: ");
+				DumpUIntToUSB(*(u_int32_t*)buffer->data);
+				DumpStringToUSB(" ");
+				main_help_print_buffer(buffer, &pktcount);
+				
 				switch(state) {
 					case IDLE:
 					case HALT:
-						
+						ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+						ssc_rx_start();
 						break;
 					default:
 						break;
