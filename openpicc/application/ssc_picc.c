@@ -376,32 +376,12 @@ static void __ramfunc ssc_irq(void)
 		}
 		//AT91F_SSC_DisableIt(AT91C_BASE_SSC, SSC_RX_IRQ_MASK);
 #endif
-#if 0
-/* Experimental start SSC on frame, stop on FFFFFFFF */
-		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
-			//ssc->SSC_RCMR = (ssc->SSC_RCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
-			tmp = (u_int32_t*)ssc_state.rx_ctx[0]->data;
-			for(i = ssc_state.rx_ctx[0]->size / 4; i >= 0 ; i--) {
-				if( *tmp++ == 0xFFFFFFFF ) {
-					*(tmp-1) = 0xAAAAAAAA; // debug marker
-					/* No modulation for a long time, stop sampling 
-					 * and prepare for next frame */
-					DEBUGP("RESTART RX ");
-					ssc_rx_stop();
-					ssc_rx_mode_set(ssc_state.mode);
-					ssc_rx_start();
-					led_toggle(1);
-					break;
-				}
-			}
-		}
-#endif
 		/* Ignore empty frames */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
 			tmp = (u_int32_t*)ssc_state.buffer[0]->data;
 			emptyframe = 1;
 			for(i = (ssc_state.buffer[0]->len) / 4 - 8/*WTF?*/; i > 0; i--) {
-				if( *tmp++ != 0xFFFFFFFF ) {
+				if( *tmp++ != 0x0 ) {
 					DEBUGPCR("NONEMPTY(%08x, %i): %08x", tmp, i, *(tmp-1));
 					emptyframe = 0;
 					break;
@@ -457,13 +437,11 @@ static void __ramfunc ssc_irq(void)
 					    AT91C_SSC_OVRUN);
 
 //		udp_refill_ep(2);
-
-#if 0
-			if (__ssc_rx_refill(1) == -1)
-				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
-						    AT91C_SSC_RXBUFF |
-						    AT91C_SSC_OVRUN);
-#endif
+		
+		if(ssc_state.mode == SSC_MODE_14443A_SHORT) {
+			// Stop sampling here
+			ssc_rx_stop();
+		}
 	}
 	
 	if (ssc_sr & AT91C_SSC_OVRUN)
