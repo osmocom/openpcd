@@ -1,6 +1,7 @@
 #include <AT91SAM7.h>
 #include <FreeRTOS.h>
 #include <task.h>
+#include <semphr.h>
 #include <queue.h>
 #include <USB-CDC.h>
 #include <board.h>
@@ -22,6 +23,8 @@
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
 xTaskHandle xCmdRecvUsbTask;
+xTaskHandle xFieldMeterTask;
+xSemaphoreHandle xFieldMeterMutex;
 
 /* Whether to require a colon (':') be typed before long commands, similar to e.g. vi
  * This makes a distinction between long commands and short commands: long commands may be
@@ -33,7 +36,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?hq9";
+static const char *SHORT_COMMANDS = "!pc+-l?hq9f";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -121,6 +124,7 @@ void print_pio(void)
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
 #define SPI_MAX_XFER_LEN 33
 
+void startstop_field_meter(void);
 extern volatile unsigned portLONG ulCriticalNesting;
 void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	static int led = 0;
@@ -283,6 +287,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case '!':
 		    tc_cdiv_sync_reset();
 		    break;
+		case 'F':
+		    startstop_field_meter();
 		case 'Q':
 		    ssc_rx_start();
 		    while(0) {
@@ -312,6 +318,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * !    - reset tc_cdiv_sync\n\r"
 			" * q    - start rx\n\r"
+			" * f    - start/stop field meter\n\r"
 			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
@@ -405,12 +412,53 @@ void vCmdRecvUsbCode(void *pvParameters) {
     	}
 }
 
+static portBASE_TYPE field_meter_enabled = 0;
+#define FIELD_METER_WIDTH 80
+#define FIELD_METER_MAX_VALUE 160
+// A task to print the field strength as a bar graph
+void vFieldMeter(void *pvParameters) {
+	(void) pvParameters;
+	char meter_string[FIELD_METER_WIDTH+2];
+	
+	while(1) {
+		if(xSemaphoreTake(xFieldMeterMutex, portMAX_DELAY)) {
+			int i,ad_value = adc_get_field_strength();
+			meter_string[0] = '\r';
+			
+			for(i=0; i<FIELD_METER_WIDTH; i++) 
+				meter_string[i+1] = 
+					(ad_value / (FIELD_METER_MAX_VALUE/FIELD_METER_WIDTH) < i) ? 
+					' ' : '#';
+			meter_string[i+1] = 0;
+			usb_print_string(meter_string);
+			
+			vTaskDelay(100*portTICK_RATE_MS);
+			if(field_meter_enabled == 1) xSemaphoreGive(xFieldMeterMutex);
+		}
+	}
+}
+
+void startstop_field_meter(void) {
+	if(field_meter_enabled) {
+		field_meter_enabled = 0;
+	} else {
+		field_meter_enabled = 1;
+		xSemaphoreGive(xFieldMeterMutex);
+	}
+}
+
 portBASE_TYPE vCmdInit(void) {
 	/* FIXME Maybe modify to use pointers? */
 	xCmdQueue = xQueueCreate( 10, sizeof(cmd_type) );
 	if(xCmdQueue == 0) {
 		return 0;
 	}
+	vSemaphoreCreateBinary( xFieldMeterMutex );
+	if(xFieldMeterMutex == 0) {
+		return 0;
+	}
+	xSemaphoreTake(xFieldMeterMutex, portMAX_DELAY);
+	
 	
 	if(xTaskCreate(vCmdCode, (signed portCHAR *)"CMD", TASK_CMD_STACK, NULL, 
 		TASK_CMD_PRIORITY, &xCmdTask) != pdPASS) {
@@ -419,6 +467,11 @@ portBASE_TYPE vCmdInit(void) {
 	
 	if(xTaskCreate(vCmdRecvUsbCode, (signed portCHAR *)"CMDUSB", TASK_CMD_STACK, NULL, 
 		TASK_CMD_PRIORITY, &xCmdRecvUsbTask) != pdPASS) {
+		return 0;
+	}
+	
+	if(xTaskCreate(vFieldMeter, (signed portCHAR *)"FIELD METER", TASK_CMD_STACK, NULL, 
+		TASK_CMD_PRIORITY, &xFieldMeterTask) != pdPASS) {
 		return 0;
 	}
 	
