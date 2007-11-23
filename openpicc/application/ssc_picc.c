@@ -102,9 +102,6 @@ static const u_int16_t ssc_dmasize[] = {
 			 AT91C_SSC_TXBUFE |	\
 			 AT91C_SSC_TXSYN)
 
-/* This stores the value that SSC_RCMR should be set to when a frame start is detected.
- * Will be used in my_fiq_handler in os/boot/boot.s */
-u_int32_t ssc_rcmr_on_start = 0;
 void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 {
 	u_int8_t data_len=0, num_data=0, sync_len=0;

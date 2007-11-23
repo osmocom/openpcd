@@ -20,7 +20,8 @@ static void pio_data_change(u_int32_t pio)
 	 * edge */
 	if (*AT91C_PIOA_PDSR & OPENPICC_PIO_FRAME) {
 		vLedSetGreen(1);
-		*AT91C_TC0_CCR = AT91C_TC_SWTRG;
+		/* This code is now replaced by hard-coded assembler code in os/boot/boot.s my_fiq_handler */
+		/* *AT91C_TC0_CCR = AT91C_TC_SWTRG;*/
 		DEBUGPCR("CDIV_SYNC_FLIP SWTRG CV=0x%08x",
 			  *AT91C_TC0_CV);
 		vLedSetGreen(0);
@@ -72,7 +73,9 @@ void tc_cdiv_sync_init(void)
 	AT91F_PIOA_CfgPMC();
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	
-	pio_irq_register(OPENPICC_PIO_FRAME, &pio_data_change);
+	/* This code is now replaced by hard-coded assembler code in os/boot/boot.s my_fiq_handler */
+	/*pio_irq_register(OPENPICC_PIO_FRAME, &pio_data_change);*/
+	(void)pio_data_change;
 	
 	//vLedSetGreen(0);
 	tc_cdiv_sync_disable();

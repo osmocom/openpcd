@@ -3,7 +3,7 @@
 	.extern main
 	.extern exit
 	.extern AT91F_LowLevelInit
-	.extern ssc_rcmr_on_start
+	.extern pio_irq_isr_value
 
 	.text
 	.code 32
@@ -59,6 +59,9 @@
 .equ PIO_LED1,        (1 << 25)
 .equ PIO_LED2,        (1 << 12)
 .equ MC_RCR,          0xFFFFFF00
+.equ AIC_ISCR,        (0x12C)
+.equ PIO_SECONDARY_IRQ, 31
+.equ PIO_SECONDARY_IRQ_BIT, (1 << PIO_SECONDARY_IRQ)
 
 /* FIQ latency is approx 1us. At 13.56 MHz carrier frequency this means that 
  * 13.56 cycles of the carrier have passed when the FIQ kicks in and this is
@@ -265,9 +268,8 @@ fiq_handler:
         .func my_fiq_handler
 my_fiq_handler:
                 /* code that uses pre-initialized FIQ reg */
-                /* r8   AT91C_BASE_AIC (dfu init)
+                /* r8   tmp
                    r9   AT91C_TC_SWTRG
-                   //r9   AT91C_BASE_SSC
                    r10  AT91C_BASE_PIOA
                    r11  tmp
                    r12  AT91C_BASE_TC0
@@ -280,20 +282,23 @@ my_fiq_handler:
                 str   r11, [r10, #PIOA_CODR] /* enable LED */
 #endif
                 ldr     r8, [r10, #PIOA_ISR]
+                
+                /* Store the retrieved PIO ISR value into pio_irq_isr_value */
+                ldr   r11, =pio_irq_isr_value
+                str   r8, [r11]
+                
                 tst     r8, #PIO_DATA           /* check for PIO_DATA change */
                 ldrne   r11, [r10, #PIOA_PDSR]
                 tstne   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
                 strne   r9, [r12, #TC_CCR]      /* software trigger */
-                /*movne	r11, #TC0_FRAME_OFFSET
-                strne	r11, [r12, #0x10] /* Set TC0_CV to TC0_FRAME_OFFSET */
-                
-                /* Enable SSC Rx clock from RK */
-                /*ldrne   r11, =ssc_rcmr_on_start
-                ldrne   r11, [r11]
-                strne   r11, [r9, #SSC_RCMR]*/
 
                 movne   r11, #PIO_DATA
                 strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
+                
+                /* Trigger PIO_SECONDARY_IRQ */
+                mov r11, #PIO_SECONDARY_IRQ_BIT
+                ldr r8, =AT91C_BASE_AIC
+                str r11, [r8, #AIC_ISCR]
 
 #ifdef LED_TRIGGER
                 mov     r11, #PIO_LED1
