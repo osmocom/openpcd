@@ -3,6 +3,7 @@
 	.extern main
 	.extern exit
 	.extern AT91F_LowLevelInit
+	.extern ssc_rcmr_on_start
 
 	.text
 	.code 32
@@ -43,7 +44,10 @@
 .equ AT91C_BASE_MC,   (0xFFFFFF00)
 .equ AT91C_BASE_PIOA, 0xFFFFF400
 .equ AT91C_BASE_TC0,  0xFFFA0000
+.equ AT91C_BASE_SSC,  0xFFFD4000
+.equ SSC_RCMR,        0x10
 .equ AT91C_TC_SWTRG,  (1 << 2)
+.equ AT91C_TC_CLKEN,  (1 << 0)
 .equ PIO_DATA,        (1 << 27)
 .equ PIOA_SODR,       0x30
 .equ PIOA_CODR,       0x34
@@ -52,9 +56,14 @@
 .equ PIOA_ISR,        0x4c
 .equ TC_CCR,          0x00
 .equ AIC_EOICR,       (304)
-/*.equ PIO_LED1,        (1 << 25)*/
-.equ PIO_LED1,        (1 << 12)
+.equ PIO_LED1,        (1 << 25)
+.equ PIO_LED2,        (1 << 12)
 .equ MC_RCR,          0xFFFFFF00
+
+/* FIQ latency is approx 1us. At 13.56 MHz carrier frequency this means that 
+ * 13.56 cycles of the carrier have passed when the FIQ kicks in and this is
+ * the amount that CV0 should be loaded to. (Round up) */
+.equ TC0_FRAME_OFFSET, 9
 
 start:
 _start:
@@ -76,6 +85,7 @@ _mainCRTStartup:
     ldr     r12, =AT91C_BASE_TC0
     ldr     r8, =AT91C_BASE_AIC
     mov     r9, #AT91C_TC_SWTRG
+    /*ldr     r9, =AT91C_BASE_SSC*/
     mov   sp, r0
     sub   r0, r0, #FIQ_STACK_SIZE
     msr   CPSR_c, #MODE_IRQ|I_BIT|F_BIT /* IRQ Mode */
@@ -128,25 +138,12 @@ _mainCRTStartup:
 
 .end_set_loop:
 
-	/* Load absolute address and jump there to get from pc=0x0000... to pc=0x0010... */
-    ldr lr, _here
-    bx lr
-   
-.here:
-	/* Perform remap FIXME doesn't work (not even the absolute jump above seems to help)*/
-	/*ldr     r0, =AT91C_BASE_MC
-	mov     r1, #0x01
-	str     r1, [r0, #0]*/
-	
 	/* call main */
 	mov		r0, #0          /* no arguments  */
 	mov		r1, #0          /* no argv either */
 
     ldr lr, =main	
 	bx	lr
-
-_here:
-	.word .here 
 
 endless_loop:
 	b               endless_loop
@@ -263,4 +260,55 @@ fiq_handler:
 
         .size   fiq_handler, . - fiq_handler
         .endfunc
+
+        .global my_fiq_handler
+        .func my_fiq_handler
+my_fiq_handler:
+                /* code that uses pre-initialized FIQ reg */
+                /* r8   AT91C_BASE_AIC (dfu init)
+                   r9   AT91C_TC_SWTRG
+                   //r9   AT91C_BASE_SSC
+                   r10  AT91C_BASE_PIOA
+                   r11  tmp
+                   r12  AT91C_BASE_TC0
+                   r13  stack
+                   r14  lr
+                 */
+
+#ifdef LED_TRIGGER
+                mov   r11, #PIO_LED1
+                str   r11, [r10, #PIOA_CODR] /* enable LED */
+#endif
+                ldr     r8, [r10, #PIOA_ISR]
+                tst     r8, #PIO_DATA           /* check for PIO_DATA change */
+                ldrne   r11, [r10, #PIOA_PDSR]
+                tstne   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
+                strne   r9, [r12, #TC_CCR]      /* software trigger */
+                /*movne	r11, #TC0_FRAME_OFFSET
+                strne	r11, [r12, #0x10] /* Set TC0_CV to TC0_FRAME_OFFSET */
+                
+                /* Enable SSC Rx clock from RK */
+                /*ldrne   r11, =ssc_rcmr_on_start
+                ldrne   r11, [r11]
+                strne   r11, [r9, #SSC_RCMR]*/
+
+                movne   r11, #PIO_DATA
+                strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
+
+#ifdef LED_TRIGGER
+                mov     r11, #PIO_LED1
+                str     r11, [r10, #PIOA_SODR] /* disable LED */
+#endif
+            
+                /*- Mark the End of Interrupt on the AIC */
+                ldr     r11, =AT91C_BASE_AIC
+                str     r11, [r11, #AIC_EOICR]
+
+                /*- Restore the Program Counter using the LR_fiq directly in the PC */
+                subs        pc, lr, #4
+
+        .size   my_fiq_handler, . - my_fiq_handler
+        .endfunc
+
         .end
+        

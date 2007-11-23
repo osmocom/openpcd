@@ -148,7 +148,9 @@ void pio_irq_init_once(void)
 }
 
 #define USE_FIQ
+extern void my_fiq_handler(void);
 extern void fiq_handler(void);
+
 void pio_irq_init(void)
 {
 	initialized = 1;
@@ -156,7 +158,7 @@ void pio_irq_init(void)
 #ifdef USE_FIQ
         AT91F_AIC_ConfigureIt(AT91C_ID_FIQ,
                               //0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &cdsync_cb);
-                              0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &fiq_handler);
+                              0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &my_fiq_handler);
         /* enable fast forcing for PIOA interrupt */
         *AT91C_AIC_FFER = (1 << AT91C_ID_PIOA);
 #else

@@ -45,12 +45,9 @@
 #include "tc_fdt.h"
 
 #include "usb_print.h"
+#include "iso14443_layer3a.h"
 
 //#define DEBUG_SSC_REFILL
-
-/* definitions for four-times oversampling */
-#define REQA	0x10410441
-#define WUPA	0x04041041
 
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
@@ -91,10 +88,6 @@ static const u_int16_t ssc_dmasize[] = {
 	[SSC_MODE_CONTINUOUS]		= 511,	/* 2044 bytes */
 };
 
-/* This is for four-times oversampling */
-#define ISO14443A_SOF_SAMPLE	0x01
-#define ISO14443A_SOF_LEN	4
-
 #define SSC_RX_IRQ_MASK	(AT91C_SSC_RXRDY | 	\
 			 AT91C_SSC_OVRUN | 	\
 			 AT91C_SSC_ENDRX |	\
@@ -109,6 +102,9 @@ static const u_int16_t ssc_dmasize[] = {
 			 AT91C_SSC_TXBUFE |	\
 			 AT91C_SSC_TXSYN)
 
+/* This stores the value that SSC_RCMR should be set to when a frame start is detected.
+ * Will be used in my_fiq_handler in os/boot/boot.s */
+u_int32_t ssc_rcmr_on_start = 0;
 void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 {
 	u_int8_t data_len=0, num_data=0, sync_len=0;
@@ -123,7 +119,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		start_cond = AT91C_SSC_START_0;
 		sync_len = ISO14443A_SOF_LEN;
 		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE;
-		data_len = 32;
+		data_len = ISO14443A_SHORT_LEN;
 		num_data = 16;
 		break;
 	case SSC_MODE_14443A_STANDARD:
@@ -282,9 +278,6 @@ static int __ramfunc __ssc_rx_refill(int secondary)
 	
 	return 0;
 }
-
-#define ISO14443A_FDT_SHORT_1	1236
-#define ISO14443A_FDT_SHORT_0	1172
 
 static void __ramfunc ssc_irq_short_inner(void) __attribute__ ((naked));
 static void __ramfunc ssc_irq_short_inner(void)
@@ -458,7 +451,11 @@ static void __ramfunc ssc_irq(void)
 		if (ssc_sr & AT91C_SSC_RXSYN)
 			DEBUGP("RXSYN ");
 		if (ssc_sr & AT91C_SSC_RXRDY) {
-			u_int32_t sample = ssc->SSC_RHR;	
+			u_int32_t sample = ssc->SSC_RHR;
+			int i = usb_print_set_default_flush(0);
+			DumpUIntToUSB(sample);
+			DumpStringToUSB("\n\r");
+			usb_print_set_default_flush(i);
 			DEBUGP("RXRDY=0x%08x ", sample);
 			/* Try to set FDT compare register ASAP */
 			if (sample == REQA) {

@@ -88,7 +88,7 @@ void vApplicationIdleHook(void)
 
 void main_help_print_buffer(ssc_dma_buffer_t *buffer, int *pktcount)
 {
-	u_int32_t *tmp = (u_int32_t*)buffer->data;
+	u_int16_t *tmp = (u_int16_t*)buffer->data;
 	int i, dumped = 0;
 	unsigned int j;
 	for(i = buffer->len / sizeof(*tmp); i >= 0 ; i--) {
@@ -163,7 +163,10 @@ int main (void)
 	
     vCmdInit();
     
-    //vLedSetGreen(1);    
+    //vLedSetGreen(1);
+    
+    /* Remap RAM to addr 0 */
+    AT91C_BASE_MC->MC_RCR = AT91C_MC_RCB;    
 
     vTaskStartScheduler ();
     

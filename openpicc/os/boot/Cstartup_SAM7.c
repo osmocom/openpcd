@@ -17,6 +17,8 @@
 
 // Include the board file description
 #include <board.h>
+// For memcpy
+#include <string.h>
 
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_LowLevelInit
@@ -26,7 +28,6 @@
 //*----------------------------------------------------------------------------
 void AT91F_LowLevelInit (void)
 {
-    char i=0;
     AT91PS_PMC pPMC = AT91C_BASE_PMC;
 
     //* Set flash wait state
@@ -67,8 +68,8 @@ void AT91F_LowLevelInit (void)
     pPMC->PMC_MCKR |= AT91C_PMC_CSS_PLL_CLK;
     while (!(pPMC->PMC_SR & AT91C_PMC_MCKRDY));
     
-    /* Copy IRQ vector table to RAM */
-    for(i=0; i<0x24; i++) *((char*)(0x00200000)+i) = *((char*)(0x00100000)+i);
+    /* Copy first 0x100 bytes (IRQ vector table and FIQ) to RAM */
+    memcpy((void*)0x00200000, (void*)0x00100000, 0x100);
     /* Perform remap FIXME doesn't work*/
     // AT91C_BASE_MC->MC_RCR = AT91C_MC_RCB;
 }

@@ -256,6 +256,17 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * SSC status: ");
 		    DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
 		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * TC0_CV value: ");
+		    DumpUIntToUSB(*AT91C_TC0_CV);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_RCMR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_RCMR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * is remapped?: ");
+		    DumpStringToUSB( (*(int*)0x00100100 == *(int*)0x00000100) ? "no" :
+		    	 ((*(int*)0x00200100 == *(int*)0x00000100) ? "yes" : "foo")
+		    );
+		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
 			" *****************************************************\n\r"

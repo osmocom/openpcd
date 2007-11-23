@@ -91,7 +91,11 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				pll_init();
 			    
 				tc_cdiv_init();
+#ifdef FOUR_TIMES_OVERSAMPLING
 				tc_cdiv_set_divider(32);
+#else
+				tc_cdiv_set_divider(64);
+#endif
 				tc_fdt_init();
 #if 0
 				ssc_tx_init();

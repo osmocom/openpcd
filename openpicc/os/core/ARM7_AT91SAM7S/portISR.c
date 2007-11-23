@@ -178,7 +178,7 @@ vPortDisableInterruptsFromThumb (void)
 {
   asm volatile ("STMDB	SP!, {R0}		\n\t"	/* Push R0.                                                                     */
 		"MRS	R0, CPSR		\n\t"	/* Get CPSR.                                                            */
-		"ORR	R0, R0, #0xC0	\n\t"	/* Disable IRQ, FIQ.                                            */
+		"ORR	R0, R0, #0x80	\n\t"	/* Disable IRQ, don't disable FIQ.                                            */
 		"MSR	CPSR, R0		\n\t"	/* Write back modified value.                           */
 		"LDMIA	SP!, {R0}		\n\t"	/* Pop R0.                                                                      */
 		"BX		R14");	/* Return back to thumb.                                        */
@@ -206,7 +206,7 @@ vPortEnterCritical (void)
   /* Disable interrupts as per portDISABLE_INTERRUPTS();                                                  */
   asm volatile ("STMDB	SP!, {R0}			\n\t"	/* Push R0.                                                             */
 		"MRS	R0, CPSR			\n\t"	/* Get CPSR.                                                    */
-		"ORR	R0, R0, #0xC0		\n\t"	/* Disable IRQ, FIQ.                                    */
+		"ORR	R0, R0, #0x80		\n\t"	/* Disable IRQ, don't disable FIQ.                                    */
 		"MSR	CPSR, R0			\n\t"	/* Write back modified value.                   */
 		"LDMIA	SP!, {R0}");	/* Pop R0.                                                              */
 
