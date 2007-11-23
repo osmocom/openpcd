@@ -426,6 +426,7 @@ void vCmdRecvUsbCode(void *pvParameters) {
 static portBASE_TYPE field_meter_enabled = 0;
 #define FIELD_METER_WIDTH 80
 #define FIELD_METER_MAX_VALUE 160
+#define FIELD_METER_SCALE_FACTOR (FIELD_METER_MAX_VALUE/FIELD_METER_WIDTH)
 // A task to print the field strength as a bar graph
 void vFieldMeter(void *pvParameters) {
 	(void) pvParameters;
@@ -438,8 +439,10 @@ void vFieldMeter(void *pvParameters) {
 			
 			for(i=0; i<FIELD_METER_WIDTH; i++) 
 				meter_string[i+1] = 
-					(ad_value / (FIELD_METER_MAX_VALUE/FIELD_METER_WIDTH) < i) ? 
-					' ' : '#';
+					(ad_value / FIELD_METER_SCALE_FACTOR < i) ? 
+					' ' : 
+					((i*FIELD_METER_SCALE_FACTOR)%10==0 ? 
+						(((i*FIELD_METER_SCALE_FACTOR)/10)%10)+'0' : '#' );
 			meter_string[i+1] = 0;
 			usb_print_string(meter_string);
 			
