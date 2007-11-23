@@ -33,7 +33,7 @@ enum ISO14443_STATES {
 
 #else
 /* definitions for two-times oversampling */
-#define REQA	0x18729
+#define REQA	0x4929
 #define WUPA	0x2249
 
 #define ISO14443A_SOF_SAMPLE	0x01
