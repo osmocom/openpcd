@@ -130,17 +130,26 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				portENTER_CRITICAL();
 				buffer->state = PROCESSING;
 				portEXIT_CRITICAL();
+				u_int32_t first_sample = *(u_int32_t*)buffer->data;
 				
 				DumpStringToUSB("Frame: ");
-				DumpUIntToUSB(*(u_int32_t*)buffer->data);
+				DumpUIntToUSB(first_sample);
 				DumpStringToUSB(" ");
 				main_help_print_buffer(buffer, &pktcount);
 				
 				switch(state) {
 					case IDLE:
 					case HALT:
-						ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
-						ssc_rx_start();
+						if(first_sample == WUPA || (state==IDLE && first_sample==REQA)) {
+							/* Need to transmit ATQA */
+							LAYER3_DEBUG("Received ");
+							LAYER3_DEBUG(first_sample == WUPA ? "WUPA" : "REQA");
+							LAYER3_DEBUG(" waking up to send ATQA\n\r");
+						} else {
+							/* Wait for another frame */
+							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+							ssc_rx_start();
+						}
 						break;
 					default:
 						break;

@@ -84,6 +84,11 @@ ARM_SRC= \
   application/tc_cdiv.c \
   application/usb_print.c \
   application/iso14443_layer3a.c \
+  application/iso14443a_manchester.c \
+  application/load_modulation.c \
+  application/decoder_miller.c \
+  application/decoder_nrzl.c \
+  application/decoder.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

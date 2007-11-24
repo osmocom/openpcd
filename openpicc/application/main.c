@@ -102,6 +102,8 @@ void main_help_print_buffer(ssc_dma_buffer_t *buffer, int *pktcount)
 				DumpStringToUSB(" ");
 			}
 			dumped = 1;
+			DumpUIntToUSB(i);
+			DumpStringToUSB(": ");
 			for(j=0; j<sizeof(*tmp)*8; j++) {
 				usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
 			}
