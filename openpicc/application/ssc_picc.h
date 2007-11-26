@@ -15,6 +15,7 @@ extern void ssc_fini(void);
 extern void ssc_rx_stop(void);
 extern void ssc_rx_unthrottle(void);
 
+
 enum ssc_mode {
 	SSC_MODE_NONE,
 	SSC_MODE_14443A_SHORT,
@@ -25,6 +26,16 @@ enum ssc_mode {
 };
 
 extern void ssc_rx_mode_set(enum ssc_mode ssc_mode);
+
+typedef void (*ssc_irq_ext_t)(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t* samples);
+
+/* A fast method to extend the IRQ handler from the higher level code, e.g. to prepare
+ * an ATQA answer to REQA or WUPA in iso14443_layer3a. Normally I'd use the FreeRTOS 
+ * primitives to wake the task and then do everything in task context, but the delay
+ * from SSC IRQ to the task returning from xQueueReceive is around 165us. Additionally to the
+ * delay from end of communication to SSC IRQ which is around 50us. This results in way more delay
+ * than acceptable for the synchronous responses (around 87us).*/ 
+extern ssc_irq_ext_t ssc_set_irq_extension(ssc_irq_ext_t ext_handler);
 
 extern portBASE_TYPE ssc_get_overflows(void);
 extern int ssc_count_free(void);
@@ -61,5 +72,7 @@ typedef struct {
  * this buffer must be huge (one frame of 256 bytes of subcarrier modulation data at  1695 MHz sample
  * rate is approx 4k bytes). */
 extern ssc_dma_tx_buffer_t ssc_tx_buffer;
+
+extern void ssc_tx_start(ssc_dma_tx_buffer_t *buf);
 
 #endif

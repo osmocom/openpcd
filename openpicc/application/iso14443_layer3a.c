@@ -49,10 +49,64 @@ const iso14443_frame ATQA_FRAME = {
 	{}
 };
 
+const iso14443_frame NULL_FRAME = {
+	TYPE_A,
+	{{STANDARD_FRAME, PARITY}},
+	4, 
+	0, 0,
+	{0, 0, 0, 0},
+	{}
+};
+
 
 #define PLL_LOCK_HYSTERESIS portTICK_RATE_MS*5
 
 #define LAYER3_DEBUG usb_print_string
+
+#define INITIAL_STATE IDLE
+//#define INITIAL_STATE ACTIVE
+
+/* Running in ISR mode */
+void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t* samples)
+{
+	(void)ssc_sr;
+	if(ssc_mode == SSC_MODE_14443A_SHORT && samples) {
+		ISO14443A_SHORT_TYPE sample =  *(ISO14443A_SHORT_TYPE*)samples;
+		portBASE_TYPE send_atqa = 0;
+		if(sample == REQA) {
+			tc_fdt_set(ISO14443A_FDT_SHORT_0);
+			if(state == IDLE)
+				send_atqa = 1;
+			/* FIXME: prepare and configure ATQA response */
+		} else if(sample == WUPA) {
+			tc_fdt_set(ISO14443A_FDT_SHORT_1);
+			if(state == IDLE || state == HALT)
+				send_atqa = 1;
+			/* FIXME: prepare and configure ATQA response */
+		}
+		
+		if(send_atqa) {
+		vLedSetGreen(0);
+			if(ssc_tx_buffer.state == FREE) {
+				ssc_tx_buffer.state = PROCESSING;
+				ssc_tx_buffer.len = sizeof(ssc_tx_buffer.data);
+				int ret = manchester_encode(ssc_tx_buffer.data,
+						ssc_tx_buffer.len,
+						&ATQA_FRAME);
+				if(ret>0) {
+					vLedSetGreen(1);
+					ssc_tx_buffer.len = ret;
+					ssc_tx_start(&ssc_tx_buffer);
+					vLedSetGreen(0);
+					
+				} else {
+					ssc_tx_buffer.state = FREE;
+				}
+			}
+		vLedSetGreen(1);
+		}
+	}
+}
 
 extern void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount);
 void iso14443_layer3a_state_machine (void *pvParameters)
@@ -63,6 +117,11 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 	while(1) {
 		ssc_dma_rx_buffer_t* buffer = NULL;
 		portBASE_TYPE need_receive = 0, switch_on = 0;
+		
+		if(ssc_get_overflows() > 0 && state != ERROR) {
+			LAYER3_DEBUG("SSC overflow error, please debug\n\r");
+			state = ERROR;
+		}
 		
 		/* First let's see whether there is a reader */
 		switch(state) {
@@ -111,6 +170,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				tc_cdiv_set_divider(64);
 #endif
 				tc_fdt_init();
+				ssc_set_irq_extension((ssc_irq_ext_t)iso14443_layer3a_irq_ext);
 #if 1
 				ssc_tx_init();
 #else
@@ -129,8 +189,12 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				break;
 			case POWERED_OFF:
 				if(switch_on == 1) {
-					state=IDLE;
-					ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+					state=INITIAL_STATE;
+					if(INITIAL_STATE == IDLE)
+						ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+					else if(INITIAL_STATE == ACTIVE)
+						ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
+					else ssc_rx_mode_set(SSC_MODE_NONE);
 					ssc_rx_start();
 					continue;
 				}
@@ -138,6 +202,9 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 			case IDLE:
 			case HALT:
 				/* Wait for REQA or WUPA (HALT: only WUPA) */
+				need_receive = 1;
+			case ACTIVE:
+			case ACTIVE_STAR:
 				need_receive = 1;
 			default:
 				break;
@@ -164,10 +231,17 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 							LAYER3_DEBUG("Received ");
 							LAYER3_DEBUG(first_sample == WUPA ? "WUPA" : "REQA");
 							LAYER3_DEBUG(" waking up to send ATQA\n\r");
-							portENTER_CRITICAL();
+							if(ssc_tx_buffer.state == PROCESSING) {
+								LAYER3_DEBUG("Buffer ");
+								DumpUIntToUSB(ssc_tx_buffer.len);
+								LAYER3_DEBUG(" ");
+								DumpBufferToUSB((char*)ssc_tx_buffer.data, ssc_tx_buffer.len);
+								LAYER3_DEBUG("\n\r");
+							}
+							/*portENTER_CRITICAL();
 							if(ssc_tx_buffer.state != FREE) {
 								portEXIT_CRITICAL();
-								/* Wait for another frame */
+								* Wait for another frame */ /*
 								ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
 								ssc_rx_start();
 							} else {
@@ -180,6 +254,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 										&ATQA_FRAME);
 								if(ret>0) {
 									ssc_tx_buffer.len = ret;
+									ssc_tx_start(&ssc_tx_buffer);
 									LAYER3_DEBUG("Buffer ");
 									DumpUIntToUSB(ret);
 									LAYER3_DEBUG(" ");
@@ -189,17 +264,22 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 									portENTER_CRITICAL();
 									ssc_tx_buffer.state = FREE;
 									portEXIT_CRITICAL();
-									/* Wait for another frame */
+									* Wait for another frame */ /*
 									ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
 									ssc_rx_start();
 								}
-							}
+							}*/
 						} else {
 							/* Wait for another frame */
 							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
 							ssc_rx_start();
 						}
 						break;
+					case ACTIVE:
+					case ACTIVE_STAR:
+							/* Wait for another frame */
+							ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
+							ssc_rx_start();
 					default:
 						break;
 				}

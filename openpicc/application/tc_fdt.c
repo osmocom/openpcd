@@ -39,6 +39,7 @@
 #include "led.h"
 #include "tc_cdiv.h"
 #include "tc_fdt.h"
+#include "usb_print.h"
 
 static AT91PS_TC tcfdt = AT91C_BASE_TC2;
 
@@ -65,21 +66,25 @@ static void tc_fdt_irq(void)
 		sr, tcfdt->TC_CV);
 
 	if (sr & AT91C_TC_ETRGS) {
+		usb_print_string_f("tc_etrgs ", 0);
 		DEBUGP("Ext_trigger ");
 	}
 	if (sr & AT91C_TC_CPAS) {
+	usb_print_string_f("tc_cpas ", 0);
 		DEBUGP("FDT_expired ");
 		/* FIXME: if we are in anticol / sync mode,
 		 * we could do software triggering of SSC TX,
 		 * but IIRC the hardware does this by TF */
 	}
 	if (sr & AT91C_TC_CPBS) {
+	usb_print_string_f("tc_cpbs ", 0);
 		DEBUGP("Frame_end ");
 		/* FIXME: stop ssc (in continuous mode),
 		 * take care of preparing synchronous response if
 		 * we operate in anticol mode.*/
 	}
 	if (sr & AT91C_TC_CPCS) {
+		usb_print_string_f("tc_cpcs ", 0);
 		DEBUGP("Compare_C ");
 	}
 	DEBUGPCR("");

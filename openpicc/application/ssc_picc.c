@@ -51,6 +51,7 @@
 
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
+static AT91PS_PDC tx_pdc;
 
 static ssc_dma_rx_buffer_t dma_buffers[SSC_DMA_BUFFER_COUNT];
 xQueueHandle ssc_rx_queue = NULL;
@@ -84,7 +85,7 @@ static struct ssc_state ssc_state;
 static const struct {u_int16_t bytes; u_int16_t transfers;} ssc_dmasize[] = {
 	[SSC_MODE_NONE]			= {0, 0},
 	[SSC_MODE_14443A_SHORT]		= {ISO14443A_SHORT_TRANSFER_SIZE/8, 1},	/* 1 transfer of ISO14443A_SHORT_LEN bits */
-	[SSC_MODE_14443A_STANDARD]	= {16*4, 16},	/* 64 bytes */
+	[SSC_MODE_14443A_STANDARD]	= {16*4, 16},	/* 16 transfers of 32 bits (maximum number), resulting in 512 samples */
 	[SSC_MODE_14443B]		= {16*4, 16},	/* 64 bytes */
 	[SSC_MODE_EDGE_ONE_SHOT] 	= {16*4, 16},	/* 64 bytes */
 	[SSC_MODE_CONTINUOUS]		= {511*4, 511},	/* 2044 bytes */
@@ -169,7 +170,7 @@ out_set_mode:
 	ssc_state.mode = ssc_mode;
 }
 
-static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
+void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 {
 	u_int8_t data_len, num_data, sync_len;
 	u_int32_t start_cond;
@@ -180,40 +181,26 @@ static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 	/* disable all Tx related interrupt sources */
 	AT91F_SSC_DisableIt(ssc, SSC_TX_IRQ_MASK);
 
-	switch (ssc_mode) {
-	case SSC_MODE_14443A_SHORT:
-		start_cond = AT91C_SSC_START_RISE_RF;
-		sync_len = 0;
-		data_len = 32;
-		num_data = 1;
-		break;
-	case SSC_MODE_14443A_STANDARD:
-		start_cond = AT91C_SSC_START_0;
-		sync_len = ISO14443A_SOF_LEN;
-		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE;
-		data_len = 32;
-		num_data = 1;	/* FIXME */
-		break;
-	default:
-		break;
-	}
+	start_cond = AT91C_SSC_START_RISE_RF;
+	sync_len = 0;
+	ssc->SSC_RC0R = 0;
+	data_len = 16;
+	num_data = buf->len/2;
+	
 	ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
 			(((num_data-1) & 0x0f) << 8) | 
 			(((sync_len-1) & 0x0f) << 16);
 	ssc->SSC_TCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | start_cond;
+	
+	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
 
 #ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
-	AT91F_SSC_EnableIt(ssc, AT91C_SSC_TXSYN);
+	AT91F_SSC_EnableIt(ssc, AT91C_SSC_TXSYN | AT91C_SSC_ENDTX | AT91C_SSC_TXBUFE);
 #endif
-	AT91F_SSC_EnableTx(AT91C_BASE_SSC);
-#if 0
-	/* Enable RX interrupts */
-	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN |
-			   AT91C_SSC_ENDTX | AT91C_SSC_TXBUFE);
+	/* Enable DMA */
 	AT91F_PDC_EnableTx(tx_pdc);
-
-	ssc_state.mode = ssc_mode;
-#endif
+	/* Start Transmission */
+	AT91F_SSC_EnableTx(AT91C_BASE_SSC);
 }
 
 
@@ -247,6 +234,13 @@ int ssc_count_free(void) {
 		if(dma_buffers[i].state == FREE) free++;
 	}
 	return free;
+}
+
+static ssc_irq_ext_t irq_extension = NULL;
+ssc_irq_ext_t ssc_set_irq_extension(ssc_irq_ext_t ext_handler) {
+	ssc_irq_ext_t old = irq_extension;
+	irq_extension = ext_handler;
+	return old;
 }
 
 static int __ramfunc __ssc_rx_refill(int secondary)
@@ -289,6 +283,7 @@ static void __ramfunc ssc_irq(void)
 	u_int32_t ssc_sr = ssc->SSC_SR;
 	int i, emptyframe = 0;
 	u_int32_t *tmp;
+	ssc_dma_rx_buffer_t *inbuf=NULL;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 	
 	if (ssc_sr & AT91C_SSC_ENDRX) {
@@ -296,7 +291,8 @@ static void __ramfunc ssc_irq(void)
 		/* in a one-shot sample, we don't want to keep
 		 * sampling further after having received the first
 		 * packet.  */
-		if (ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT) {
+		if (ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT
+			|| ssc_state.mode == SSC_MODE_14443A_STANDARD) {
 			DEBUGP("DISABLE_RX ");
 			ssc_rx_stop();
 			vLedSetGreen(1);
@@ -334,9 +330,13 @@ static void __ramfunc ssc_irq(void)
 		}
 
 		/* second buffer gets propagated to primary */
+		inbuf = ssc_state.buffer[0];
 		ssc_state.buffer[0] = ssc_state.buffer[1];
 		ssc_state.buffer[1] = NULL;
-		if(ssc_state.mode != SSC_MODE_14443A_SHORT) {
+		if(ssc_state.mode == SSC_MODE_14443A_SHORT) {
+			// Stop sampling here
+			ssc_rx_stop();
+		} else {
 			if (ssc_sr & AT91C_SSC_RXBUFF) {
 	// FIXME
 				DEBUGP("RXBUFF! ");
@@ -357,9 +357,6 @@ static void __ramfunc ssc_irq(void)
 				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 						    AT91C_SSC_RXBUFF |
 						    AT91C_SSC_OVRUN);
-		} else {
-			// Stop sampling here
-			ssc_rx_stop();
 		}
 	}
 	
@@ -370,39 +367,11 @@ static void __ramfunc ssc_irq(void)
 		DEBUGP("CP0 ");
 	
 	if (ssc_sr & AT91C_SSC_TXSYN)
-		DEBUGP("TXSYN ");
+		usb_print_string_f("TXSYN ", 0);
+	
+	if(irq_extension != NULL)
+		irq_extension(ssc_sr, ssc_state.mode, inbuf?inbuf->data:NULL);
 
-	switch (ssc_state.mode) {
-	case SSC_MODE_14443A_SHORT:
-		if (ssc_sr & AT91C_SSC_RXSYN)
-			DEBUGP("RXSYN ");
-		if (ssc_sr & AT91C_SSC_RXRDY) {
-			u_int32_t sample = ssc->SSC_RHR;
-			int i = usb_print_set_default_flush(0);
-			DumpUIntToUSB(sample);
-			DumpStringToUSB("\n\r");
-			usb_print_set_default_flush(i);
-			DEBUGP("RXRDY=0x%08x ", sample);
-			/* Try to set FDT compare register ASAP */
-			if (sample == REQA) {
-				tc_fdt_set(ISO14443A_FDT_SHORT_0);
-				/* FIXME: prepare and configure ATQA response */
-			} else if (sample == WUPA) {
-				tc_fdt_set(ISO14443A_FDT_SHORT_1);
-				/* FIXME: prepare and configure ATQA response */
-			} else 
-				DEBUGP("<== unknown ");
-		}	
-		break;
-
-	case SSC_MODE_14443A_STANDARD:
-	case SSC_MODE_EDGE_ONE_SHOT:
-		DEBUGP("ONE_SHOT ");
-		break;
-	default:
-		DEBUGP("UNKNOWN_MODE ");
-		break;
-	}
 
 #endif
 	DEBUGPCR("I");
@@ -463,7 +432,7 @@ void ssc_tx_init(void)
 			    OPENPICC_SSC_DATA | OPENPICC_SSC_DATA |
 			    AT91C_PIO_PA15, 0);
 	
-	ssc_tx_mode_set(SSC_MODE_14443A_SHORT);
+	tx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 }
 
 //static int ssc_usb_in(struct req_ctx *rctx)
@@ -550,6 +519,7 @@ void ssc_fini(void)
 {
 //	usb_hdlr_unregister(OPENPCD_CMD_CLS_SSC);
 	AT91F_PDC_DisableRx(rx_pdc);
+	AT91F_PDC_DisableTx(tx_pdc);
 	AT91F_SSC_DisableTx(ssc);
 	AT91F_SSC_DisableRx(ssc);
 	AT91F_SSC_DisableIt(ssc, 0xfff);
