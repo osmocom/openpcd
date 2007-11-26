@@ -38,6 +38,10 @@ OPTIM=-O2
 LDSCRIPT=config/atmel-rom.ld
 ARCH=AT91SAM7S256
 
+# Automatic dependency generation as per http://make.paulandlesley.org/autodep.html
+DEPDIR = .deps
+df = $(DEPDIR)/$(*F)
+
 #
 # CFLAGS common to both the THUMB and ARM mode builds
 #
@@ -62,7 +66,8 @@ CFLAGS= \
 -T$(LDSCRIPT) \
 $(DEBUG)  \
 $(OPTIM) \
--fomit-frame-pointer
+-fomit-frame-pointer \
+-MD
 
 LINKER_FLAGS=-Xlinker -oopenpicc.elf -Xlinker -M -Xlinker -Map=openpicc.map
 
@@ -99,7 +104,6 @@ ARM_SRC= \
   os/core/MemMang/heap_2.c \
   os/usb/USB-CDC.c \
   os/usb/USBIsr.c
-#  application/mesh/mesh.c \
 
 #
 # Define all object files.
@@ -126,13 +130,18 @@ $(FREERTOS_THUMB_OBJ)  : %.o : %.c $(LDSCRIPT) Makefile config/FreeRTOSConfig.h
 
 $(ARM_OBJ) : %.o : %.c $(LDSCRIPT) Makefile config/FreeRTOSConfig.h config/board.h
 	$(CC) -c $(CFLAGS) $< -o $@
+	@mkdir -p $(DEPDIR); cp $*.d $(df).P; \
+            rm -f $*.d
 
 clean :
 	touch Makefile
 	find -name '*.o' -exec rm \{\} \;
 	rm -f openpicc.bin openpicc.elf openpicc.map openpicc.asm config/compile.h
+	rm -rf $(DEPDIR)
 
 .PHONY: config/compile.h
 config/compile.h:
 	scripts/mkcompile_h > config/compile.h
 application/cmd.o: config/compile.h
+
+-include $(DEPDIR)/*.P
