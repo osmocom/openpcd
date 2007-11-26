@@ -278,72 +278,6 @@ static int __ramfunc __ssc_rx_refill(int secondary)
 	return 0;
 }
 
-static void __ramfunc ssc_irq_short_inner(void) __attribute__ ((naked));
-static void __ramfunc ssc_irq_short_inner(void)
-{
-	portENTER_SWITCHING_ISR();
-	portBASE_TYPE task_woken = pdFALSE;
-	static volatile int i = 0, flush;
-	vLedSetRed(1);
-	u_int32_t ssc_sr = ssc->SSC_SR;
-	(void)ssc_sr;
-	
-	i++;
-	flush = usb_print_set_default_flush(0);
-	DumpStringToUSB("b ");
-	DumpUIntToUSB(ssc_sr);
-	DumpStringToUSB("\t");
-	DumpUIntToUSB(ssc_count_free());
-	DumpStringToUSB("\t");
-	DumpUIntToUSB(ssc->SSC_IMR);
-	DumpStringToUSB("\n\r");
-	
-	
-	if (ssc_sr & AT91C_SSC_ENDRX) {
-		//ssc_rx_stop();
-		/*if(i>10000) {
-			AT91F_AIC_DisableIt(AT91C_ID_SSC);
-			DumpStringToUSB("SSC IRQ Disabled\n\r");
-		}*/
-		
-		ssc_state.buffer[0]->state = FULL;
-		ssc_state.buffer[0]->reception_mode = ssc_state.mode;
-		vLedSetGreen(1);
-		task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
-		DumpStringToUSB("Sent ");
-		DumpUIntToUSB((int)ssc_state.buffer[0]);
-		DumpStringToUSB("\n\r");
-		vLedSetGreen(0);
-		ssc_state.buffer[0] = ssc_state.buffer[1];
-		ssc_state.buffer[1] = NULL;
-		if(__ssc_rx_refill(1) == -1) {
-			AT91F_AIC_DisableIt(AT91C_ID_SSC);
-			DumpStringToUSB("SSC IRQ Disabled\n\r");
-		}
-		
-		DumpStringToUSB("a ");
-		DumpUIntToUSB(ssc->SSC_SR);
-		DumpStringToUSB("\t");
-		DumpUIntToUSB(ssc_count_free());
-		DumpStringToUSB("\n\r");
-	}
-	
-	usb_print_string(task_woken?"SSC: Task woken\n\r":"");
-	usb_print_set_default_flush(flush);
-	
-	AT91F_AIC_ClearIt(AT91C_ID_SSC);
-	AT91F_AIC_AcknowledgeIt();
-	
-	vLedSetRed(0);
-	portEXIT_SWITCHING_ISR(task_woken);
-}
-/*static void __ramfunc ssc_irq_short_outer(void) __attribute__ ((naked));
-static void __ramfunc ssc_irq_short_outer(void) {
-	portSAVE_CONTEXT();
-	ssc_irq_short_inner();
-	portRESTORE_CONTEXT();
-}*/
-
 static void __ramfunc ssc_irq(void) __attribute__ ((naked));
 static void __ramfunc ssc_irq(void)
 {
@@ -580,7 +514,6 @@ void ssc_rx_init(void)
 	AT91F_AIC_ConfigureIt(AT91C_ID_SSC,
 			      OPENPICC_IRQ_PRIO_SSC,
 			      AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE, (THandler)&ssc_irq);
-	(void)ssc_irq_short_inner; // FIXME SHORT IRQ IMPLEMENTATION
 
 	/* don't divide clock inside SSC, we do that in tc_cdiv */
 	ssc->SSC_CMR = 0;
