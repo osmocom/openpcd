@@ -52,16 +52,18 @@
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
 
-static ssc_dma_buffer_t dma_buffers[SSC_DMA_BUFFER_COUNT];
+static ssc_dma_rx_buffer_t dma_buffers[SSC_DMA_BUFFER_COUNT];
 xQueueHandle ssc_rx_queue = NULL;
+
+ssc_dma_tx_buffer_t ssc_tx_buffer;
 
 #define TEST_WHETHER_NOT_ENABLING_IT_HELPS
 #define TEST_WHETHER_THIS_INTERRUPT_WORKS_AT_ALL
 
-static ssc_dma_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t oldstate, 
+static ssc_dma_rx_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t oldstate, 
 	ssc_dma_buffer_state_t newstate)
 {
-	ssc_dma_buffer_t* result = NULL; 
+	ssc_dma_rx_buffer_t* result = NULL; 
 	int i=0;
 	for(i=0; i<SSC_DMA_BUFFER_COUNT; i++) {
 		if(dma_buffers[i].state == oldstate) {
@@ -74,18 +76,18 @@ static ssc_dma_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t ol
 }
 
 struct ssc_state {
-	ssc_dma_buffer_t* buffer[2];
+	ssc_dma_rx_buffer_t* buffer[2];
 	enum ssc_mode mode;
 };
 static struct ssc_state ssc_state;
 
-static const u_int16_t ssc_dmasize[] = {
-	[SSC_MODE_NONE]			= 16,
-	[SSC_MODE_14443A_SHORT]		= 16,	/* 64 bytes */
-	[SSC_MODE_14443A_STANDARD]	= 16,	/* 64 bytes */
-	[SSC_MODE_14443B]		= 16,	/* 64 bytes */
-	[SSC_MODE_EDGE_ONE_SHOT] 	= 16,	/* 64 bytes */
-	[SSC_MODE_CONTINUOUS]		= 511,	/* 2044 bytes */
+static const struct {u_int16_t bytes; u_int16_t transfers;} ssc_dmasize[] = {
+	[SSC_MODE_NONE]			= {0, 0},
+	[SSC_MODE_14443A_SHORT]		= {ISO14443A_SHORT_TRANSFER_SIZE/8, 1},	/* 1 transfer of ISO14443A_SHORT_LEN bits */
+	[SSC_MODE_14443A_STANDARD]	= {16*4, 16},	/* 64 bytes */
+	[SSC_MODE_14443B]		= {16*4, 16},	/* 64 bytes */
+	[SSC_MODE_EDGE_ONE_SHOT] 	= {16*4, 16},	/* 64 bytes */
+	[SSC_MODE_CONTINUOUS]		= {511*4, 511},	/* 2044 bytes */
 };
 
 #define SSC_RX_IRQ_MASK	(AT91C_SSC_RXRDY | 	\
@@ -117,7 +119,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		sync_len = ISO14443A_SOF_LEN;
 		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE;
 		data_len = ISO14443A_SHORT_LEN;
-		num_data = 16;
+		num_data = 2;
 		break;
 	case SSC_MODE_14443A_STANDARD:
 		start_cond = AT91C_SSC_START_0;
@@ -159,9 +161,9 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 
 	/* Enable RX interrupts */
 #ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
-
+/*
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN | AT91C_SSC_CP0 |
-			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
+			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);*/
 #endif
 out_set_mode:
 	ssc_state.mode = ssc_mode;
@@ -249,7 +251,7 @@ int ssc_count_free(void) {
 
 static int __ramfunc __ssc_rx_refill(int secondary)
 {
-	ssc_dma_buffer_t *buffer;
+	ssc_dma_rx_buffer_t *buffer;
 	
 	buffer = ssc_find_dma_buffer(FREE, PENDING);
 	if (!buffer) {
@@ -260,14 +262,14 @@ static int __ramfunc __ssc_rx_refill(int secondary)
 	//init_opcdhdr(buffer);
 	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
 		req_ctx_num(buffer), buffer->size);
-	buffer->len = ssc_dmasize[ssc_state.mode]*4;
+	buffer->len = ssc_dmasize[ssc_state.mode].bytes;
 	if (secondary) {
 		AT91F_PDC_SetNextRx(rx_pdc, buffer->data,
-				    ssc_dmasize[ssc_state.mode]);
+				    ssc_dmasize[ssc_state.mode].transfers);
 		ssc_state.buffer[1] = buffer;
 	} else {
 		AT91F_PDC_SetRx(rx_pdc, buffer->data,
-				ssc_dmasize[ssc_state.mode]);
+				ssc_dmasize[ssc_state.mode].transfers);
 		ssc_state.buffer[0] = buffer;
 	}
 
@@ -360,9 +362,10 @@ static void __ramfunc ssc_irq(void)
 		/* in a one-shot sample, we don't want to keep
 		 * sampling further after having received the first
 		 * packet.  */
-		if (ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT) {
+		if (ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT) {
 			DEBUGP("DISABLE_RX ");
 			ssc_rx_stop();
+			vLedSetGreen(1);
 		}
 		//AT91F_SSC_DisableIt(AT91C_BASE_SSC, SSC_RX_IRQ_MASK);
 #endif
@@ -389,12 +392,6 @@ static void __ramfunc ssc_irq(void)
 			ssc_state.buffer[0]->state = FULL;
 			//gaportEXIT_CRITICAL();
 			task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
-			/*vLedBlinkRed();
-			vLedSetRed(1); for(i=0; i<50; i++) (void)i; vLedSetRed(0); 
-			for(i=0; i<ssc_state.buffer[0]->len*8; i++) {
-				vLedSetRed( ssc_state.buffer[0]->data[i/8] & (1<<(i%8)) );
-			}
-			vLedBlinkRed();*/
 		} else {
 			DEBUGP("EMPTY");
 			//gaportENTER_CRITICAL();
@@ -405,30 +402,28 @@ static void __ramfunc ssc_irq(void)
 		/* second buffer gets propagated to primary */
 		ssc_state.buffer[0] = ssc_state.buffer[1];
 		ssc_state.buffer[1] = NULL;
-		if (ssc_sr & AT91C_SSC_RXBUFF) {
-// FIXME
-			DEBUGP("RXBUFF! ");
-			if (ssc_state.buffer[0]) {
-				//DEBUGP("Sending secondary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
-				//gaportENTER_CRITICAL();
-				ssc_state.buffer[0]->state = FULL;
-				//gaportEXIT_CRITICAL();
-				task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
+		if(ssc_state.mode != SSC_MODE_14443A_SHORT) {
+			if (ssc_sr & AT91C_SSC_RXBUFF) {
+	// FIXME
+				DEBUGP("RXBUFF! ");
+				if (ssc_state.buffer[0]) {
+					//DEBUGP("Sending secondary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
+					//gaportENTER_CRITICAL();
+					ssc_state.buffer[0]->state = FULL;
+					//gaportEXIT_CRITICAL();
+					task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
+				}
+				if (__ssc_rx_refill(0) == -1)
+					AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
+							    AT91C_SSC_RXBUFF |
+							    AT91C_SSC_OVRUN);
 			}
-			if (__ssc_rx_refill(0) == -1)
+	
+			if (__ssc_rx_refill(1) == -1)
 				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 						    AT91C_SSC_RXBUFF |
 						    AT91C_SSC_OVRUN);
-		}
-
-		if (__ssc_rx_refill(1) == -1)
-			AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
-					    AT91C_SSC_RXBUFF |
-					    AT91C_SSC_OVRUN);
-
-//		udp_refill_ep(2);
-		
-		if(ssc_state.mode == SSC_MODE_14443A_SHORT) {
+		} else {
 			// Stop sampling here
 			ssc_rx_stop();
 		}
@@ -503,8 +498,11 @@ void ssc_rx_unthrottle(void)
 
 void ssc_rx_start(void)
 {
-	//DEBUGPCRF("starting SSC RX\n");	
-
+	//DEBUGPCRF("starting SSC RX\n");
+	
+	__ssc_rx_refill(0);
+	if(ssc_state.mode != SSC_MODE_14443A_SHORT) __ssc_rx_refill(1);
+	
 	/* Enable Reception */
 #ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
@@ -596,9 +594,8 @@ void ssc_rx_init(void)
 #endif
 	
 	ssc_rx_mode_set(SSC_MODE_NONE);
+	ssc_state.buffer[0] = ssc_state.buffer[1] = NULL;
 	
-	__ssc_rx_refill(0);
-	__ssc_rx_refill(1);
 #if 0
 	AT91F_PDC_EnableRx(rx_pdc);
 

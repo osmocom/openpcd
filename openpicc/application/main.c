@@ -48,6 +48,7 @@
 #include "tc_fdt.h"
 #include "usb_print.h"
 #include "iso14443_layer3a.h"
+#include "decoder.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -76,8 +77,6 @@ void vApplicationIdleHook(void)
 {
     static char disabled_green = 0;
     //static int i=0;
-    /* Restart watchdog, has been enabled in Cstartup_SAM7.c */
-    AT91F_WDTRestart(AT91C_BASE_WDTC);
     //vLedSetGreen(i^=1);
     if(!disabled_green) {
     	//vLedSetGreen(0);
@@ -86,9 +85,9 @@ void vApplicationIdleHook(void)
     usb_print_flush();
 }
 
-void main_help_print_buffer(ssc_dma_buffer_t *buffer, int *pktcount)
+void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount)
 {
-	u_int16_t *tmp = (u_int16_t*)buffer->data;
+	ISO14443A_SHORT_TYPE *tmp = (ISO14443A_SHORT_TYPE*)buffer->data;
 	int i, dumped = 0;
 	unsigned int j;
 	for(i = buffer->len / sizeof(*tmp); i >= 0 ; i--) {
@@ -102,7 +101,7 @@ void main_help_print_buffer(ssc_dma_buffer_t *buffer, int *pktcount)
 				DumpStringToUSB(" ");
 			}
 			dumped = 1;
-			DumpUIntToUSB(i);
+			DumpUIntToUSB(buffer->len / sizeof(*tmp) - i);
 			DumpStringToUSB(": ");
 			for(j=0; j<sizeof(*tmp)*8; j++) {
 				usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
@@ -120,7 +119,7 @@ void vMainTestSSCRXConsumer (void *pvParameters)
 	static int pktcount=0;
 	(void)pvParameters;
 	while(1) {
-		ssc_dma_buffer_t* buffer;
+		ssc_dma_rx_buffer_t* buffer;
 		if(xQueueReceive(ssc_rx_queue, &buffer, portMAX_DELAY)) {
 			portENTER_CRITICAL();
 			buffer->state = PROCESSING;
@@ -142,11 +141,25 @@ void vMainTestSSCRXConsumer (void *pvParameters)
 	}
 }
 
+/* This task pings the watchdog even when the idle task is not running
+ * It should be started with a very high priority and will delay most of the time */
+void vMainWatchdogPinger (void *pvParameters)
+{
+	(void)pvParameters;
+    
+	while(1) {
+		/* Restart watchdog, has been enabled in Cstartup_SAM7.c */
+    		AT91F_WDTRestart(AT91C_BASE_WDTC);
+    		vTaskDelay(500*portTICK_RATE_MS);
+	}
+}
+
 /**********************************************************************/
 int main (void)
 {
     prvSetupHardware ();
     usb_print_init();
+    decoder_init();
     
     pio_irq_init();
     
@@ -165,6 +178,9 @@ int main (void)
 	
     vCmdInit();
     
+    xTaskCreate (vMainWatchdogPinger, (signed portCHAR *) "WDT PINGER", 64,
+	NULL, TASK_ISO_PRIORITY -1, NULL);
+	
     //vLedSetGreen(1);
     
     /* Remap RAM to addr 0 */

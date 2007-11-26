@@ -26,6 +26,10 @@ xTaskHandle xCmdRecvUsbTask;
 xTaskHandle xFieldMeterTask;
 xSemaphoreHandle xFieldMeterMutex;
 
+#if ( configUSE_TRACE_FACILITY == 1 )
+static signed portCHAR pcWriteBuffer[512];
+#endif
+
 /* Whether to require a colon (':') be typed before long commands, similar to e.g. vi
  * This makes a distinction between long commands and short commands: long commands may be
  * longer than one character and/or accept optional parameters, short commands are only one
@@ -262,11 +266,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * SSC_RCMR value: ");
 		    DumpUIntToUSB(*AT91C_SSC_RCMR);
 		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * is remapped?: ");
-		    DumpStringToUSB( (*(int*)0x00100100 == *(int*)0x00000100) ? "no" :
-		    	 ((*(int*)0x00200100 == *(int*)0x00000100) ? "yes" : "foo")
-		    );
-		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
 			" *****************************************************\n\r"
@@ -300,6 +299,14 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    break;
 		case 'F':
 		    startstop_field_meter();
+		    break;
+#if ( configUSE_TRACE_FACILITY == 1 )
+		case 'T':
+		    memset(pcWriteBuffer, 0, sizeof(pcWriteBuffer));
+		    vTaskList(pcWriteBuffer);
+		    DumpStringToUSB((char*)pcWriteBuffer);
+		    break;
+#endif
 		case 'Q':
 		    ssc_rx_start();
 		    while(0) {
@@ -320,6 +327,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" *\n\r"
 			" * s    - store transmitter settings\n\r"
 			" * test - test critical sections\n\r"
+#if ( configUSE_TRACE_FACILITY == 1 )
+			" * t    - print task list and stack usage\n\r"
+#endif
 			" * c    - print configuration\n\r"
 			" * 0    - receive only mode\n\r"
 			" * 1..4 - automatic transmit at selected power levels\n\r"
@@ -479,12 +489,12 @@ portBASE_TYPE vCmdInit(void) {
 		return 0;
 	}
 	
-	if(xTaskCreate(vCmdRecvUsbCode, (signed portCHAR *)"CMDUSB", TASK_CMD_STACK, NULL, 
+	if(xTaskCreate(vCmdRecvUsbCode, (signed portCHAR *)"CMDUSB", 128, NULL, 
 		TASK_CMD_PRIORITY, &xCmdRecvUsbTask) != pdPASS) {
 		return 0;
 	}
 	
-	if(xTaskCreate(vFieldMeter, (signed portCHAR *)"FIELD METER", TASK_CMD_STACK, NULL, 
+	if(xTaskCreate(vFieldMeter, (signed portCHAR *)"FIELD METER", 128, NULL, 
 		TASK_CMD_PRIORITY, &xFieldMeterTask) != pdPASS) {
 		return 0;
 	}

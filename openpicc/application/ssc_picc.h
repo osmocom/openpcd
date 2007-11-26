@@ -2,6 +2,7 @@
 #define _SSC_H
 
 #include "queue.h"
+#include "iso14443_layer3a.h"
 
 extern void ssc_rx_start(void);
 extern void ssc_rx_stop(void);
@@ -29,7 +30,7 @@ extern portBASE_TYPE ssc_get_overflows(void);
 extern int ssc_count_free(void);
 
 #define SSC_DMA_BUFFER_SIZE 2048
-#define SSC_DMA_BUFFER_COUNT 10
+#define SSC_DMA_BUFFER_COUNT 4
 
 typedef enum {
 	FREE=0,    /* Buffer is free */
@@ -43,8 +44,22 @@ typedef struct {
 	u_int32_t len;  /* Length of the content */
 	enum ssc_mode reception_mode;
 	u_int8_t data[SSC_DMA_BUFFER_SIZE];
-} ssc_dma_buffer_t;
+} ssc_dma_rx_buffer_t;
 
 extern xQueueHandle ssc_rx_queue;
+
+/* in bytes, used for the sample buffer that holds the subcarrier modulation data at fc/8 = 1695 MHz */
+#define SSC_TX_BUFFER_SIZE ((MAXIMUM_FRAME_SIZE*( (8+1)*2 ) ) + 2 + 2)
+
+typedef struct {
+	volatile ssc_dma_buffer_state_t state;
+	u_int32_t len;  /* Length of the content */
+	u_int8_t data[SSC_TX_BUFFER_SIZE];
+} ssc_dma_tx_buffer_t;
+
+/* Declare one TX buffer. This means that only one buffer can ever be pending for sending. That's because
+ * this buffer must be huge (one frame of 256 bytes of subcarrier modulation data at  1695 MHz sample
+ * rate is approx 4k bytes). */
+extern ssc_dma_tx_buffer_t ssc_tx_buffer;
 
 #endif

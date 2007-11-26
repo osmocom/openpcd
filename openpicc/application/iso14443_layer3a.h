@@ -15,6 +15,7 @@ enum ISO14443_STATES {
 	ERROR,       /* Some unrecoverable error has occured */
 };
 
+/******************** RX ************************************/
 /* standard derived magic values */
 #define ISO14443A_FDT_SHORT_1	1236
 #define ISO14443A_FDT_SHORT_0	1172
@@ -30,6 +31,15 @@ enum ISO14443_STATES {
 #define ISO14443A_SOF_LEN	4
 /* Length in samples of a short frame */
 #define ISO14443A_SHORT_LEN     32
+/* This is wrong: a short frame is 1 start bit, 7 data bits, 1 stop bit 
+ * followed by no modulation for one bit period. The start bit is 'eaten' in 
+ * SSC Compare 0, but the remaining 7+1+1 bit durations must be sampled and
+ * compared. At four times oversampling this would be 9*4=36 samples, which is 
+ * more than one SSC transfer. You'd have to use two transfers of 18 samples
+ * each and modify the comparison code accordingly. 
+ * Since four times oversampling doesn't work reliably anyway (every second
+ * sample is near an edge and might sample 0 or 1) this doesn't matter for now.*/
+#error Four times oversampling is broken, see comments in code 
 
 #else
 /* definitions for two-times oversampling */
@@ -38,8 +48,49 @@ enum ISO14443_STATES {
 
 #define ISO14443A_SOF_SAMPLE	0x01
 #define ISO14443A_SOF_LEN	2
-#define ISO14443A_SHORT_LEN     16
+#define ISO14443A_SHORT_LEN     18
 
 #endif
+
+/* A short frame should be received in one single SSC transfer */
+#if (ISO14443A_SHORT_LEN <= 8)
+/* SSC transfer size in bits */
+#define ISO14443A_SHORT_TRANSFER_SIZE 8
+#define ISO14443A_SHORT_TYPE u_int8_t
+
+#elif (ISO14443A_SHORT_LEN <= 16)
+#define ISO14443A_SHORT_TRANSFER_SIZE 16
+#define ISO14443A_SHORT_TYPE u_int16_t
+
+#elif (ISO14443A_SHORT_LEN <= 32)
+#define ISO14443A_SHORT_TRANSFER_SIZE 32
+#define ISO14443A_SHORT_TYPE u_int32_t
+
+#else
+#error ISO14443A_SHORT_LEN defined too big
+#endif
+
+/******************** TX ************************************/
+/* in bytes, not counting parity */
+#define MAXIMUM_FRAME_SIZE 256
+
+typedef struct {
+  enum { TYPE_A, TYPE_B } type;
+  union {
+  	struct {
+  		enum { SHORT_FRAME, STANDARD_FRAME, AC_FRAME } format;
+  		enum { PARITY, /* Calculate parity on the fly, ignore the parity field below */ 
+  		       GIVEN_PARITY, /* Use the parity bits from the parity field below */  
+  		       NO_PARITY, /* Don't send any parity */
+  		} parity; 
+  	} a;
+  } parameters;
+  u_int32_t numbytes;
+  u_int8_t numbits, bit_offset;
+  u_int8_t data[MAXIMUM_FRAME_SIZE];
+  u_int8_t parity[MAXIMUM_FRAME_SIZE]; /* Only the LSB of each byte is used */
+} iso14443_frame;
+
+extern const iso14443_frame ATQA_FRAME;
 
 #endif /*ISO14443_LAYER3A_H_*/

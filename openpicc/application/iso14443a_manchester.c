@@ -25,7 +25,7 @@
  * 		MSB first		LSB first	hex LSB first
  * Sequence D	1010101000000000	0000000001010101	0x0055
  * Sequence E	0000000010101010	0101010100000000	0x5500
- * Sequence F	1010101010101010	0101010101010101	0x5555
+ * Sequence F	0000000000000000	0000000000000000	0x0000
  *
  * Logic 1	Sequence D
  * Logic 0	Sequence E
@@ -44,79 +44,93 @@
 
 #define MANCHESTER_SEQ_D	0x0055
 #define MANCHESTER_SEQ_E	0x5500
-#define MANCHESTER_SEQ_F	0x5555
+#define MANCHESTER_SEQ_F	0x0000
 
 #include <errno.h>
 #include <string.h>
 #include "openpicc.h"
+#include "iso14443_layer3a.h"
+#include "iso14443a_manchester.h"
 
-static u_int32_t manchester_sample_size(u_int8_t frame_bytelen) __attribute__((unused));
-static u_int32_t manchester_sample_size(u_int8_t frame_bytelen)
-{
-	/* 16 bits (2 bytes) per bit => 16 bytes samples per data byte,
-	 * plus 16bit (2 bytes) parity per data byte
-	 * plus 16bit (2 bytes) SOF plus 16bit (2 bytes) EOF */
-	return (frame_bytelen*18) + 2 + 2;
-
-	/* this results in a maximum samples-per-frame size of 4612 bytes
-	 * for a 256byte frame */
-}
-
-struct manch_enc_state {
-	const char *data;
-	char *samples;
-	u_int16_t *samples16;
+enum parity {
+	PARITY_NONE, /* Don't add a parity bit */
+	ODD_PARITY, EVEN_PARITY, /* Calculate parity */
+	PARITY_0, PARITY_1 /* Set fixed parity */
 };
 
-static void manchester_enc_byte(struct manch_enc_state *mencs, u_int8_t data) __attribute__((unused));
-static void manchester_enc_byte(struct manch_enc_state *mencs, u_int8_t data)
+static void manchester_enc_byte(u_int16_t **s16, u_int8_t data, enum parity parity)
 {
 	int i;
 	u_int8_t sum_1 = 0;
+	u_int16_t *samples16 = *s16;
 
 	/* append 8 sample blobs, one for each bit */
 	for (i = 0; i < 8; i++) {
 		if (data & (1 << i)) {
-			*(mencs->samples16) = MANCHESTER_SEQ_D;
+			*(samples16) = MANCHESTER_SEQ_D;
 			sum_1++;
 		} else {
-			*(mencs->samples16) = MANCHESTER_SEQ_E;
+			*(samples16) = MANCHESTER_SEQ_E;
 		}
-		mencs->samples16++;
+		samples16++;
 	}
-	/* append odd parity */
-	if (sum_1 & 0x01)
-		*(mencs->samples16) = MANCHESTER_SEQ_E;
-	else
-		*(mencs->samples16) = MANCHESTER_SEQ_D;
-	mencs->samples16++;
+	if(parity != PARITY_NONE) {
+		/* Append parity */
+		u_int8_t par=0;
+		switch(parity) {
+			case PARITY_NONE: break;
+			case PARITY_0: par = 0; break;
+			case PARITY_1: par = 1; break;
+			case ODD_PARITY:  par = (sum_1 & 0x1) ? 0 : 1; break;
+			case EVEN_PARITY: par = (sum_1 & 0x1) ? 1 : 0; break;
+		}
+		if (par)
+			*(samples16) = MANCHESTER_SEQ_D;
+		else
+			*(samples16) = MANCHESTER_SEQ_E;
+		samples16++;
+	}
+	*s16 = samples16;
 }
 
-#if 0
-/* Broken? */
-int manchester_encode(char *sample_buf, u_int16_t sample_buf_len, 
-		      const char *data, u_int8_t data_len)
+int manchester_encode(u_int8_t *sample_buf, u_int16_t sample_buf_len, 
+		      const iso14443_frame *frame)
 {
-	int i, enc_size;
-	struct manch_enc_state mencs;
-
-	enc_size = manchester_sample_size(data_len);
+	unsigned int i, enc_size;
+	u_int16_t *samples16;
+	
+	if(frame->type != TYPE_A) return -EINVAL;
+	if(frame->parameters.a.format != STANDARD_FRAME) return -EINVAL; /* AC not implemented yet */
+	
+	/* One bit data is 16 bit/2 byte modulation data */
+	enc_size = 2*2 /* SOF and EOF */
+		+ frame->numbytes * 8 * 2
+		+ ((frame->parameters.a.parity != NO_PARITY) ? 1 : 0)*8*2;
 
 	if (sample_buf_len < enc_size)
 		return -EINVAL;
+	
+	samples16 = (u_int16_t*)sample_buf;
 
 	/* SOF */
-	*(mencs.samples16++) = MANCHESTER_SEQ_D;
-
-	for (i = 0; i < data_len; i++)
-		manchester_enc_byte(&mencs, data[i]);
+	*(samples16++) = MANCHESTER_SEQ_D;
+	
+	if(frame->parameters.a.parity == NO_PARITY)
+		for (i = 0; i < frame->numbytes; i++)
+			manchester_enc_byte(&samples16, frame->data[i], PARITY_NONE);
+	else if(frame->parameters.a.parity == GIVEN_PARITY)
+		for (i = 0; i < frame->numbytes; i++)
+			manchester_enc_byte(&samples16, frame->data[i], frame->parity[i]?PARITY_1:PARITY_0);
+	else if(frame->parameters.a.parity == PARITY)
+		for (i = 0; i < frame->numbytes; i++)
+			manchester_enc_byte(&samples16, frame->data[i], ODD_PARITY);
 		
 	/* EOF */
-	*(mencs.samples16++) = MANCHESTER_SEQ_F;
+	*(samples16++) = MANCHESTER_SEQ_F;
 
 	return enc_size;
 }
-#endif
+
 #if 0
 /* Broken? */
 #define BPSK_SPEED_212	

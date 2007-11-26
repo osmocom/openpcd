@@ -21,6 +21,7 @@ struct decoder_state {
 extern int decoder_register(int algnum, struct decoder_algo *algo);
 extern int decoder_decode(u_int8_t algo, const char *sample_buf,
 		  	  int sample_buf_size, unsigned char *data_buf);
+extern void decoder_init(void);
 
 #define DECODER_MILLER		0
 #define DECODER_NRZL		1
