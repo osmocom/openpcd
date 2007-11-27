@@ -96,6 +96,7 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 				if(ret>0) {
 					vLedSetGreen(1);
 					ssc_tx_buffer.len = ret;
+					tc_cdiv_set_divider(8);
 					ssc_tx_start(&ssc_tx_buffer);
 					vLedSetGreen(0);
 					

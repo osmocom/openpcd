@@ -184,8 +184,8 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	start_cond = AT91C_SSC_START_RISE_RF;
 	sync_len = 0;
 	ssc->SSC_RC0R = 0;
-	data_len = 16;
-	num_data = buf->len/2;
+	data_len = 32;
+	num_data = buf->len/(data_len/8); /* FIXME This is broken for more than 64 bytes */
 	
 	ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
 			(((num_data-1) & 0x0f) << 8) | 

@@ -263,8 +263,23 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * TC0_CV value: ");
 		    DumpUIntToUSB(*AT91C_TC0_CV);
 		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_SR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_SR);
+		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC_RCMR value: ");
 		    DumpUIntToUSB(*AT91C_SSC_RCMR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_TCMR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_TCMR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_TFMR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_TFMR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_TPR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_TPR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_TCR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_TCR);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
