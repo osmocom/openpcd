@@ -41,7 +41,7 @@ struct pioirq_state {
 static struct pioirq_state pirqs;
 static unsigned long count = 0;
 
-/* This FIQ implementation of pio data change works in close cooperation with function my_fiq_handler  
+/* This FIQ implementation of pio data change works in close cooperation with function fiq_handler  
  * in os/boot/boot.s
  * This code uses fast forcing for the PIOA irq so that each PIOA data change triggers
  * a FIQ. The FreeRTOS code has been modified to not mask FIQ ever. This means that the FIQ
@@ -64,7 +64,6 @@ static unsigned long count = 0;
  */
 #define USE_FIQ
 #define PIO_SECONDARY_IRQ 31
-extern void my_fiq_handler(void);
 extern void fiq_handler(void);
 
 /* Will be used in pio_irq_demux_secondary below and contains the PIO_ISR value 
@@ -88,29 +87,6 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 		if (pirqs.usbmask & (1 << i))
 			send_usb = 1;
 	}
-
-//	if (send_usb && !pirqs.usb_throttled) {
-//		struct req_ctx *irq_rctx;
-//		irq_rctx = req_ctx_find_get(0, RCTX_STATE_FREE,
-//					    RCTX_STATE_PIOIRQ_BUSY);
-//		if (!irq_rctx) {
-//			/* we cannot disable the interrupt, since we have
-//			 * non-usb listeners */
-//			pirqs.usb_throttled = 1;
-//		} else {
-//			struct openpcd_hdr *opcdh;
-//			u_int32_t *regmask;
-//			opcdh = (struct openpcd_hdr *) irq_rctx->data;
-//			regmask = (u_int32_t *) (irq_rctx->data + sizeof(*opcdh));
-//			opcdh->cmd = OPENPCD_CMD_PIO_IRQ;
-//			opcdh->reg = 0x00;
-//			opcdh->flags = 0x00;
-//			opcdh->val = 0x00;
-//
-//			irq_rctx->tot_len = sizeof(*opcdh) + sizeof(u_int32_t);
-//			req_ctx_set_state(irq_rctx, RCTX_STATE_UDP_EP3_PENDING);
-//		}
-//	}
 
 	AT91F_AIC_AcknowledgeIt();
 	//AT91F_AIC_ClearIt(AT91C_ID_PIOA);
@@ -195,9 +171,12 @@ void pio_irq_init(void)
 	initialized = 1;
 	AT91F_PIOA_CfgPMC();
 #ifdef USE_FIQ
+/*	This code is not necessary anymore, because fiq_handler is directly part of
+	the vector table, so no jump will happen. 
         AT91F_AIC_ConfigureIt(AT91C_ID_FIQ,
                               //0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &cdsync_cb);
-                              0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &my_fiq_handler);
+                              0, AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &fiq_handler);
+*/
         /* enable fast forcing for PIOA interrupt */
         *AT91C_AIC_FFER = (1 << AT91C_ID_PIOA);
         

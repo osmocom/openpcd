@@ -182,90 +182,14 @@ endless_loop:
 	ldr   pc, _dabt						/* data abort - _dabt		*/
 	nop									/* reserved					*/
 	ldr   pc, [pc,#-0xF20]				/* IRQ - read the AIC		*/
-	ldr   pc, [pc,#-0xF20]				/* FIQ - read the AIC		*/
+/*	ldr   pc, [pc,#-0xF20]				/* FIQ - fall through to fiq_handler		*/
 
-_undf:  .word __undf                    /* undefined				*/
-_swi:   .word swi_handler				/* SWI						*/
-_pabt:  .word __pabt                    /* program abort			*/
-_dabt:  .word __dabt                    /* data abort				*/
-_fiq:   .word __fiq                     /* FIQ						*/
 
-__undf: b     .                         /* undefined				*/
-__pabt: b     .                         /* program abort			*/
-__dabt: b     .                         /* data abort				*/
-__fiq:  b     .                         /* FIQ						*/
-
-/* Following is from openpcd/firmware/src/start/Cstartup_app.S */
+/* Following is modified from openpcd/firmware/src/start/Cstartup_app.S */
 #define LED_TRIGGER
-/*#define CALL_PIO_IRQ_DEMUX*/
-        
-        .text
-        .arm
-        .section .fastrun, "ax"
-        
+
         .global fiq_handler
         .func fiq_handler
-fiq_handler:
-                /* code that uses pre-initialized FIQ reg */
-                /* r8   AT91C_BASE_AIC (dfu init)
-                   r9   AT91C_TC_SWTRG
-                   r10  AT91C_BASE_PIOA
-                   r11  tmp
-                   r12  AT91C_BASE_TC0
-                   r13  stack
-                   r14  lr
-                 */
-
-                ldr     r8, [r10, #PIOA_ISR]
-                tst     r8, #PIO_DATA           /* check for PIO_DATA change */
-                ldrne   r11, [r10, #PIOA_PDSR]
-                tstne   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
-                strne   r9, [r12, #TC_CCR]      /* software trigger */
-#ifdef LED_TRIGGER
-                movne   r11, #PIO_LED1
-                strne   r11, [r10, #PIOA_CODR] /* enable LED */
-#endif
-
-#if 1
-                movne   r11, #PIO_DATA
-                strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
-#endif
-
-                /*- Mark the End of Interrupt on the AIC */
-                ldr     r11, =AT91C_BASE_AIC
-                str     r11, [r11, #AIC_EOICR]
-
-#ifdef LED_TRIGGER
-                mov     r11, #PIO_LED1
-                str     r11, [r10, #PIOA_SODR] /* disable LED */
-#endif
-
-#ifdef CALL_PIO_IRQ_DEMUX
-                /* push r0, r1-r3, r12, r14 onto FIQ stack */
-                /*stmfd   sp!, { r0-r3, r12, lr}
-                mov     r0, r8*/
-
-                /* enable interrupts while handling demux */
-                /* enable interrupts while handling demux */
-                /* msr  CPSR_c, #F_BIT | ARM_MODE_SVC */
-
-                /* Call C function, give PIOA_ISR as argument */
-                /*ldr     r11, =__pio_irq_demux
-                mov     r14, pc
-                bx      r11*/
-
-                /* msr  CPSR_c, #I_BIT | F_BIT | ARM_MODE_FIQ */
-                /*ldmia   sp!, { r0-r3, r12, lr }*/
-#endif
-
-                /*- Restore the Program Counter using the LR_fiq directly in the PC */
-                subs        pc, lr, #4
-
-        .size   fiq_handler, . - fiq_handler
-        .endfunc
-
-        .global my_fiq_handler
-        .func my_fiq_handler
 my_fiq_handler:
                 /* code that uses pre-initialized FIQ reg */
                 /* r8   tmp
@@ -314,6 +238,17 @@ my_fiq_handler:
 
         .size   my_fiq_handler, . - my_fiq_handler
         .endfunc
+
+_undf:  .word __undf                    /* undefined				*/
+_swi:   .word swi_handler				/* SWI						*/
+_pabt:  .word __pabt                    /* program abort			*/
+_dabt:  .word __dabt                    /* data abort				*/
+_fiq:   .word __fiq                     /* FIQ						*/
+
+__undf: b     .                         /* undefined				*/
+__pabt: b     .                         /* program abort			*/
+__dabt: b     .                         /* data abort				*/
+__fiq:  b     .                         /* FIQ						*/
 
         .end
         
