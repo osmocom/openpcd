@@ -44,6 +44,7 @@
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
 
+#include "pio_irq.h"
 #include "usb_print.h"
 #include "iso14443_layer3a.h"
 
@@ -170,6 +171,14 @@ out_set_mode:
 	ssc_state.mode = ssc_mode;
 }
 
+/* For some reason AT91C_SSC_START_RISE_RF (or AT91C_SSC_START_HIGH_RF or ...) doesn't
+ * work as a start condition. Instead we'll configure TF as a PIO input pin, enable
+ * a PIO change interrupt, have Fast Forcing enabled for the PIO change interrupt and
+ * then activate the SSC TX in the FIQ handler on rising TF. ssc_tx_pending is queried
+ * by the fiq handler to see whether to start the transmitter. */
+#define USE_SSC_TX_TF_WORKAROUND
+volatile u_int32_t ssc_tx_pending = 0;
+void ssc_tf_irq(u_int32_t pio);
 void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 {
 	u_int8_t data_len, num_data, sync_len;
@@ -181,16 +190,19 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	/* disable all Tx related interrupt sources */
 	AT91F_SSC_DisableIt(ssc, SSC_TX_IRQ_MASK);
 
+#ifdef USE_SSC_TX_TF_WORKAROUND
+	start_cond = AT91C_SSC_START_CONTINOUS;
+#else
 	start_cond = AT91C_SSC_START_RISE_RF;
-	sync_len = 0;
-	ssc->SSC_RC0R = 0;
+#endif
+	sync_len = 1;
 	data_len = 32;
 	num_data = buf->len/(data_len/8); /* FIXME This is broken for more than 64 bytes */
 	
 	ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
 			(((num_data-1) & 0x0f) << 8) | 
 			(((sync_len-1) & 0x0f) << 16);
-	ssc->SSC_TCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | start_cond;
+	ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | start_cond;
 	
 	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
 
@@ -200,10 +212,28 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	/* Enable DMA */
 	AT91F_PDC_EnableTx(tx_pdc);
 	/* Start Transmission */
+#ifndef USE_SSC_TX_TF_WORKAROUND
 	AT91F_SSC_EnableTx(AT91C_BASE_SSC);
+#else
+	ssc_tx_pending = 1;
+	pio_irq_enable(OPENPICC_SSC_TF);
+	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) {
+		/* TF was probably already high when we enabled the PIO change interrupt for it. */
+		ssc_tf_irq(OPENPICC_SSC_TF);
+	}
+#endif
 }
 
-
+#ifdef USE_SSC_TX_TF_WORKAROUND
+void ssc_tf_irq(u_int32_t pio) {
+	(void)pio;
+	pio_irq_disable(OPENPICC_SSC_TF);
+	if(ssc_tx_pending) { /* Transmit has not yet been started by the FIQ */
+		AT91F_SSC_EnableTx(AT91C_BASE_SSC);
+		ssc_tx_pending = 0;
+	}
+}
+#endif
 
 
 //static struct openpcd_hdr opcd_ssc_hdr = {
@@ -429,8 +459,11 @@ void ssc_tx_init(void)
 	 * PA17 !! */
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_MOD_PWM);
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, OPENPICC_MOD_SSC | 
-			    OPENPICC_SSC_DATA | OPENPICC_SSC_DATA |
-			    AT91C_PIO_PA15, 0);
+			    OPENPICC_SSC_CLOCK | OPENPICC_SSC_TF, 0);
+#ifdef USE_SSC_TX_TF_WORKAROUND
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_SSC_TF);
+	pio_irq_register(OPENPICC_SSC_TF, ssc_tf_irq);
+#endif
 	
 	tx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 }

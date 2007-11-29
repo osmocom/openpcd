@@ -68,7 +68,7 @@ extern void fiq_handler(void);
 
 /* Will be used in pio_irq_demux_secondary below and contains the PIO_ISR value 
  * from when the FIQ was raised */
-u_int32_t pio_irq_isr_value; 
+volatile u_int32_t pio_irq_isr_value; 
 
 
 /* low-level handler, used by Cstartup_app.S PIOA fast forcing and

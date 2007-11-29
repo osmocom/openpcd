@@ -4,6 +4,7 @@
 	.extern exit
 	.extern AT91F_LowLevelInit
 	.extern pio_irq_isr_value
+	.extern ssc_tx_pending
 
 	.text
 	.code 32
@@ -45,10 +46,13 @@
 .equ AT91C_BASE_PIOA, 0xFFFFF400
 .equ AT91C_BASE_TC0,  0xFFFA0000
 .equ AT91C_BASE_SSC,  0xFFFD4000
+.equ SSC_CR,          0x0
 .equ SSC_RCMR,        0x10
+.equ SSC_CR_TXEN,     0x100
 .equ AT91C_TC_SWTRG,  (1 << 2)
 .equ AT91C_TC_CLKEN,  (1 << 0)
 .equ PIO_DATA,        (1 << 27)
+.equ PIO_SSC_TF,      (1 << 15)
 .equ PIOA_SODR,       0x30
 .equ PIOA_CODR,       0x34
 .equ PIOA_PDSR,       0x3c
@@ -219,6 +223,26 @@ my_fiq_handler:
                 movne   r11, #PIO_DATA
                 strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
                 
+                tst     r8, #PIO_SSC_TF         /* check for SSC Transmit Frame signal */
+                ldrne   r11, [r10, #PIOA_PDSR]
+                tstne   r11, #PIO_SSC_TF        /* check for SSC_TF == 1 */
+                
+                movne   r11, #PIO_SSC_TF
+                strne   r11, [r10, #PIOA_IDR]   /* disable further SSC_TF FIQ */
+                
+                ldrne   r11, =ssc_tx_pending
+                ldrne   r8, [r11]
+                tstne   r8, #0x01              /* Check whether a TX is pending */
+                
+                beq   .no_ssc
+                mov   r8, #0x00
+                str   r8, [r11]                /* Set ssc_tx_pending to 0 */
+                
+                ldr   r11, =AT91C_BASE_SSC
+                mov   r8, #SSC_CR_TXEN
+                str   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
+                
+.no_ssc:
                 /* Trigger PIO_SECONDARY_IRQ */
                 mov r11, #PIO_SECONDARY_IRQ_BIT
                 ldr r8, =AT91C_BASE_AIC
