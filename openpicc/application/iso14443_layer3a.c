@@ -77,36 +77,56 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 			tc_fdt_set(ISO14443A_FDT_SHORT_0);
 			if(state == IDLE)
 				send_atqa = 1;
-			/* FIXME: prepare and configure ATQA response */
 		} else if(sample == WUPA) {
 			tc_fdt_set(ISO14443A_FDT_SHORT_1);
 			if(state == IDLE || state == HALT)
 				send_atqa = 1;
-			/* FIXME: prepare and configure ATQA response */
 		}
 		
 		if(send_atqa) {
 		vLedSetGreen(0);
-			if(ssc_tx_buffer.state == FREE) {
+			if(ssc_tx_buffer.state == PREFILLED && ssc_tx_buffer.source == &ATQA_FRAME) {
 				ssc_tx_buffer.state = PROCESSING;
-				ssc_tx_buffer.len = sizeof(ssc_tx_buffer.data);
-				int ret = manchester_encode(ssc_tx_buffer.data,
-						ssc_tx_buffer.len,
-						&ATQA_FRAME);
-				if(ret>0) {
-					vLedSetGreen(1);
-					ssc_tx_buffer.len = ret;
-					tc_cdiv_set_divider(8);
-					ssc_tx_start(&ssc_tx_buffer);
-					vLedSetGreen(0);
-					
-				} else {
-					ssc_tx_buffer.state = FREE;
-				}
+				vLedSetGreen(1);
+				tc_cdiv_set_divider(8);
+				ssc_tx_start(&ssc_tx_buffer);
+				vLedSetGreen(0);
 			}
 		vLedSetGreen(1);
 		}
 	}
+}
+
+#define FALSE (0!=0)
+static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) {
+	portENTER_CRITICAL();
+	if(dest->state == FREE) {
+		dest->state = PROCESSING;
+		portEXIT_CRITICAL();
+		dest->source = (void*)src;
+		dest->len = sizeof(ssc_tx_buffer.data);
+		int ret = manchester_encode(dest->data,
+				dest->len,
+				&ATQA_FRAME);
+		if(ret>0) {
+			dest->len = ret;
+			portENTER_CRITICAL();
+			dest->state = PREFILLED;
+			portEXIT_CRITICAL();
+		} else {
+			portENTER_CRITICAL();
+			dest->state = FREE;
+			portEXIT_CRITICAL();
+		}
+		return ret > 0;
+	} else if(dest->state == PREFILLED) {
+		portEXIT_CRITICAL();
+		return dest->source == src;
+	} else {
+		portEXIT_CRITICAL();
+		return FALSE;
+	}
+	
 }
 
 extern void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount);
@@ -172,15 +192,8 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 #endif
 				tc_fdt_init();
 				ssc_set_irq_extension((ssc_irq_ext_t)iso14443_layer3a_irq_ext);
-#if 1
-				ssc_tx_init();
-#else
-				AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_MOD_PWM);
-				AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, OPENPICC_MOD_SSC | 
-						    OPENPICC_SSC_DATA | OPENPICC_SSC_DATA |
-						    AT91C_PIO_PA15, 0);
-#endif
 				ssc_rx_init();
+				ssc_tx_init();
 				
 				load_mod_init();
 				load_mod_level(3);
@@ -190,13 +203,18 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				break;
 			case POWERED_OFF:
 				if(switch_on == 1) {
-					state=INITIAL_STATE;
-					if(INITIAL_STATE == IDLE)
-						ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
-					else if(INITIAL_STATE == ACTIVE)
-						ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
-					else ssc_rx_mode_set(SSC_MODE_NONE);
-					ssc_rx_start();
+					if(prefill_buffer(&ssc_tx_buffer, &ATQA_FRAME)) {
+						state=INITIAL_STATE;
+						if(INITIAL_STATE == IDLE)
+							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+						else if(INITIAL_STATE == ACTIVE)
+							ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
+						else ssc_rx_mode_set(SSC_MODE_NONE);
+						ssc_rx_start();
+					} else {
+						LAYER3_DEBUG("SSC TX overflow error, please debug");
+						state=ERROR;
+					}
 					continue;
 				}
 				break;

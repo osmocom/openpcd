@@ -47,7 +47,8 @@ typedef enum {
 	FREE=0,    /* Buffer is free */
 	PENDING,   /* Buffer has been given to the DMA controller and is currently being filled */
 	FULL,      /* DMA controller signalled that the buffer is full */
-	PROCESSING /* The buffer is currently processed by the consumer (e.g. decoder) */
+	PROCESSING,/* The buffer is currently processed by the consumer (e.g. decoder) */
+	PREFILLED, /* The buffer has been prefilled for later usage (only used for TX) */
 } ssc_dma_buffer_state_t;
 
 typedef struct {
@@ -65,6 +66,7 @@ extern xQueueHandle ssc_rx_queue;
 typedef struct {
 	volatile ssc_dma_buffer_state_t state;
 	u_int32_t len;  /* Length of the content */
+	void *source; /* Source pointer for a prefilled buffer; set to NULL if not used */
 	u_int8_t data[SSC_TX_BUFFER_SIZE];
 } ssc_dma_tx_buffer_t;
 
