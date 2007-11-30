@@ -132,8 +132,8 @@ static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) 
 extern void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount);
 void iso14443_layer3a_state_machine (void *pvParameters)
 {
-	unsigned long int last_pll_lock = ~0;
-	int pktcount=0;
+	unsigned long int last_pll_lock_change = 0;
+	int pktcount=0, locked, last_was_locked=0;
 	(void)pvParameters;
 	while(1) {
 		ssc_dma_rx_buffer_t* buffer = NULL;
@@ -145,40 +145,37 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 		}
 		
 		/* First let's see whether there is a reader */
+		locked = pll_is_locked();
+		unsigned long int now = xTaskGetTickCount();
 		switch(state) {
 			case STARTING_UP: /* Fall through */
 			case ERROR:
 				// do nothing here
 				break;
 			case POWERED_OFF:
-				if(pll_is_locked()) {
-					unsigned long int now = xTaskGetTickCount();
-					if(now - last_pll_lock > PLL_LOCK_HYSTERESIS) { 
-						/* Go to idle when in POWERED_OFF and pll 
-						 * was locked for at least 
-						 * PLL_LOCK_HYSTERESIS ticks */
-						switch_on = 1;
-						last_pll_lock = ~0;
-						LAYER3_DEBUG("PLL locked, switching on \n\r");
-					} else last_pll_lock = now; 
-				} else last_pll_lock = ~0;
+				if(locked && now - last_pll_lock_change > PLL_LOCK_HYSTERESIS) { 
+					/* Go to idle when in POWERED_OFF and pll 
+					 * was locked for at least 
+					 * PLL_LOCK_HYSTERESIS ticks */
+					switch_on = 1;
+					LAYER3_DEBUG("PLL locked, switching on \n\r");
+				}
 				break;
 			default:
-				if(!pll_is_locked()) {
-					unsigned long int now = xTaskGetTickCount();
-					if(now - last_pll_lock > PLL_LOCK_HYSTERESIS) {
-						/* Power off when not powered off and pll
-						 * was unlocked for at least  PLL_LOCK_HYSTERESIS
-						 * ticks */
-						state = POWERED_OFF;
-						ssc_rx_stop();
-						last_pll_lock = ~0;
-						LAYER3_DEBUG("PLL lost lock, switching off \n\r");
-						continue; 
-					} else last_pll_lock = now; 
-				} else last_pll_lock = ~0;
+				if(!locked && now - last_pll_lock_change > PLL_LOCK_HYSTERESIS) {
+					/* Power off when not powered off and pll
+					 * was unlocked for at least  PLL_LOCK_HYSTERESIS
+					 * ticks */
+					state = POWERED_OFF;
+					ssc_rx_stop();
+					LAYER3_DEBUG("PLL lost lock, switching off \n\r");
+					continue;
+				} 
 				break;
 		}
+		if( (!locked && last_was_locked) || (locked && !last_was_locked) ) 
+			last_pll_lock_change = now;
+		last_was_locked = locked;
 		
 		switch(state) {
 			case STARTING_UP:
@@ -200,6 +197,8 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				
 				
 				state = POWERED_OFF;
+				last_was_locked = 0;
+				vTaskDelay(200*portTICK_RATE_MS);
 				break;
 			case POWERED_OFF:
 				if(switch_on == 1) {
