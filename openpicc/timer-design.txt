@@ -1,0 +1,59 @@
+from analog: SSC_DATA, CARRIER (via PLL)
+to analog: MOD
+
+MOD                   on PA17 (SSC TD, out), PA23 (PWM0, out)
+SSC_DATA              on PA18 (SSC RD, in),  PA27 (TIOB2, in)
+FRAME                 on PA20 (SSC RF, in)
+
+CARRIER          (T5) on PA28 (TCLK1, in)
+CARRIER_DIV_HELP (T3) on PA0  (TIOA0, out),  PA29 (TCLK2, in)
+(TF)                  on PA26 (TIOA2, out),  PA15 (SSC TF, in)
+
+SSC_CLOCK        (T4) on PA1  (TIOB0, out),  PA19 (SSC RK, in)
+
+
+MOD: pure output, to modulation circuitry
+	* either fed from SSC transmitter
+	* or fed from PWM
+SSC_DATA: pure input, from demulation circuitry
+	* goes to SSC receiver
+	* goes to tc_fdt as external event (TIOB2)
+FRAME: set on any edge in SSC_DATA, reset by SSC_DATA_CONTROL (out)
+	* goes to SSC receiver as frame signal
+
+CARRIER: pure input, from PLL
+	* goes to tc_cdiv and tc_fdt as XC1 (TCLK1)
+CARRIER_DIV_HELP: internal signal, does ???
+	* comes from tc_cdiv (TIOA0)
+	* goes to tc_cdiv as XC2 (TCLK2)
+TF: internal signal, transmission start
+	* comes from tc_fdt (TIOA2)
+	* goes to SSC transmitter as frame signal
+
+SSC_CLOCK: internal signal, transceiver clock
+	* comes from tc_cdiv (TIOB0)
+	* goes to SSC transmitter and receiver as clock signal
+
+tc_cdiv: XC1=TCLK1 (in), TIOB0 (out), TIOA0 (out), XC2=TCLK2 (in)
+	TC0 enabled
+	XC1 = TCLK1, XC2 = TCLK2
+	TC0: Clock from XC1, Wave mode, WAVSEL=2 (up auto)
+		TIOA0: RA compare = set, RC compare = clear, swtrg = clear
+		TIOB0: eevent = set, RB compare = clear, swtrg = clear
+		eevent: XC2, external trigger on rising edge
+		RA = 1, RB = 1 + divider/2, RC = divider
+	
+	i.o.w: when CV = 0 (either through swtrg or through RC compare) then TIOA0 and TIOB0 are clear
+		TIOA0 is set on RA compare (at CV=1), is connected to XC2 (through TCLK2) and therefore triggers the external event which sets TIOB0
+		TIOB0 is cleared at RB compare (at CV=1+divider/2)
+
+tc_fdt: TIOA2 (out), TIOB2 (in), XC1=TCLK1 (in)
+	TC2 enabled
+	TC2: Clock from XC1, Wave mode, WAVSEL=0 (up)
+		TIOA2: RA compare = set, RC compare = clear, eevent = clear
+		TIOB2: eevent = nothing, RB compare = nothing
+		eevent: TIOB2, external trigger on falling edge, clock started and enabled on external trigger
+		clock stopped on RC compare
+		RC = 0xffff, RB = frame_end_set, RA = fdt_set
+		
+
