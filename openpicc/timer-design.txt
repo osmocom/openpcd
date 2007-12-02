@@ -44,8 +44,10 @@ tc_cdiv: XC1=TCLK1 (in), TIOB0 (out), TIOA0 (out), XC2=TCLK2 (in)
 		RA = 1, RB = 1 + divider/2, RC = divider
 	
 	i.o.w: when CV = 0 (either through swtrg or through RC compare) then TIOA0 and TIOB0 are clear
-		TIOA0 is set on RA compare (at CV=1), is connected to XC2 (through TCLK2) and therefore triggers the external event which sets TIOB0
-		TIOB0 is cleared at RB compare (at CV=1+divider/2)
+		TIOA0 is set on RA compare (at CV=1+phase), is connected to XC2 (through TCLK2) and therefore triggers the external event which sets TIOB0
+		TIOB0 is cleared at RB compare (at CV=1+divider/2+phase)
+	that means: Compare A sets TIOB and Compare B clears TIOB, Compare C is fixed at the divisor value, Compare A and B are divisor/2 apart, yielding an exact 50% duty cycle with a variable phase shift (offset from CV=0)
+	this trick is necessary because TIO{A,B} can't be directly affected by Compare {B,A}, so when using only one TIO you can either get a fixed duty cycle with zero offset compared to CV=0, or a variable offset yielding a variable duty cycle
 
 tc_fdt: TIOA2 (out), TIOB2 (in), XC1=TCLK1 (in)
 	TC2 enabled
