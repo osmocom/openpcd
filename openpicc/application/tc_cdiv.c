@@ -38,6 +38,10 @@ void tc_cdiv_set_divider(u_int16_t div)
 	/* set to 50% duty cycle */
 	tcb->TCB_TC0.TC_RA = 1;
 	tcb->TCB_TC0.TC_RB = 1 + (div >> 1);
+	
+	/* Save current CV as phase, then reset to 0 (might otherwise be greater than RC) */
+	tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));
+	tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
 }
 
 void tc_cdiv_phase_add(int16_t inc)

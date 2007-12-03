@@ -16,9 +16,11 @@ enum ISO14443_STATES {
 };
 
 /******************** RX ************************************/
+/* measured TF->FIQ->SSC TX start delay (~3.480us) in carrier cycles */
+#define TF_FIQ_SSC_DELAY 47
 /* standard derived magic values */
-#define ISO14443A_FDT_SHORT_1	1236
-#define ISO14443A_FDT_SHORT_0	1172
+#define ISO14443A_FDT_SHORT_1	(1236-TF_FIQ_SSC_DELAY)
+#define ISO14443A_FDT_SHORT_0	(1172-TF_FIQ_SSC_DELAY)
 
 #ifdef FOUR_TIMES_OVERSAMPLING
 /* definitions for four-times oversampling */

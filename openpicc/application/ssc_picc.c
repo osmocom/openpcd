@@ -205,6 +205,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | start_cond;
 	
 	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
+	buf->state = PENDING;
 
 #ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_TXSYN | AT91C_SSC_ENDTX | AT91C_SSC_TXBUFE);
@@ -227,6 +228,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 #ifdef USE_SSC_TX_TF_WORKAROUND
 void ssc_tf_irq(u_int32_t pio) {
 	(void)pio;
+	if(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) return;
 	pio_irq_disable(OPENPICC_SSC_TF);
 	if(ssc_tx_pending) { /* Transmit has not yet been started by the FIQ */
 		AT91F_SSC_EnableTx(AT91C_BASE_SSC);
@@ -397,7 +399,15 @@ static void __ramfunc ssc_irq(void)
 		DEBUGP("CP0 ");
 	
 	if (ssc_sr & AT91C_SSC_TXSYN)
-		usb_print_string_f("TXSYN ", 0);
+		DEBUGP("TXSYN ");
+	
+	if(ssc_sr & AT91C_SSC_ENDTX) {
+		if(ssc_tx_buffer.state == PENDING)
+			ssc_tx_buffer.state = FREE;
+	}
+
+	if(ssc_sr & AT91C_SSC_TXBUFE)
+		DEBUGP("TXBUFE ");
 	
 	if(irq_extension != NULL)
 		irq_extension(ssc_sr, ssc_state.mode, inbuf?inbuf->data:NULL);
