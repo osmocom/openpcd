@@ -42,7 +42,7 @@
 static enum ISO14443_STATES state = STARTING_UP;
 const iso14443_frame ATQA_FRAME = {
 	TYPE_A,
-	{{STANDARD_FRAME, NO_PARITY}},
+	{{STANDARD_FRAME, PARITY}},
 	2, 
 	0, 0,
 	{4, 0},
