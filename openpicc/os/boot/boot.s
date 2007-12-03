@@ -234,15 +234,14 @@ my_fiq_handler:
                 ldrne   r8, [r11]
                 tstne   r8, #0x01              /* Check whether a TX is pending */
                 
-                beq   .no_ssc
-                mov   r8, #0x00
-                str   r8, [r11]                /* Set ssc_tx_pending to 0 */
+                movne   r8, #0x00
+                strne   r8, [r11]                /* Set ssc_tx_pending to 0 */
                 
-                ldr   r11, =AT91C_BASE_SSC
-                mov   r8, #SSC_CR_TXEN
-                str   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
-                
-.no_ssc:
+                ldrne   r11, =AT91C_BASE_SSC
+                movne   r8, #SSC_CR_TXEN
+                strne   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
+
+.no_ssc:               
                 /* Trigger PIO_SECONDARY_IRQ */
                 mov r11, #PIO_SECONDARY_IRQ_BIT
                 ldr r8, =AT91C_BASE_AIC
