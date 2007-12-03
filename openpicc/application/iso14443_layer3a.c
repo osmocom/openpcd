@@ -107,7 +107,7 @@ static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) 
 		dest->len = sizeof(ssc_tx_buffer.data);
 		int ret = manchester_encode(dest->data,
 				dest->len,
-				&ATQA_FRAME);
+				src);
 		if(ret>0) {
 			dest->len = ret;
 			portENTER_CRITICAL();
@@ -203,6 +203,13 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 			case POWERED_OFF:
 				if(switch_on == 1) {
 					if(prefill_buffer(&ssc_tx_buffer, &ATQA_FRAME)) {
+						LAYER3_DEBUG("Buffer prefilled\n\r");
+						DumpUIntToUSB(ssc_tx_buffer.state);
+						DumpStringToUSB(" ");
+						DumpUIntToUSB((unsigned int)ssc_tx_buffer.source);
+						DumpStringToUSB(" ");
+						DumpUIntToUSB((unsigned int)&ATQA_FRAME);
+						DumpStringToUSB("\n\r");
 						state=INITIAL_STATE;
 						if(INITIAL_STATE == IDLE)
 							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
