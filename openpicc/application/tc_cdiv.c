@@ -39,8 +39,11 @@ void tc_cdiv_set_divider(u_int16_t div)
 	tcb->TCB_TC0.TC_RA = 1;
 	tcb->TCB_TC0.TC_RB = 1 + (div >> 1);
 	
-	/* Save current CV as phase, then reset to 0 (might otherwise be greater than RC) */
-	tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));
+	/* We must reset CV to zero when it was greater than RC.
+	 * In order to not lose phase information when doing that we'll busy wait till CV is
+	 * zero modulo the new RC.*/
+	/*tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));*/
+	if(tcb->TCB_TC0.TC_CV > div) while(tcb->TCB_TC0.TC_CV % div != 0);
 	tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
 }
 
