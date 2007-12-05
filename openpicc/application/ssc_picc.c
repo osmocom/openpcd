@@ -289,6 +289,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	u_int32_t start_cond;
 
 	/* disable Tx */
+	AT91F_PDC_DisableTx(tx_pdc);
 	AT91F_SSC_DisableTx(AT91C_BASE_SSC);
 
 	/* disable all Tx related interrupt sources */
@@ -315,6 +316,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDTX);
 	/* Enable DMA */
 	AT91F_PDC_EnableTx(tx_pdc);
+	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
 	/* Start Transmission */
 #ifndef USE_SSC_TX_TF_WORKAROUND
 	AT91F_SSC_EnableTx(AT91C_BASE_SSC);

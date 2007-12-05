@@ -206,6 +206,10 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 						DumpUIntToUSB((unsigned int)ssc_tx_buffer.source);
 						DumpStringToUSB(" ");
 						DumpUIntToUSB((unsigned int)&ATQA_FRAME);
+						DumpStringToUSB(" ");
+                                                DumpUIntToUSB(ssc_tx_buffer.len);
+                                                DumpStringToUSB(" ");
+                                                DumpBufferToUSB((char*)ssc_tx_buffer.data, ssc_tx_buffer.len);
 						DumpStringToUSB("\n\r");
 						state=INITIAL_STATE;
 						if(INITIAL_STATE == IDLE)
