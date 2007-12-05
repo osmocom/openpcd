@@ -38,7 +38,7 @@ typedef void (*ssc_irq_ext_t)(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t
  * than acceptable for the synchronous responses (around 87us).*/ 
 extern ssc_irq_ext_t ssc_set_irq_extension(ssc_irq_ext_t ext_handler);
 
-extern portBASE_TYPE ssc_get_overflows(void);
+extern int ssc_get_overflows(void);
 extern int ssc_count_free(void);
 
 #define SSC_DMA_BUFFER_SIZE 2048
@@ -55,7 +55,7 @@ typedef enum {
 typedef struct {
 	volatile ssc_dma_buffer_state_t state;
 	u_int32_t len;  /* Length of the content */
-	enum ssc_mode reception_mode;
+	enum ssc_mode reception_mode; /* The SSC mode that the buffer has been loaded for (affects element size and count) */
 	u_int8_t data[SSC_DMA_BUFFER_SIZE];
 } ssc_dma_rx_buffer_t;
 

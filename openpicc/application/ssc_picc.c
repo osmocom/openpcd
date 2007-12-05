@@ -48,16 +48,57 @@
 #include "usb_print.h"
 #include "iso14443_layer3a.h"
 
-//#define DEBUG_SSC_REFILL
+#define DEBUG_SSC_REFILL 1
+#ifdef DEBUG_SSC_REFILL
+#define DEBUGR(x, args ...) DEBUGPCRF(x, ## args)
+#else
+#define DEBUGR(x, args ...)
+#endif
+
 
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
 static AT91PS_PDC tx_pdc;
 
-static ssc_dma_rx_buffer_t dma_buffers[SSC_DMA_BUFFER_COUNT];
 xQueueHandle ssc_rx_queue = NULL;
 
+struct ssc_state {
+	ssc_dma_rx_buffer_t* buffer[2];
+	enum ssc_mode mode;
+};
+static struct ssc_state ssc_state;
+
+/* Note: Only use 8, 16 or 32 for the transfersize. (These are the sizes used by the PDC and even though
+ * the SSC supports different sizes, all PDC tranfers will be either 8, 16 or 32, rounding up.) */
+static const struct {u_int16_t transfersize; u_int16_t transfers;} ssc_sizes[] = {
+	/* Undefined, no size set */
+	[SSC_MODE_NONE]		   = {0, 0},
+	/* 14443A Short Frame: 1 transfer of ISO14443A_SHORT_LEN bits */
+	[SSC_MODE_14443A_SHORT]	   = {ISO14443A_SHORT_TRANSFER_SIZE, 1},
+	/* 14443A Standard Frame: FIXME 16 transfers of 32 bits (maximum number), resulting in 512 samples */ 
+	[SSC_MODE_14443A_STANDARD] = {32, 16},	
+	[SSC_MODE_14443B]	   = {32, 16},	/* 64 bytes */
+	[SSC_MODE_EDGE_ONE_SHOT]   = {32, 16},	/* 64 bytes */
+	[SSC_MODE_CONTINUOUS]	   = {32, 511},	/* 2044 bytes */
+};
+
+/* ************** SSC BUFFER HANDLING *********************** */
+static ssc_dma_rx_buffer_t dma_buffers[SSC_DMA_BUFFER_COUNT];
 ssc_dma_tx_buffer_t ssc_tx_buffer;
+
+static volatile int overflows;
+static volatile int ssc_buffer_errors;
+int ssc_get_overflows(void) {
+	return 1000*ssc_buffer_errors + overflows;
+}
+
+int ssc_count_free(void) {
+	int i,free = 0;
+	for(i=0; i<SSC_DMA_BUFFER_COUNT; i++) {
+		if(dma_buffers[i].state == FREE) free++;
+	}
+	return free;
+}
 
 static ssc_dma_rx_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t oldstate, 
 	ssc_dma_buffer_state_t newstate)
@@ -74,20 +115,88 @@ static ssc_dma_rx_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t
 	return result;
 }
 
-struct ssc_state {
-	ssc_dma_rx_buffer_t* buffer[2];
-	enum ssc_mode mode;
-};
-static struct ssc_state ssc_state;
 
-static const struct {u_int16_t bytes; u_int16_t transfers;} ssc_dmasize[] = {
-	[SSC_MODE_NONE]			= {0, 0},
-	[SSC_MODE_14443A_SHORT]		= {ISO14443A_SHORT_TRANSFER_SIZE/8, 1},	/* 1 transfer of ISO14443A_SHORT_LEN bits */
-	[SSC_MODE_14443A_STANDARD]	= {16*4, 16},	/* 16 transfers of 32 bits (maximum number), resulting in 512 samples */
-	[SSC_MODE_14443B]		= {16*4, 16},	/* 64 bytes */
-	[SSC_MODE_EDGE_ONE_SHOT] 	= {16*4, 16},	/* 64 bytes */
-	[SSC_MODE_CONTINUOUS]		= {511*4, 511},	/* 2044 bytes */
-};
+static int __ramfunc __ssc_rx_load(int secondary);
+static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary);
+/* 
+ * Find and load an RX buffer into the DMA controller, using the current SSC mode
+ */
+static int __ramfunc __ssc_rx_load(int secondary)
+{
+	ssc_dma_rx_buffer_t *buffer;
+	
+	buffer = ssc_find_dma_buffer(FREE, PENDING);
+	if (!buffer) {
+		DEBUGP("no_rctx_for_refill! ");
+		overflows++;
+		return -1;
+	}
+	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
+		req_ctx_num(buffer), buffer->size);
+	buffer->len = ssc_sizes[ssc_state.mode].transfersize * ssc_sizes[ssc_state.mode].transfers;
+	
+	if(ssc_state.buffer[secondary] != NULL) { 
+		/* This condition is not expected to happen and would probably indicate a bug 
+		 * of some sort. However, instead of leaking buffers we'll just pretend it to
+		 * be free again. */
+		 ssc_buffer_errors++;
+		 if(ssc_state.buffer[secondary]->state == PENDING) {
+		 	ssc_state.buffer[secondary]->state = FREE;
+		 }
+	}
+	
+	if (secondary) {
+		AT91F_PDC_SetNextRx(rx_pdc, buffer->data,
+				    ssc_sizes[ssc_state.mode].transfers);
+		ssc_state.buffer[1] = buffer;
+	} else {
+		AT91F_PDC_SetRx(rx_pdc, buffer->data,
+				ssc_sizes[ssc_state.mode].transfers);
+		ssc_state.buffer[0] = buffer;
+	}
+
+	return 0;
+}
+
+/*
+ * Take the RX buffer(s) from the DMA controller, e.g. to abort a currently executing receive process and
+ * either reclaim the buffer(s) (if no transfer have been done so far) or mark them as used, updating 
+ * the length fields to match the number of transfers that have actually executed.
+ * Warning: When this function executes, the mapping in ssc_state is expected to match the mapping in
+ * the PDC (e.g. ssc_state[0] is the RX Buffer and ssc_state[1] is the Next RX Buffer). Do not use this
+ * function while the PDC transfer is enabled. Especially do not run it from the SSC RX IRQ.
+ */
+static int __ramfunc __ssc_tx_unload_all(ssc_dma_rx_buffer_t** primary, ssc_dma_rx_buffer_t** secondary)
+{
+	if(primary != NULL)   *primary   = __ssc_rx_unload(0); else __ssc_rx_unload(0);
+	if(secondary != NULL) *secondary = __ssc_rx_unload(1); else __ssc_rx_unload(1);
+	return 1;
+}
+static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
+{
+	ssc_dma_rx_buffer_t *buffer = ssc_state.buffer[secondary];
+	if(buffer == NULL) return NULL;
+	
+	u_int16_t remaining_transfers = (secondary ? rx_pdc->PDC_RNCR : rx_pdc->PDC_RCR);
+	u_int8_t* next_transfer_location = (u_int8_t*)(secondary ? rx_pdc->PDC_RNPR : rx_pdc->PDC_RPR);
+	u_int32_t remaining_size = ssc_sizes[buffer->reception_mode].transfersize *  remaining_transfers;
+	/* Consistency check */
+	if( next_transfer_location - remaining_size != buffer->data ) {
+		ssc_buffer_errors++;
+		if(buffer->state == PENDING) buffer->state = FREE;
+		ssc_state.buffer[secondary] = NULL;
+		return NULL;
+	}
+	
+	if(secondary) {
+		AT91F_PDC_SetNextRx(rx_pdc, 0, 0);
+	} else {
+		AT91F_PDC_SetRx(rx_pdc, 0, 0);
+	}
+	ssc_state.buffer[secondary] = NULL;
+	 
+	return buffer;
+}
 
 #define SSC_RX_IRQ_MASK	(AT91C_SSC_RXRDY | 	\
 			 AT91C_SSC_OVRUN | 	\
@@ -200,9 +309,10 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | start_cond;
 	
 	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
+	AT91F_PDC_SetNextTx(tx_pdc, 0, 0);
 	buf->state = PENDING;
 
-	AT91F_SSC_EnableIt(ssc, AT91C_SSC_TXSYN | AT91C_SSC_ENDTX | AT91C_SSC_TXBUFE);
+	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDTX);
 	/* Enable DMA */
 	AT91F_PDC_EnableTx(tx_pdc);
 	/* Start Transmission */
@@ -241,60 +351,11 @@ void ssc_tf_irq(u_int32_t pio) {
 //	rctx->tot_len = sizeof(opcd_ssc_hdr);
 //}
 
-#define DEBUG_SSC_REFILL 1
-#ifdef DEBUG_SSC_REFILL
-#define DEBUGR(x, args ...) DEBUGPCRF(x, ## args)
-#else
-#define DEBUGR(x, args ...)
-#endif
-
-static volatile portBASE_TYPE overflows;
-portBASE_TYPE ssc_get_overflows(void) {
-	return overflows;
-}
-
-int ssc_count_free(void) {
-	int i,free = 0;
-	for(i=0; i<SSC_DMA_BUFFER_COUNT; i++) {
-		if(dma_buffers[i].state == FREE) free++;
-	}
-	return free;
-}
-
 static ssc_irq_ext_t irq_extension = NULL;
 ssc_irq_ext_t ssc_set_irq_extension(ssc_irq_ext_t ext_handler) {
 	ssc_irq_ext_t old = irq_extension;
 	irq_extension = ext_handler;
 	return old;
-}
-
-static int __ramfunc __ssc_rx_refill(int secondary)
-{
-	ssc_dma_rx_buffer_t *buffer;
-	
-	buffer = ssc_find_dma_buffer(FREE, PENDING);
-	if (!buffer) {
-		DEBUGP("no_rctx_for_refill! ");
-		overflows++;
-		return -1;
-	}
-	//init_opcdhdr(buffer);
-	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
-		req_ctx_num(buffer), buffer->size);
-	buffer->len = ssc_dmasize[ssc_state.mode].bytes;
-	if (secondary) {
-		AT91F_PDC_SetNextRx(rx_pdc, buffer->data,
-				    ssc_dmasize[ssc_state.mode].transfers);
-		ssc_state.buffer[1] = buffer;
-	} else {
-		AT91F_PDC_SetRx(rx_pdc, buffer->data,
-				ssc_dmasize[ssc_state.mode].transfers);
-		ssc_state.buffer[0] = buffer;
-	}
-
-	//tc_cdiv_sync_reset();
-	
-	return 0;
 }
 
 void __ramfunc ssc_rx_stop_frame_ended(void)
@@ -315,18 +376,6 @@ static void __ramfunc ssc_irq(void)
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 	
 	if (ssc_sr & AT91C_SSC_ENDRX) {
-#if 1
-		/* in a one-shot sample, we don't want to keep
-		 * sampling further after having received the first
-		 * packet.  */
-		if (ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT
-			|| ssc_state.mode == SSC_MODE_14443A_STANDARD) {
-			DEBUGP("DISABLE_RX ");
-			ssc_rx_stop();
-			vLedSetGreen(1);
-		}
-		//AT91F_SSC_DisableIt(AT91C_BASE_SSC, SSC_RX_IRQ_MASK);
-#endif
 		/* Ignore empty frames */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
 			tmp = (u_int32_t*)ssc_state.buffer[0]->data;
@@ -356,12 +405,14 @@ static void __ramfunc ssc_irq(void)
 			ssc_state.buffer[0]->state = FREE;
 			//gaportEXIT_CRITICAL();			
 		}
+		vLedSetGreen(1);
 
 		/* second buffer gets propagated to primary */
 		inbuf = ssc_state.buffer[0];
 		ssc_state.buffer[0] = ssc_state.buffer[1];
 		ssc_state.buffer[1] = NULL;
-		if(ssc_state.mode == SSC_MODE_14443A_SHORT) {
+		if(ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT
+			|| ssc_state.mode == SSC_MODE_14443A_SHORT) {
 			// Stop sampling here
 			ssc_rx_stop();
 		} else {
@@ -375,13 +426,13 @@ static void __ramfunc ssc_irq(void)
 					//gaportEXIT_CRITICAL();
 					task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
 				}
-				if (__ssc_rx_refill(0) == -1)
+				if (__ssc_rx_load(0) == -1)
 					AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 							    AT91C_SSC_RXBUFF |
 							    AT91C_SSC_OVRUN);
 			}
 	
-			if (__ssc_rx_refill(1) == -1)
+			if (__ssc_rx_load(1) == -1)
 				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 						    AT91C_SSC_RXBUFF |
 						    AT91C_SSC_OVRUN);
@@ -397,9 +448,14 @@ static void __ramfunc ssc_irq(void)
 	if (ssc_sr & AT91C_SSC_TXSYN)
 		DEBUGP("TXSYN ");
 	
+	/* Why does this interrupt trigger _before_ even starting a transmission, but _not_ when the
+	 * transmission actually finishes? */
 	if(ssc_sr & AT91C_SSC_ENDTX) {
-		if(ssc_tx_buffer.state == PENDING)
+		//usb_print_string_f("ENDTX ", 0);
+		if(ssc_tx_buffer.state == PENDING) {
 			ssc_tx_buffer.state = FREE;
+			AT91F_SSC_DisableIt(ssc, SSC_TX_IRQ_MASK);
+		}
 	}
 
 	if(ssc_sr & AT91C_SSC_TXBUFE)
@@ -436,12 +492,13 @@ void ssc_rx_start(void)
 {
 	//DEBUGPCRF("starting SSC RX\n");
 	
-	__ssc_rx_refill(0);
-	if(ssc_state.mode != SSC_MODE_14443A_SHORT) __ssc_rx_refill(1);
+	__ssc_rx_load(0);
+	if(ssc_state.mode != SSC_MODE_14443A_SHORT) __ssc_rx_load(1);
 	
 	/* Enable Reception */
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
+	AT91F_PDC_EnableRx(rx_pdc);
 	AT91F_SSC_EnableRx(AT91C_BASE_SSC);
 	
 	/* Clear the flipflop */
@@ -452,6 +509,9 @@ void ssc_rx_stop(void)
 {
 	/* Disable reception */
 	AT91F_SSC_DisableRx(AT91C_BASE_SSC);
+	AT91F_PDC_DisableRx(rx_pdc);
+	__ssc_tx_unload_all(NULL, NULL);
+	AT91F_SSC_DisableIt(ssc, SSC_RX_IRQ_MASK);
 }
 
 void ssc_tx_init(void)
@@ -468,31 +528,6 @@ void ssc_tx_init(void)
 	
 	tx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 }
-
-//static int ssc_usb_in(struct req_ctx *rctx)
-//{
-// FIXME
-//	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
-//
-//	switch (poh->cmd) {
-//	case OPENPCD_CMD_SSC_READ:
-//		/* FIXME: allow host to specify mode */
-//		ssc_rx_mode_set(SSC_MODE_EDGE_ONE_SHOT);
-//		ssc_rx_start();
-//		req_ctx_put(rctx);
-//		return 0;
-//		break;
-//	case OPENPCD_CMD_SSC_WRITE:
-//		/* FIXME: implement this */
-//		//ssc_tx_start()
-//		break;
-//	default:
-//		return USB_ERR(USB_ERR_CMD_UNKNOWN);
-//		break;
-//	}
-//
-//	return (poh->flags & OPENPCD_FLAG_RESPOND) ? USB_RET_RESPOND : 0;
-//}
 
 void ssc_rx_init(void)
 { 
@@ -516,7 +551,7 @@ void ssc_rx_init(void)
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_SSC,
 			      OPENPICC_IRQ_PRIO_SSC,
-			      AT91C_AIC_SRCTYPE_INT_POSITIVE_EDGE, (THandler)&ssc_irq);
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&ssc_irq);
 
 	/* don't divide clock inside SSC, we do that in tc_cdiv */
 	ssc->SSC_CMR = 0;

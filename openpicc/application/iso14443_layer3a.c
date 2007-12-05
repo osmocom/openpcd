@@ -66,6 +66,7 @@ const iso14443_frame NULL_FRAME = {
 #define INITIAL_STATE IDLE
 //#define INITIAL_STATE ACTIVE
 
+static int atqa_sent = 0;
 /* Running in ISR mode */
 void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t* samples)
 {
@@ -90,6 +91,7 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 				vLedSetGreen(1);
 				tc_cdiv_set_divider(8);
 				ssc_tx_start(&ssc_tx_buffer);
+				atqa_sent = 1;
 				vLedSetGreen(0);
 			}
 		vLedSetGreen(1);
@@ -182,11 +184,6 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				pll_init();
 			    
 				tc_cdiv_init();
-#ifdef FOUR_TIMES_OVERSAMPLING
-				tc_cdiv_set_divider(32);
-#else
-				tc_cdiv_set_divider(64);
-#endif
 				tc_fdt_init();
 				ssc_set_irq_extension((ssc_irq_ext_t)iso14443_layer3a_irq_ext);
 				ssc_rx_init();
@@ -216,6 +213,11 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 						else if(INITIAL_STATE == ACTIVE)
 							ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
 						else ssc_rx_mode_set(SSC_MODE_NONE);
+#ifdef FOUR_TIMES_OVERSAMPLING
+						tc_cdiv_set_divider(32);
+#else
+						tc_cdiv_set_divider(64);
+#endif
 						ssc_rx_start();
 					} else {
 						LAYER3_DEBUG("SSC TX overflow error, please debug");
@@ -236,7 +238,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 		}
 		
 		if(need_receive) {
-			if(xQueueReceive(ssc_rx_queue, &buffer, portTICK_RATE_MS)) {
+			if(xQueueReceive(ssc_rx_queue, &buffer, portTICK_RATE_MS) && buffer != NULL) {
 				vLedSetGreen(0);
 				portENTER_CRITICAL();
 				buffer->state = PROCESSING;
@@ -255,48 +257,29 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 							/* Need to transmit ATQA */
 							LAYER3_DEBUG("Received ");
 							LAYER3_DEBUG(first_sample == WUPA ? "WUPA" : "REQA");
-							LAYER3_DEBUG(" waking up to send ATQA\n\r");
-							if(ssc_tx_buffer.state == PROCESSING) {
-								LAYER3_DEBUG("Buffer ");
-								DumpUIntToUSB(ssc_tx_buffer.len);
-								LAYER3_DEBUG(" ");
-								DumpBufferToUSB((char*)ssc_tx_buffer.data, ssc_tx_buffer.len);
-								LAYER3_DEBUG("\n\r");
+							if(atqa_sent) {
+								LAYER3_DEBUG(", woke up to send ATQA\n\r");
+								atqa_sent = 0;
 							}
-							/*portENTER_CRITICAL();
-							if(ssc_tx_buffer.state != FREE) {
-								portEXIT_CRITICAL();
-								* Wait for another frame */ /*
+							/* For debugging, wait 1ms, then wait for another frame */
+							vTaskDelay(portTICK_RATE_MS);
+							if(prefill_buffer(&ssc_tx_buffer, &ATQA_FRAME)) {
 								ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+#ifdef FOUR_TIMES_OVERSAMPLING
+								tc_cdiv_set_divider(32);
+#else
+								tc_cdiv_set_divider(64);
+#endif
 								ssc_rx_start();
-							} else {
-								ssc_tx_buffer.state = PROCESSING;
-								portEXIT_CRITICAL();
-								ssc_tx_buffer.len = sizeof(ssc_tx_buffer.data);
-								unsigned int ret = 
-									manchester_encode(ssc_tx_buffer.data,
-										ssc_tx_buffer.len,
-										&ATQA_FRAME);
-								if(ret>0) {
-									ssc_tx_buffer.len = ret;
-									ssc_tx_start(&ssc_tx_buffer);
-									LAYER3_DEBUG("Buffer ");
-									DumpUIntToUSB(ret);
-									LAYER3_DEBUG(" ");
-									DumpBufferToUSB((char*)ssc_tx_buffer.data, ssc_tx_buffer.len);
-									LAYER3_DEBUG("\n\r");
-								} else {
-									portENTER_CRITICAL();
-									ssc_tx_buffer.state = FREE;
-									portEXIT_CRITICAL();
-									* Wait for another frame */ /*
-									ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
-									ssc_rx_start();
-								}
-							}*/
+							}
 						} else {
 							/* Wait for another frame */
 							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+#ifdef FOUR_TIMES_OVERSAMPLING
+							tc_cdiv_set_divider(32);
+#else
+							tc_cdiv_set_divider(64);
+#endif
 							ssc_rx_start();
 						}
 						break;

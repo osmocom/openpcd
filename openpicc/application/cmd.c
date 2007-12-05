@@ -281,6 +281,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * SSC_TCR value: ");
 		    DumpUIntToUSB(*AT91C_SSC_TCR);
 		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_IMR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_IMR);
+		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
 			" *****************************************************\n\r"

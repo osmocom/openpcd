@@ -29,7 +29,7 @@
 #include "led.h"
 /**********************************************************************/
 
-#define BLINK_TIME 10
+#define BLINK_TIME 5
 
 void vLedSetRed(bool_t on)
 {
