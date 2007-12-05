@@ -450,8 +450,6 @@ static void __ramfunc ssc_irq(void)
 	if (ssc_sr & AT91C_SSC_TXSYN)
 		DEBUGP("TXSYN ");
 	
-	/* Why does this interrupt trigger _before_ even starting a transmission, but _not_ when the
-	 * transmission actually finishes? */
 	if(ssc_sr & AT91C_SSC_ENDTX) {
 		//usb_print_string_f("ENDTX ", 0);
 		if(ssc_tx_buffer.state == PENDING) {
