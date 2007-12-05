@@ -59,9 +59,6 @@ xQueueHandle ssc_rx_queue = NULL;
 
 ssc_dma_tx_buffer_t ssc_tx_buffer;
 
-#define TEST_WHETHER_NOT_ENABLING_IT_HELPS
-#define TEST_WHETHER_THIS_INTERRUPT_WORKS_AT_ALL
-
 static ssc_dma_rx_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t oldstate, 
 	ssc_dma_buffer_state_t newstate)
 {
@@ -162,11 +159,9 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 	AT91F_PDC_EnableRx(rx_pdc);
 
 	/* Enable RX interrupts */
-#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 /*
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN | AT91C_SSC_CP0 |
 			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);*/
-#endif
 out_set_mode:
 	ssc_state.mode = ssc_mode;
 }
@@ -207,9 +202,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
 	buf->state = PENDING;
 
-#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_TXSYN | AT91C_SSC_ENDTX | AT91C_SSC_TXBUFE);
-#endif
 	/* Enable DMA */
 	AT91F_PDC_EnableTx(tx_pdc);
 	/* Start Transmission */
@@ -304,6 +297,10 @@ static int __ramfunc __ssc_rx_refill(int secondary)
 	return 0;
 }
 
+void __ramfunc ssc_rx_stop_frame_ended(void)
+{
+}
+
 static void __ramfunc ssc_irq(void) __attribute__ ((naked));
 static void __ramfunc ssc_irq(void)
 {
@@ -311,7 +308,6 @@ static void __ramfunc ssc_irq(void)
 	vLedSetRed(1);
 	portBASE_TYPE task_woken = pdFALSE;
 
-#ifdef TEST_WHETHER_THIS_INTERRUPT_WORKS_AT_ALL
 	u_int32_t ssc_sr = ssc->SSC_SR;
 	int i, emptyframe = 0;
 	u_int32_t *tmp;
@@ -413,7 +409,6 @@ static void __ramfunc ssc_irq(void)
 		irq_extension(ssc_sr, ssc_state.mode, inbuf?inbuf->data:NULL);
 
 
-#endif
 	DEBUGPCR("I");
 	AT91F_AIC_ClearIt(AT91C_ID_SSC);
 	AT91F_AIC_AcknowledgeIt();
@@ -433,10 +428,8 @@ void ssc_print(void)
 
 void ssc_rx_unthrottle(void)
 {
-#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
-#endif
 }
 
 void ssc_rx_start(void)
@@ -447,10 +440,8 @@ void ssc_rx_start(void)
 	if(ssc_state.mode != SSC_MODE_14443A_SHORT) __ssc_rx_refill(1);
 	
 	/* Enable Reception */
-#ifdef TEST_WHETHER_NOT_ENABLING_IT_HELPS
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDRX | AT91C_SSC_CP0 |
 			   AT91C_SSC_RXBUFF | AT91C_SSC_OVRUN);
-#endif
 	AT91F_SSC_EnableRx(AT91C_BASE_SSC);
 	
 	/* Clear the flipflop */

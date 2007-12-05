@@ -14,6 +14,7 @@ extern void ssc_rx_init(void);
 extern void ssc_fini(void);
 extern void ssc_rx_stop(void);
 extern void ssc_rx_unthrottle(void);
+extern void __ramfunc ssc_rx_stop_frame_ended(void);
 
 
 enum ssc_mode {

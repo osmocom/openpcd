@@ -40,6 +40,7 @@
 #include "tc_cdiv.h"
 #include "tc_fdt.h"
 #include "usb_print.h"
+#include "ssc_picc.h"
 
 static AT91PS_TC tcfdt = AT91C_BASE_TC2;
 
@@ -56,8 +57,8 @@ void tc_frame_end_set(u_int16_t count)
 	tcfdt->TC_RB = count;
 }
 
-static void tc_fdt_irq(void) __attribute__ ((naked));
-static void tc_fdt_irq(void)
+static void __ramfunc tc_fdt_irq(void) __attribute__ ((naked));
+static void __ramfunc tc_fdt_irq(void)
 {
 	portSAVE_CONTEXT();
 	//vLedSetGreen(1);
@@ -66,25 +67,17 @@ static void tc_fdt_irq(void)
 		sr, tcfdt->TC_CV);
 
 	if (sr & AT91C_TC_ETRGS) {
-		usb_print_string_f("tc_etrgs ", 0);
 		DEBUGP("Ext_trigger ");
 	}
 	if (sr & AT91C_TC_CPAS) {
-	usb_print_string_f("tc_cpas ", 0);
 		DEBUGP("FDT_expired ");
-		/* FIXME: if we are in anticol / sync mode,
-		 * we could do software triggering of SSC TX,
-		 * but IIRC the hardware does this by TF */
 	}
 	if (sr & AT91C_TC_CPBS) {
 	usb_print_string_f("tc_cpbs ", 0);
 		DEBUGP("Frame_end ");
-		/* FIXME: stop ssc (in continuous mode),
-		 * take care of preparing synchronous response if
-		 * we operate in anticol mode.*/
+		ssc_rx_stop_frame_ended();
 	}
 	if (sr & AT91C_TC_CPCS) {
-		usb_print_string_f("tc_cpcs ", 0);
 		DEBUGP("Compare_C ");
 	}
 	DEBUGPCR("");
@@ -131,9 +124,8 @@ void tc_fdt_init(void)
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_TC2,
 			      OPENPCD_IRQ_PRIO_TC_FDT,
-			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &tc_fdt_irq);
+			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&tc_fdt_irq);
 	AT91F_AIC_EnableIt(AT91C_ID_TC2);
-	(void)tc_fdt_irq;// FIXME NO IRQ
 
 	tcfdt->TC_IER = AT91C_TC_CPAS | AT91C_TC_CPBS | AT91C_TC_CPCS | 
 			AT91C_TC_ETRGS;
