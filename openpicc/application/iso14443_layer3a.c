@@ -244,6 +244,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 		if(need_receive) {
 			if(xQueueReceive(ssc_rx_queue, &buffer, portTICK_RATE_MS) && buffer != NULL) {
 				vLedSetGreen(0);
+				vLedBlinkGreen();
 				portENTER_CRITICAL();
 				buffer->state = PROCESSING;
 				portEXIT_CRITICAL();

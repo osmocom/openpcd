@@ -193,6 +193,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	} else {
 		AT91F_PDC_SetRx(rx_pdc, 0, 0);
 	}
+	if(buffer->state == PENDING) buffer->state = FREE;
 	ssc_state.buffer[secondary] = NULL;
 	 
 	return buffer;
@@ -414,7 +415,7 @@ static void __ramfunc ssc_irq(void)
 		ssc_state.buffer[0] = ssc_state.buffer[1];
 		ssc_state.buffer[1] = NULL;
 		if(ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT
-			|| ssc_state.mode == SSC_MODE_14443A_SHORT) {
+			|| ssc_state.mode == SSC_MODE_14443A_STANDARD) {
 			// Stop sampling here
 			ssc_rx_stop();
 		} else {
@@ -428,13 +429,13 @@ static void __ramfunc ssc_irq(void)
 					//gaportEXIT_CRITICAL();
 					task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
 				}
-				if (__ssc_rx_load(0) == -1)
+				if(ssc_sr & AT91C_SSC_RXENA) if (__ssc_rx_load(0) == -1)
 					AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 							    AT91C_SSC_RXBUFF |
 							    AT91C_SSC_OVRUN);
 			}
 	
-			if (__ssc_rx_load(1) == -1)
+			if(ssc_sr & AT91C_SSC_RXENA) if (__ssc_rx_load(1) == -1)
 				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 						    AT91C_SSC_RXBUFF |
 						    AT91C_SSC_OVRUN);
