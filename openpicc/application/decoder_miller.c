@@ -56,7 +56,7 @@
 #define SEQ_Z	0x1
 
 /* decode a single sampled bit */
-static u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)
+static inline u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)
 {
 	switch (sampled_bit) {
 	case SEQ_X:
