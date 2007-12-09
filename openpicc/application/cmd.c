@@ -106,6 +106,12 @@ int atoiEx(const char * nptr, char * * eptr)
 	return sign * curval;
 }
 
+static const struct {ssc_metric metric; char *description;} SSC_METRICS[] = {
+	{OVERFLOWS,     "overflows"},
+	{BUFFER_ERRORS, "internal buffer management errors"},
+	{FREE_BUFFERS,  "free rx buffers"},
+	{LATE_FRAMES,   "late frames"},
+};
 static const struct { int pin; char * description; } PIO_PINS[] = {
 	{OPENPICC_PIO_PLL_LOCK, "pll lock   "},
 	{OPENPICC_PIO_FRAME,    "frame start"},
@@ -128,6 +134,7 @@ void print_pio(void)
 	}
 	DumpStringToUSB(" *****************************************************\n\r");
 }
+
 
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
 #define SPI_MAX_XFER_LEN 33
@@ -264,15 +271,14 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * load_mod_level: ");
 		    DumpUIntToUSB(load_mod_level_set);
 		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC RX overflows: ");
-		    DumpUIntToUSB(ssc_get_overflows());
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC free buffers: ");
-		    DumpUIntToUSB(ssc_count_free());
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC late frames: ");
-		    DumpUIntToUSB(ssc_get_late_frames());
-		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC performance metrics:\n\r");
+		    for(i=0; i<(int)(sizeof(SSC_METRICS)/sizeof(SSC_METRICS[0])); i++) {
+		    	DumpStringToUSB(" * \t");
+		    	DumpStringToUSB(SSC_METRICS[i].description);
+		    	DumpStringToUSB(": ");
+		    	DumpUIntToUSB(ssc_get_metric(SSC_METRICS[i].metric));
+		    	DumpStringToUSB("\n\r");
+		    }
 		    DumpStringToUSB(" * SSC status: ");
 		    DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
 		    DumpStringToUSB("\n\r");

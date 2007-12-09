@@ -89,20 +89,34 @@ ssc_dma_tx_buffer_t ssc_tx_buffer;
 static volatile int overflows;
 static volatile int ssc_buffer_errors;
 static volatile int late_frames = 0;
-int ssc_get_overflows(void) {
-	return 1000*ssc_buffer_errors + overflows;
-}
 
-int ssc_get_late_frames(void) {
-	return late_frames;
-}
-
-int ssc_count_free(void) {
+static int ssc_count_free(void) {
 	int i,free = 0;
 	for(i=0; i<SSC_DMA_BUFFER_COUNT; i++) {
 		if(dma_buffers[i].state == FREE) free++;
 	}
 	return free;
+}
+
+int ssc_get_metric(ssc_metric metric) {
+	switch(metric) {
+		case OVERFLOWS:
+			return overflows;
+			break;
+		case BUFFER_ERRORS:
+			return ssc_buffer_errors;
+			break;
+		case FREE_BUFFERS:
+			return ssc_count_free();
+			break;
+		case LATE_FRAMES:
+			return late_frames;
+			break;
+		case SSC_ERRORS:
+			return ssc_get_metric(OVERFLOWS) + ssc_get_metric(BUFFER_ERRORS);
+			break;
+	}
+	return 0;
 }
 
 static ssc_dma_rx_buffer_t* __ramfunc ssc_find_dma_buffer(ssc_dma_buffer_state_t oldstate, 

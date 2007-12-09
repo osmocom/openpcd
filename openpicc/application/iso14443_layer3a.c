@@ -162,7 +162,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 		ssc_dma_rx_buffer_t* buffer = NULL;
 		portBASE_TYPE need_receive = 0, switch_on = 0;
 		
-		if(ssc_get_overflows() > 0 && state != ERROR) {
+		if(ssc_get_metric(SSC_ERRORS) > 0 && state != ERROR) {
 			LAYER3_DEBUG("SSC overflow error, please debug\n\r");
 			state = ERROR;
 		}

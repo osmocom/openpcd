@@ -38,9 +38,15 @@ typedef void (*ssc_irq_ext_t)(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t
  * than acceptable for the synchronous responses (around 87us).*/ 
 extern ssc_irq_ext_t ssc_set_irq_extension(ssc_irq_ext_t ext_handler);
 
-extern int ssc_get_overflows(void);
-extern int ssc_count_free(void);
-extern int ssc_get_late_frames(void);
+/* These are various SSC performance metrics that can be queried */
+typedef enum {
+	OVERFLOWS,     /* Overflows (e.g. no free buffer when reloading DMA controller) */
+	BUFFER_ERRORS, /* Internal buffer management errors */
+	FREE_BUFFERS,  /* Free RX buffers */
+	LATE_FRAMES,   /* Frames that were not ready to be sent when the FDT passed; e.g. sent too late */
+	SSC_ERRORS,    /* General error count, e.g. OVERFLOWS + BUFFER_ERRORS */
+} ssc_metric;
+extern int ssc_get_metric(ssc_metric metric);
 
 #define SSC_DMA_BUFFER_SIZE 2048
 #define SSC_DMA_BUFFER_COUNT 4
