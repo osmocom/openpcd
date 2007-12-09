@@ -40,6 +40,7 @@ extern ssc_irq_ext_t ssc_set_irq_extension(ssc_irq_ext_t ext_handler);
 
 extern int ssc_get_overflows(void);
 extern int ssc_count_free(void);
+extern int ssc_get_late_frames(void);
 
 #define SSC_DMA_BUFFER_SIZE 2048
 #define SSC_DMA_BUFFER_COUNT 4

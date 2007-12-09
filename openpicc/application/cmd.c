@@ -19,12 +19,16 @@
 #include "pio_irq.h"
 #include "ssc_picc.h"
 #include "usb_print.h"
+#include "load_modulation.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
 xTaskHandle xCmdRecvUsbTask;
 xTaskHandle xFieldMeterTask;
 xSemaphoreHandle xFieldMeterMutex;
+
+volatile int fdt_offset=0;
+volatile int load_mod_level_set=3;
 
 #if ( configUSE_TRACE_FACILITY == 1 )
 static signed portCHAR pcWriteBuffer[512];
@@ -40,7 +44,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?hq9f";
+static const char *SHORT_COMMANDS = "!pc+-l?hq9fjka";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -251,11 +255,23 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * current field strength: ");
 		    DumpUIntToUSB(adc_get_field_strength());
 		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * fdt_offset: ");
+		    if(fdt_offset < 0) {
+		    	DumpStringToUSB("-");
+		    	DumpUIntToUSB(-fdt_offset);
+		    } else DumpUIntToUSB(fdt_offset);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * load_mod_level: ");
+		    DumpUIntToUSB(load_mod_level_set);
+		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC RX overflows: ");
 		    DumpUIntToUSB(ssc_get_overflows());
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC free buffers: ");
 		    DumpUIntToUSB(ssc_count_free());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC late frames: ");
+		    DumpUIntToUSB(ssc_get_late_frames());
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC status: ");
 		    DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
@@ -315,6 +331,20 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case '!':
 		    tc_cdiv_sync_reset();
 		    break;
+		case 'J':
+		    fdt_offset++;
+		    DumpStringToUSB("fdt_offset is now ");
+		    if(fdt_offset<0) { DumpStringToUSB("-"); DumpUIntToUSB(-fdt_offset); }
+		    else { DumpStringToUSB("+"); DumpUIntToUSB(fdt_offset); }
+		    DumpStringToUSB("\n\r");
+		    break;
+		case 'K':
+		    fdt_offset--;
+		    DumpStringToUSB("fdt_offset is now ");
+		    if(fdt_offset<0) { DumpStringToUSB("-"); DumpUIntToUSB(-fdt_offset); }
+		    else { DumpStringToUSB("+"); DumpUIntToUSB(fdt_offset); }
+		    DumpStringToUSB("\n\r");
+		    break;
 		case 'F':
 		    startstop_field_meter();
 		    break;
@@ -331,6 +361,13 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    	DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
 		    	DumpStringToUSB("\n\r");
 		    }
+		    break;
+		case 'A':
+		    load_mod_level_set = (load_mod_level_set+1) % 4;
+		    load_mod_level(load_mod_level_set);
+		    DumpStringToUSB("load_mod_level is now ");
+		    DumpUIntToUSB(load_mod_level_set);
+		    DumpStringToUSB("\n\r");
 		    break;
 		case 'H':	
 		case '?':
@@ -359,6 +396,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * q    - start rx\n\r"
 			" * f    - start/stop field meter\n\r"
 			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
+			" * j,k  - increase, decrease fdt_offset\n\r"
+			" * a    - change load modulation level\n\r"
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"

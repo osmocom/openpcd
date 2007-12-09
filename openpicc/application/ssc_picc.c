@@ -88,8 +88,13 @@ ssc_dma_tx_buffer_t ssc_tx_buffer;
 
 static volatile int overflows;
 static volatile int ssc_buffer_errors;
+static volatile int late_frames = 0;
 int ssc_get_overflows(void) {
 	return 1000*ssc_buffer_errors + overflows;
+}
+
+int ssc_get_late_frames(void) {
+	return late_frames;
 }
 
 int ssc_count_free(void) {
@@ -327,6 +332,9 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) {
 		/* TF was probably already high when we enabled the PIO change interrupt for it. */
 		ssc_tf_irq(OPENPICC_SSC_TF);
+		vLedBlinkRed();
+		late_frames++;
+		usb_print_string_f("Late response\n\r", 0);
 	}
 #endif
 }
