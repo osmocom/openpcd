@@ -102,7 +102,7 @@ int manchester_encode(u_int8_t *sample_buf, u_int16_t sample_buf_len,
 	if(frame->type != TYPE_A) return -EINVAL;
 	if(frame->parameters.a.format != STANDARD_FRAME) return -EINVAL; /* AC not implemented yet */
 	
-	/* One bit data is 16 bit/2 byte modulation data */
+	/* One bit data is 16 bit is 2 byte modulation data */
 	enc_size = 2*2 /* SOF and EOF */
 		+ frame->numbytes * 8 * 2
 		+ ((frame->parameters.a.parity != NO_PARITY) ? 1 : 0)*8*2;
@@ -120,7 +120,8 @@ int manchester_encode(u_int8_t *sample_buf, u_int16_t sample_buf_len,
 			manchester_enc_byte(&samples16, frame->data[i], PARITY_NONE);
 	else if(frame->parameters.a.parity == GIVEN_PARITY)
 		for (i = 0; i < frame->numbytes; i++)
-			manchester_enc_byte(&samples16, frame->data[i], frame->parity[i]?PARITY_1:PARITY_0);
+			manchester_enc_byte(&samples16, frame->data[i], 
+				(frame->parity[i/8]&(1<<(i%8))) ?PARITY_1:PARITY_0);
 	else if(frame->parameters.a.parity == PARITY)
 		for (i = 0; i < frame->numbytes; i++)
 			manchester_enc_byte(&samples16, frame->data[i], ODD_PARITY);

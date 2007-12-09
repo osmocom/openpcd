@@ -96,7 +96,7 @@ typedef struct {
   u_int32_t numbytes;
   u_int8_t numbits, bit_offset;
   u_int8_t data[MAXIMUM_FRAME_SIZE];
-  u_int8_t parity[MAXIMUM_FRAME_SIZE]; /* Only the LSB of each byte is used */
+  u_int8_t parity[MAXIMUM_FRAME_SIZE/8+1]; /* parity bit for data[x] is in parity[x/8] & (1<<(x%8)) */
 } iso14443_frame;
 
 extern const iso14443_frame ATQA_FRAME;
