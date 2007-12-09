@@ -76,7 +76,7 @@ static const struct {u_int16_t transfersize; u_int16_t transfers;} ssc_sizes[] =
 	/* 14443A Short Frame: 1 transfer of ISO14443A_SHORT_LEN bits */
 	[SSC_MODE_14443A_SHORT]	   = {ISO14443A_SHORT_TRANSFER_SIZE, 1},
 	/* 14443A Standard Frame: FIXME 16 transfers of 32 bits (maximum number), resulting in 512 samples */ 
-	[SSC_MODE_14443A_STANDARD] = {32, 16},	
+	[SSC_MODE_14443A_STANDARD] = {32, 4},	
 	[SSC_MODE_14443B]	   = {32, 16},	/* 64 bytes */
 	[SSC_MODE_EDGE_ONE_SHOT]   = {32, 16},	/* 64 bytes */
 	[SSC_MODE_CONTINUOUS]	   = {32, 511},	/* 2044 bytes */

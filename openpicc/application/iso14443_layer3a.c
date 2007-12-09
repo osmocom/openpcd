@@ -54,7 +54,9 @@ const iso14443_frame NULL_FRAME = {
 	{{STANDARD_FRAME, PARITY}},
 	4, 
 	0, 0,
-	{0, 0, 0, 0},
+	//{0xF3, 0xFB, 0xAE, 0xED},
+	{0xFF, 0xFF, 0xFF, 0xFF},
+	//{0, 0, 0, 0},
 	{}
 };
 
@@ -65,6 +67,12 @@ const iso14443_frame NULL_FRAME = {
 
 #define INITIAL_STATE IDLE
 //#define INITIAL_STATE ACTIVE
+
+#if INITIAL_STATE == IDLE
+#define INITIAL_FRAME ATQA_FRAME
+#else
+#define INITIAL_FRAME NULL_FRAME
+#endif
 
 static int atqa_sent = 0;
 /* Running in ISR mode */
@@ -129,6 +137,19 @@ static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) 
 		return FALSE;
 	}
 	
+}
+
+static u_int8_t received_buffer[256];
+
+static void enable_reception(enum ssc_mode mode) {
+	tc_fdt_set(ISO14443A_FDT_SHORT_0);
+	ssc_rx_mode_set(mode);
+#ifdef FOUR_TIMES_OVERSAMPLING
+	tc_cdiv_set_divider(32);
+#else
+	tc_cdiv_set_divider(64);
+#endif
+	ssc_rx_start();
 }
 
 extern void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount);
@@ -199,13 +220,13 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				break;
 			case POWERED_OFF:
 				if(switch_on == 1) {
-					if(prefill_buffer(&ssc_tx_buffer, &ATQA_FRAME)) {
+					if(prefill_buffer(&ssc_tx_buffer, &INITIAL_FRAME)) {
 						LAYER3_DEBUG("Buffer prefilled\n\r");
 						DumpUIntToUSB(ssc_tx_buffer.state);
 						DumpStringToUSB(" ");
 						DumpUIntToUSB((unsigned int)ssc_tx_buffer.source);
 						DumpStringToUSB(" ");
-						DumpUIntToUSB((unsigned int)&ATQA_FRAME);
+						DumpUIntToUSB((unsigned int)&INITIAL_FRAME);
 						DumpStringToUSB(" ");
                                                 DumpUIntToUSB(ssc_tx_buffer.len);
                                                 DumpStringToUSB(" ");
@@ -213,16 +234,10 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 						DumpStringToUSB("\n\r");
 						state=INITIAL_STATE;
 						if(INITIAL_STATE == IDLE)
-							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
+							enable_reception(SSC_MODE_14443A_SHORT);
 						else if(INITIAL_STATE == ACTIVE)
-							ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
-						else ssc_rx_mode_set(SSC_MODE_NONE);
-#ifdef FOUR_TIMES_OVERSAMPLING
-						tc_cdiv_set_divider(32);
-#else
-						tc_cdiv_set_divider(64);
-#endif
-						ssc_rx_start();
+							enable_reception(SSC_MODE_14443A_STANDARD);
+						else enable_reception(SSC_MODE_NONE);
 					} else {
 						LAYER3_DEBUG("SSC TX overflow error, please debug");
 						state=ERROR;
@@ -250,10 +265,13 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				portEXIT_CRITICAL();
 				u_int32_t first_sample = *(u_int32_t*)buffer->data;
 				
-				DumpStringToUSB("Frame: ");
-				DumpUIntToUSB(first_sample);
-				DumpStringToUSB(" ");
-				main_help_print_buffer(buffer, &pktcount);
+				if(0) {
+					DumpStringToUSB("Frame: ");
+					DumpUIntToUSB(first_sample);
+					DumpStringToUSB(" ");
+					main_help_print_buffer(buffer, &pktcount);
+				}
+				vLedBlinkGreen();
 				
 				switch(state) {
 					case IDLE:
@@ -266,33 +284,47 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 								LAYER3_DEBUG(", woke up to send ATQA\n\r");
 								atqa_sent = 0;
 							}
-							/* For debugging, wait 1ms, then wait for another frame */
+							/* For debugging, wait 1ms, then wait for another frame 
+							 * Normally we'd go to anticol from here*/
 							vTaskDelay(portTICK_RATE_MS);
 							if(prefill_buffer(&ssc_tx_buffer, &ATQA_FRAME)) {
-								ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
-#ifdef FOUR_TIMES_OVERSAMPLING
-								tc_cdiv_set_divider(32);
-#else
-								tc_cdiv_set_divider(64);
-#endif
-								ssc_rx_start();
+								enable_reception(SSC_MODE_14443A_SHORT);
 							}
 						} else {
 							/* Wait for another frame */
-							ssc_rx_mode_set(SSC_MODE_14443A_SHORT);
-#ifdef FOUR_TIMES_OVERSAMPLING
-							tc_cdiv_set_divider(32);
-#else
-							tc_cdiv_set_divider(64);
-#endif
-							ssc_rx_start();
+							enable_reception(SSC_MODE_14443A_SHORT);
 						}
 						break;
 					case ACTIVE:
 					case ACTIVE_STAR:
+							if(0) {
+								DumpStringToUSB("Decoded: ");
+								decoder_decode(DECODER_MILLER, (const char*)buffer->data, buffer->len, received_buffer);
+								DumpBufferToUSB((char*)received_buffer, 100);
+								DumpStringToUSB("\n\r");
+							}
 							/* Wait for another frame */
-							ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
-							ssc_rx_start();
+							if(0) {
+								ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
+								ssc_rx_start();
+							} else {
+								//vTaskDelay(portTICK_RATE_MS);
+								if(ssc_tx_buffer.source == &ATQA_FRAME) ssc_tx_buffer.state = FREE;
+								if(prefill_buffer(&ssc_tx_buffer, &NULL_FRAME)) {
+									usb_print_string_f("Sending response ...",0);
+									ssc_tx_buffer.state = PROCESSING;
+									tc_cdiv_set_divider(8);
+									tc_fdt_set_to_next_slot(1);
+									ssc_tx_start(&ssc_tx_buffer);
+									while( ssc_tx_buffer.state != FREE ) {
+										vTaskDelay(portTICK_RATE_MS);
+									}
+									usb_print_string("done\n\r");
+									usb_print_flush();
+								}
+							/* Wait for another frame */
+							enable_reception(SSC_MODE_14443A_STANDARD);
+							}
 					default:
 						break;
 				}

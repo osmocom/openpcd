@@ -41,12 +41,25 @@
 #include "tc_fdt.h"
 #include "usb_print.h"
 #include "ssc_picc.h"
+#include "cmd.h"
 
 static AT91PS_TC tcfdt = AT91C_BASE_TC2;
 
 void tc_fdt_set(u_int16_t count)
 {
 	tcfdt->TC_RA = count;
+}
+
+void __ramfunc tc_fdt_set_to_next_slot(int last_bit)
+{
+	int reference_time;
+	if(last_bit == 0) reference_time = ISO14443A_FDT_OFFSET_0-FALLING_EDGE_DETECTION_DELAY;
+	else reference_time = ISO14443A_FDT_OFFSET_1-FALLING_EDGE_DETECTION_DELAY;
+	
+	if(tcfdt->TC_SR & AT91C_TC_CLKSTA) 
+		while(tcfdt->TC_CV != 0xFFFF && (tcfdt->TC_CV - reference_time) % 128 != 0);
+	tcfdt->TC_CCR = AT91C_TC_SWTRG;
+	tc_fdt_set(2*128);
 }
 
 
@@ -109,12 +122,12 @@ void tc_fdt_init(void)
 
 	/* Clock XC1, Wave Mode, No automatic reset on RC comp
 	 * TIOA2 in RA comp = set, TIOA2 on RC comp = clear,
-	 * TIOA2 on EEVT = clear
+	 * TIOA2 on EEVT = clear, TIOA2 on SWTRG = clear,
 	 * TIOB2 as input, EEVT = TIOB2, Reset/Trigger on EEVT */
 	tcfdt->TC_CMR = AT91C_TC_CLKS_XC1 | AT91C_TC_WAVE |
 		      AT91C_TC_WAVESEL_UP |
 		      AT91C_TC_ACPA_SET | AT91C_TC_ACPC_CLEAR |
-		      AT91C_TC_AEEVT_CLEAR |
+		      AT91C_TC_AEEVT_CLEAR | AT91C_TC_ASWTRG_CLEAR |
 		      AT91C_TC_BEEVT_NONE | AT91C_TC_BCPB_NONE |
 		      AT91C_TC_EEVT_TIOB | AT91C_TC_ETRGEDG_FALLING |
 		      AT91C_TC_ENETRG | AT91C_TC_CPCSTOP ;
