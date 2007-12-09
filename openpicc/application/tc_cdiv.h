@@ -7,8 +7,8 @@
 
 extern AT91PS_TCB tcb;
 
-extern void tc_cdiv_phase_add(int16_t inc);
-extern void tc_cdiv_set_divider(u_int16_t div);
+extern void __ramfunc tc_cdiv_phase_add(int16_t inc);
+extern void __ramfunc tc_cdiv_set_divider(u_int16_t div);
 
 static inline void tc_cdiv_phase_inc(void)
 {

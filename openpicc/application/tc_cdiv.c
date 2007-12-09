@@ -27,11 +27,12 @@
 
 #include "openpicc.h"
 #include "tc_cdiv.h"
+#include "led.h"
 
 AT91PS_TCB tcb = AT91C_BASE_TCB;
 
 /* set carrier divider to a specific */
-void tc_cdiv_set_divider(u_int16_t div)
+void __ramfunc tc_cdiv_set_divider(u_int16_t div)
 {
 	tcb->TCB_TC0.TC_RC = div;
 
@@ -43,11 +44,13 @@ void tc_cdiv_set_divider(u_int16_t div)
 	 * In order to not lose phase information when doing that we'll busy wait till CV is
 	 * zero modulo the new RC.*/
 	/*tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));*/
-	if(tcb->TCB_TC0.TC_CV > div) while(tcb->TCB_TC0.TC_CV % div != 0);
-	tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
+	if(tcb->TCB_TC0.TC_CV > div) {
+		while(tcb->TCB_TC0.TC_CV % div != 0);
+		tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
+	}
 }
 
-void tc_cdiv_phase_add(int16_t inc)
+void __ramfunc tc_cdiv_phase_add(int16_t inc)
 {
 	tcb->TCB_TC0.TC_RA = (tcb->TCB_TC0.TC_RA + inc) % tcb->TCB_TC0.TC_RC;
 	tcb->TCB_TC0.TC_RB = (tcb->TCB_TC0.TC_RB + inc) % tcb->TCB_TC0.TC_RC;

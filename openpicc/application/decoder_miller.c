@@ -46,14 +46,21 @@
 #include "openpicc.h"
 #include "dbgu.h"
 #include "decoder.h"
+#include "iso14443_layer3a.h"
 
-
+#ifdef FOUR_TIMES_OVERSAMPLING
 #define OVERSAMPLING_RATE	4
 
 /* definitions for four-times oversampling */
 #define SEQ_X	0x4
 #define SEQ_Y	0x0
 #define SEQ_Z	0x1
+#else
+#define OVERSAMPLING_RATE	2
+#define SEQ_X   0x2
+#define SEQ_Y   0x0
+#define SEQ_Z   0x1
+#endif
 
 /* decode a single sampled bit */
 static inline u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)

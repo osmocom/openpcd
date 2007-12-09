@@ -52,6 +52,7 @@
 .equ AT91C_TC_SWTRG,  (1 << 2)
 .equ AT91C_TC_CLKEN,  (1 << 0)
 .equ PIO_DATA,        (1 << 27)
+.equ PIO_FRAME,       (1 << 20)
 .equ PIO_SSC_TF,      (1 << 15)
 .equ PIOA_SODR,       0x30
 .equ PIOA_CODR,       0x34
@@ -222,7 +223,14 @@ my_fiq_handler:
 
                 movne   r11, #PIO_DATA
                 strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
-                
+                beq .no_pio_data
+/* .loop_high:
+				ldr     r11, [r10, #PIOA_PDSR]
+				tst     r11, #PIO_DATA
+				bne     .loop_high
+                str   r9, [r12, #TC_CCR]      /* software trigger */
+
+.no_pio_data:
                 tst     r8, #PIO_SSC_TF         /* check for SSC Transmit Frame signal */
                 ldrne   r11, [r10, #PIOA_PDSR]
                 tstne   r11, #PIO_SSC_TF        /* check for SSC_TF == 1 */

@@ -313,7 +313,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
 			(((num_data-1) & 0x0f) << 8) | 
 			(((sync_len-1) & 0x0f) << 16);
-	ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | start_cond;
+	ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | AT91C_SSC_CKI | start_cond;
 	
 	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
 	AT91F_PDC_SetNextTx(tx_pdc, 0, 0);
@@ -381,10 +381,26 @@ static void __ramfunc ssc_irq(void)
 	portBASE_TYPE task_woken = pdFALSE;
 
 	u_int32_t ssc_sr = ssc->SSC_SR;
+	u_int32_t orig_ssc_sr = ssc_sr;
 	int i, emptyframe = 0;
 	u_int32_t *tmp;
 	ssc_dma_rx_buffer_t *inbuf=NULL;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
+	
+	if (ssc_sr & AT91C_SSC_CP0 && ssc_state.mode == SSC_MODE_14443A_SHORT) {
+		/* Short frame, busy loop till the frame is received completely to
+		 * prevent a second irq entrance delay when the actual frame end 
+		 * irq is raised. (The scheduler masks interrupts for about 56us,
+		 * which is too much for anticollision.) */
+		 int i = 0;
+		 vLedBlinkRed();
+		 while( ! ((ssc_sr=ssc->SSC_SR) & AT91C_SSC_ENDRX) ) {
+		 	i++;
+		 	if(i > 9600) break;
+		 }
+		 ssc_sr |= orig_ssc_sr;
+		 vLedSetRed(1);
+	}
 	
 	if (ssc_sr & AT91C_SSC_ENDRX) {
 		/* Ignore empty frames */
