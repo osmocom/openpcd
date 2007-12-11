@@ -68,8 +68,8 @@ void AT91F_LowLevelInit (void)
     pPMC->PMC_MCKR |= AT91C_PMC_CSS_PLL_CLK;
     while (!(pPMC->PMC_SR & AT91C_PMC_MCKRDY));
     
-    /* Copy first 0x100 bytes (IRQ vector table and FIQ) to RAM */
-    memcpy((void*)0x00200000, (void*)0x00100000, 0x100);
+    /* Copy first 0x200 bytes (IRQ vector table and FIQ) to RAM */
+    memcpy((void*)0x00200000, (void*)0x00100000, 0x200);
     /* Perform remap FIXME doesn't work*/
     // AT91C_BASE_MC->MC_RCR = AT91C_MC_RCB;
 }

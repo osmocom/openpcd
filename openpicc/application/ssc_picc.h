@@ -84,5 +84,7 @@ typedef struct {
 extern ssc_dma_tx_buffer_t ssc_tx_buffer;
 
 extern void ssc_tx_start(ssc_dma_tx_buffer_t *buf);
+extern volatile u_int32_t ssc_tx_fiq_fdt_cdiv;
+extern volatile u_int32_t ssc_tx_fiq_fdt_ssc;
 
 #endif

@@ -16,17 +16,18 @@ enum ISO14443_STATES {
 };
 
 /******************** RX ************************************/
-/* measured TF->FIQ->SSC TX start delay (~3.480us) in carrier cycles */
-#define TF_FIQ_SSC_DELAY 47
-//#define TF_FIQ_SSC_DELAY 40
-#define FALLING_EDGE_DETECTION_DELAY 12
+/* Magic delay, don't know where it comes from */
+#define MAGIC_DELAY -32
+/* See fdt_timinig.dia for these values */
+#define MAX_TF_FIQ_ENTRY_DELAY 16
+#define MAX_TF_FIQ_OVERHEAD 75 /* guesstimate */ 
 extern volatile int fdt_offset;
 /* standard derived magic values */
 #define ISO14443A_FDT_SLOTLEN 128
 #define ISO14443A_FDT_OFFSET_1 84
 #define ISO14443A_FDT_OFFSET_0 20
-#define ISO14443A_FDT_SHORT_1	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_1 -FALLING_EDGE_DETECTION_DELAY +fdt_offset -TF_FIQ_SSC_DELAY)
-#define ISO14443A_FDT_SHORT_0	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_0 -FALLING_EDGE_DETECTION_DELAY +fdt_offset -TF_FIQ_SSC_DELAY)
+#define ISO14443A_FDT_SHORT_1	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_1 +fdt_offset +MAGIC_DELAY)
+#define ISO14443A_FDT_SHORT_0	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_0 +fdt_offset +MAGIC_DELAY)
 
 #ifdef FOUR_TIMES_OVERSAMPLING
 /* definitions for four-times oversampling */

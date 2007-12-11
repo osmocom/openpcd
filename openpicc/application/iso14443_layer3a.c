@@ -74,20 +74,43 @@ const iso14443_frame NULL_FRAME = {
 #define INITIAL_FRAME NULL_FRAME
 #endif
 
+#define ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 -1
+#define ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1 -2
+
+/* Transmit a frame in ISO14443A mode from buffer buf at fdt carrier cycles
+ * after the end of the last modulation pause from the PCD with a clock divisor
+ * of div. Set fdt to ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 or _1 to have the 
+ * transmission start at the next possible interval. Use _0 when the last bit
+ * from the PCD was a 0 and _1 when it was a 1. */ 
+void iso14443_transmit(ssc_dma_tx_buffer_t *buf, int fdt, int div)
+{
+	tc_cdiv_set_divider(div);
+	if(fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 ||
+		fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1) {
+			/* FIXME Implement */
+			return;
+		}
+	ssc_tx_fiq_fdt_cdiv = fdt -3*div -1;
+	tc_fdt_set(ssc_tx_fiq_fdt_cdiv -MAX_TF_FIQ_ENTRY_DELAY -MAX_TF_FIQ_OVERHEAD);
+	ssc_tx_fiq_fdt_ssc  = fdt -div +1;
+	ssc_tx_start(buf);
+}
+
 static int atqa_sent = 0;
 /* Running in ISR mode */
 void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t* samples)
 {
 	(void)ssc_sr;
+	int fdt;
 	if(ssc_mode == SSC_MODE_14443A_SHORT && samples) {
 		ISO14443A_SHORT_TYPE sample =  *(ISO14443A_SHORT_TYPE*)samples;
 		portBASE_TYPE send_atqa = 0;
 		if(sample == REQA) {
-			tc_fdt_set(ISO14443A_FDT_SHORT_0);
+			fdt = ISO14443A_FDT_SHORT_0;
 			if(state == IDLE)
 				send_atqa = 1;
 		} else if(sample == WUPA) {
-			tc_fdt_set(ISO14443A_FDT_SHORT_1);
+			fdt = ISO14443A_FDT_SHORT_1;
 			if(state == IDLE || state == HALT)
 				send_atqa = 1;
 		}
@@ -97,13 +120,13 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 			if(ssc_tx_buffer.state == PREFILLED && ssc_tx_buffer.source == &ATQA_FRAME) {
 				ssc_tx_buffer.state = PROCESSING;
 				vLedSetGreen(1);
-				tc_cdiv_set_divider(8);
-				ssc_tx_start(&ssc_tx_buffer);
+				iso14443_transmit(&ssc_tx_buffer, fdt, 8);
 				atqa_sent = 1;
 				vLedSetGreen(0);
 			}
 		vLedSetGreen(1);
 		}
+		vLedSetGreen(0);
 	}
 }
 
@@ -142,7 +165,7 @@ static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) 
 static u_int8_t received_buffer[256];
 
 static void enable_reception(enum ssc_mode mode) {
-	tc_fdt_set(ISO14443A_FDT_SHORT_0);
+	tc_fdt_set(0xff00);
 	ssc_rx_mode_set(mode);
 #ifdef FOUR_TIMES_OVERSAMPLING
 	tc_cdiv_set_divider(32);
@@ -313,9 +336,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 								if(prefill_buffer(&ssc_tx_buffer, &NULL_FRAME)) {
 									usb_print_string_f("Sending response ...",0);
 									ssc_tx_buffer.state = PROCESSING;
-									tc_cdiv_set_divider(8);
-									tc_fdt_set_to_next_slot(1);
-									ssc_tx_start(&ssc_tx_buffer);
+									iso14443_transmit(&ssc_tx_buffer, 1, 8);
 									while( ssc_tx_buffer.state != FREE ) {
 										vTaskDelay(portTICK_RATE_MS);
 									}

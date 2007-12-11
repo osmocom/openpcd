@@ -1,9 +1,9 @@
 MEMORY 
 {
-	boot    : ORIGIN = 0x00100000, LENGTH = 0x100
-	flash   : ORIGIN = 0x00100100, LENGTH = 256K - 0x100
-	vectors	: ORIGIN = 0x00200000, LENGTH = 0x100
-	ram	: ORIGIN = 0x00200100, LENGTH = 64K - 0x100
+	boot    : ORIGIN = 0x00100000, LENGTH = 0x200
+	flash   : ORIGIN = 0x00100200, LENGTH = 256K - 0x200
+	vectors	: ORIGIN = 0x00200000, LENGTH = 0x200
+	ram	: ORIGIN = 0x00200200, LENGTH = 64K - 0x200
 }
 
 __stack_end__ = 0x00200000 + 64K - 4;

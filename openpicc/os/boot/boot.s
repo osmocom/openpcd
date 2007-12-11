@@ -5,6 +5,8 @@
 	.extern AT91F_LowLevelInit
 	.extern pio_irq_isr_value
 	.extern ssc_tx_pending
+	.extern ssc_tx_fiq_fdt_cdiv
+	.extern ssc_tx_fiq_fdt_ssc
 
 	.text
 	.code 32
@@ -60,6 +62,7 @@
 .equ PIOA_IDR,        0x44
 .equ PIOA_ISR,        0x4c
 .equ TC_CCR,          0x00
+.equ TC2_CV,          (0x80+0x10)
 .equ AIC_EOICR,       (304)
 .equ PIO_LED1,        (1 << 25)
 .equ PIO_LED2,        (1 << 12)
@@ -67,11 +70,6 @@
 .equ AIC_ISCR,        (0x12C)
 .equ PIO_SECONDARY_IRQ, 31
 .equ PIO_SECONDARY_IRQ_BIT, (1 << PIO_SECONDARY_IRQ)
-
-/* FIQ latency is approx 1us. At 13.56 MHz carrier frequency this means that 
- * 13.56 cycles of the carrier have passed when the FIQ kicks in and this is
- * the amount that CV0 should be loaded to. (Round up) */
-.equ TC0_FRAME_OFFSET, 9
 
 start:
 _start:
@@ -241,13 +239,38 @@ my_fiq_handler:
                 ldrne   r11, =ssc_tx_pending
                 ldrne   r8, [r11]
                 tstne   r8, #0x01              /* Check whether a TX is pending */
+                beq     .no_ssc
                 
-                movne   r8, #0x00
-                strne   r8, [r11]                /* Set ssc_tx_pending to 0 */
+                mov   r8, #PIO_LED1
+                str   r8, [r10, #PIOA_SODR] /* disable LED */
                 
-                ldrne   r11, =AT91C_BASE_SSC
-                movne   r8, #SSC_CR_TXEN
-                strne   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
+                mov   r8, #0x00
+                str   r8, [r11]                /* Set ssc_tx_pending to 0 */
+                
+                ldr   r11, =ssc_tx_fiq_fdt_cdiv
+                ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_cdiv */
+
+.wait_for_fdt_cdiv:  
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bmi   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv */
+				
+				str   r9, [r12, #TC_CCR]       /* SWTRG on TC0 */
+				
+                ldr   r11, =ssc_tx_fiq_fdt_ssc
+                ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_ssc */
+
+.wait_for_fdt_ssc:
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bmi   .wait_for_fdt_ssc        /* spin while TC2.CV is less fdt_ssc */
+                
+                mov   r11, #PIO_LED1
+                str   r11, [r10, #PIOA_CODR] /* enable LED */
+                
+                ldr   r11, =AT91C_BASE_SSC
+                mov   r8, #SSC_CR_TXEN
+                str   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
 
 .no_ssc:               
                 /* Trigger PIO_SECONDARY_IRQ */

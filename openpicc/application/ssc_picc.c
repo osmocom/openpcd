@@ -302,6 +302,17 @@ out_set_mode:
  * by the fiq handler to see whether to start the transmitter. */
 #define USE_SSC_TX_TF_WORKAROUND
 volatile u_int32_t ssc_tx_pending = 0;
+
+/* This is the time that the TF FIQ should spin until before SWTRG'ing the tc_cdiv.
+ * See fdt_timing.dia. Note: This means transmission is broken without USE_SSC_TX_TF_WORKAROUND */
+volatile u_int32_t ssc_tx_fiq_fdt_cdiv = 0;
+/* This is the time that the TF FIQ should spin until before starting the SSC 
+ * There must be enough time between these two! */
+volatile u_int32_t ssc_tx_fiq_fdt_ssc = 0;
+#ifndef USE_SSC_TX_TF_WORKAROUND
+#error Transmission is broken without USE_SSC_TX_TF_WORKAROUND, see comments in code
+#endif
+
 void ssc_tf_irq(u_int32_t pio);
 void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 {
@@ -613,8 +624,8 @@ void ssc_rx_init(void)
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_OVRUN |
 			   AT91C_SSC_ENDRX | AT91C_SSC_RXBUFF);
 #endif
-	/* FIXME: This is hardcoded for REQA 0x26 */
-	tc_fdt_set(ISO14443A_FDT_SHORT_0);
+	/* Will be set to a real value some time later */
+	tc_fdt_set(0xff00);
 
 	AT91F_AIC_EnableIt(AT91C_ID_SSC);
 

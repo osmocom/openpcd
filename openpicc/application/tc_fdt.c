@@ -53,8 +53,8 @@ void tc_fdt_set(u_int16_t count)
 void __ramfunc tc_fdt_set_to_next_slot(int last_bit)
 {
 	int reference_time;
-	if(last_bit == 0) reference_time = ISO14443A_FDT_OFFSET_0-FALLING_EDGE_DETECTION_DELAY;
-	else reference_time = ISO14443A_FDT_OFFSET_1-FALLING_EDGE_DETECTION_DELAY;
+	if(last_bit == 0) reference_time = ISO14443A_FDT_OFFSET_0;
+	else reference_time = ISO14443A_FDT_OFFSET_1;
 	
 	if(tcfdt->TC_SR & AT91C_TC_CLKSTA) 
 		while(tcfdt->TC_CV != 0xFFFF && (tcfdt->TC_CV - reference_time) % 128 != 0);
