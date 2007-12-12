@@ -90,6 +90,7 @@ ARM_SRC= \
   application/usb_print.c \
   application/iso14443_layer3a.c \
   application/iso14443a_manchester.c \
+  application/iso14443a_miller.c \
   application/load_modulation.c \
   application/decoder_miller.c \
   application/decoder_nrzl.c \

@@ -50,16 +50,12 @@ void tc_fdt_set(u_int16_t count)
 	tcfdt->TC_RA = count;
 }
 
-void __ramfunc tc_fdt_set_to_next_slot(int last_bit)
+int tc_fdt_get_next_slot(int reference_time, int slotlen)
 {
-	int reference_time;
-	if(last_bit == 0) reference_time = ISO14443A_FDT_OFFSET_0;
-	else reference_time = ISO14443A_FDT_OFFSET_1;
-	
-	if(tcfdt->TC_SR & AT91C_TC_CLKSTA) 
+	/*if(tcfdt->TC_SR & AT91C_TC_CLKSTA) 
 		while(tcfdt->TC_CV != 0xFFFF && (tcfdt->TC_CV - reference_time) % 128 != 0);
-	tcfdt->TC_CCR = AT91C_TC_SWTRG;
-	tc_fdt_set(2*128);
+	tcfdt->TC_CCR = AT91C_TC_SWTRG;*/
+	return tcfdt->TC_CV + (slotlen-((tcfdt->TC_CV - reference_time) % slotlen)) + 3*slotlen; 
 }
 
 

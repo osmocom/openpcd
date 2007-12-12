@@ -16,21 +16,6 @@ enum ISO14443_STATES {
 };
 
 /******************** RX ************************************/
-/* Magic delay, don't know where it comes from */
-#define MAGIC_OFFSET -32
-/* Delay from modulation till detection in SSC_DATA */
-#define DETECTION_DELAY 11
-/* See fdt_timinig.dia for these values */
-#define MAX_TF_FIQ_ENTRY_DELAY 16
-#define MAX_TF_FIQ_OVERHEAD 75 /* guesstimate */ 
-extern volatile int fdt_offset;
-/* standard derived magic values */
-#define ISO14443A_FDT_SLOTLEN 128
-#define ISO14443A_FDT_OFFSET_1 84
-#define ISO14443A_FDT_OFFSET_0 20
-#define ISO14443A_FDT_SHORT_1	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_1 +fdt_offset +MAGIC_OFFSET -DETECTION_DELAY)
-#define ISO14443A_FDT_SHORT_0	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_0 +fdt_offset +MAGIC_OFFSET -DETECTION_DELAY)
-
 #ifdef FOUR_TIMES_OVERSAMPLING
 /* definitions for four-times oversampling */
 /* Sample values for the REQA and WUPA short frames */
@@ -82,6 +67,21 @@ extern volatile int fdt_offset;
 #endif
 
 /******************** TX ************************************/
+/* Magic delay, don't know where it comes from */
+#define MAGIC_OFFSET -32
+/* Delay from modulation till detection in SSC_DATA */
+#define DETECTION_DELAY 11
+/* See fdt_timinig.dia for these values */
+#define MAX_TF_FIQ_ENTRY_DELAY 16
+#define MAX_TF_FIQ_OVERHEAD 75 /* guesstimate */ 
+extern volatile int fdt_offset;
+/* standard derived magic values */
+#define ISO14443A_FDT_SLOTLEN 128
+#define ISO14443A_FDT_OFFSET_1 84
+#define ISO14443A_FDT_OFFSET_0 20
+#define ISO14443A_FDT_SHORT_1	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_1 +fdt_offset +MAGIC_OFFSET -DETECTION_DELAY)
+#define ISO14443A_FDT_SHORT_0	(ISO14443A_FDT_SLOTLEN*9 + ISO14443A_FDT_OFFSET_0 +fdt_offset +MAGIC_OFFSET -DETECTION_DELAY)
+
 /* in bytes, not counting parity */
 #define MAXIMUM_FRAME_SIZE 256
 

@@ -37,13 +37,14 @@
 #include "load_modulation.h"
 #include "decoder.h"
 #include "iso14443a_manchester.h"
+#include "iso14443a_miller.h"
 #include "led.h"
 
 static enum ISO14443_STATES state = STARTING_UP;
 const iso14443_frame ATQA_FRAME = {
 	TYPE_A,
 	{{STANDARD_FRAME, PARITY}},
-	2, 
+	2,
 	0, 0,
 	{4, 0},
 	{}
@@ -85,11 +86,11 @@ const iso14443_frame NULL_FRAME = {
 void iso14443_transmit(ssc_dma_tx_buffer_t *buf, int fdt, int div)
 {
 	tc_cdiv_set_divider(div);
-	if(fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 ||
-		fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1) {
-			/* FIXME Implement */
-			return;
-		}
+	if(fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0) {
+		fdt = tc_fdt_get_next_slot(ISO14443A_FDT_SHORT_0, ISO14443A_FDT_SLOTLEN);
+	} else if (fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1) {
+		fdt = tc_fdt_get_next_slot(ISO14443A_FDT_SHORT_1, ISO14443A_FDT_SLOTLEN);
+	}
 	ssc_tx_fiq_fdt_cdiv = fdt -3*div -1;
 	tc_fdt_set(ssc_tx_fiq_fdt_cdiv -MAX_TF_FIQ_ENTRY_DELAY -MAX_TF_FIQ_OVERHEAD);
 	ssc_tx_fiq_fdt_ssc  = fdt -div +1;
@@ -162,7 +163,7 @@ static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) 
 	
 }
 
-static u_int8_t received_buffer[256];
+static iso14443_frame received_frame;
 
 static void enable_reception(enum ssc_mode mode) {
 	tc_fdt_set(0xff00);
@@ -307,6 +308,12 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 								LAYER3_DEBUG(", woke up to send ATQA\n\r");
 								atqa_sent = 0;
 							}
+							if(1) {
+								DumpStringToUSB("Decoded: ");
+								iso14443a_decode_miller(&received_frame, buffer->data, buffer->len);
+								DumpBufferToUSB((char*)received_frame.data, 100);
+								DumpStringToUSB("\n\r");
+							}
 							/* For debugging, wait 1ms, then wait for another frame 
 							 * Normally we'd go to anticol from here*/
 							vTaskDelay(portTICK_RATE_MS);
@@ -320,12 +327,12 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 						break;
 					case ACTIVE:
 					case ACTIVE_STAR:
-							if(0) {
+#if 0
 								DumpStringToUSB("Decoded: ");
 								decoder_decode(DECODER_MILLER, (const char*)buffer->data, buffer->len, received_buffer);
 								DumpBufferToUSB((char*)received_buffer, 100);
 								DumpStringToUSB("\n\r");
-							}
+#endif
 							/* Wait for another frame */
 							if(0) {
 								ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
@@ -336,7 +343,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 								if(prefill_buffer(&ssc_tx_buffer, &NULL_FRAME)) {
 									usb_print_string_f("Sending response ...",0);
 									ssc_tx_buffer.state = PROCESSING;
-									iso14443_transmit(&ssc_tx_buffer, 1, 8);
+									iso14443_transmit(&ssc_tx_buffer, ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1, 8);
 									while( ssc_tx_buffer.state != FREE ) {
 										vTaskDelay(portTICK_RATE_MS);
 									}

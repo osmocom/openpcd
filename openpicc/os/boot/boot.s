@@ -250,10 +250,39 @@ my_fiq_handler:
                 ldr   r11, =ssc_tx_fiq_fdt_cdiv
                 ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_cdiv */
 
+/* Problem: LDR from the timer still takes too long and causes us to miss the exact time.
+ * Strategy: Spin on TC2 till we are very near the actual time. Then load the timer value, calculate
+ * the difference to the target, then do a countdown spin without reading the timer.
+ * 
+ * At 47.923200 MHz 7 processor cycles are 2 carrier cycles of the 13.56MHz carrier
+ */
+ .equ SUB_TIME, 20 /* subtract 20 carrier cycles == 70 processor cycles */
+ .equ ADD_TIME, (70-20) /* Add x processor cycles */
+ 
+ 				mov r8, #SUB_TIME
+ 				sub r11, r11, r8              
+
 .wait_for_fdt_cdiv:  
 				ldr   r8, [r12, #TC2_CV]
 				cmp   r8, r11
-				bmi   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv */
+				bmi   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv-SUB_TIM */
+				
+				ldr r8, [r12, #TC2_CV]
+				sub r11, r11, r8               /* r11 == fdt_cdiv-SUB_TIME - TC2.CV */
+				
+				mov r8, #0x07
+				mul r11, r8, r11               /* r11 = r11 * 7 */
+				mov r11, r11, ASR #1           /* r11 = r11 / 2 */
+				
+				mov r8, #ADD_TIME
+				add r11, r11, r8               /* r11 = r11 + ADD_TIME */
+				
+				mov r11, r11, ASR #2           /* r11 = r11 / 4   (4 is the number of cycles per loop run below) */
+				
+				mov r8, #1
+.wait_for_my_time:
+				subs r11, r11, r8
+				bge .wait_for_my_time
 				
 				str   r9, [r12, #TC_CCR]       /* SWTRG on TC0 */
 				

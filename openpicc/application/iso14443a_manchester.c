@@ -1,5 +1,6 @@
 /* ISO14443A Manchester encoder for OpenPICC
  * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
+ * (C) 2007 by Henryk Plötz <henryk@ploetzli.ch>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by 
