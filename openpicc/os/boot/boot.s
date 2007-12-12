@@ -51,7 +51,7 @@
 .equ SSC_CR,          0x0
 .equ SSC_RCMR,        0x10
 .equ SSC_CR_TXEN,     0x100
-.equ AT91C_TC_SWTRG,  (1 << 2)
+.equ AT91C_TC_SWTRG,  ((1 << 2)|1)
 .equ AT91C_TC_CLKEN,  (1 << 0)
 .equ PIO_DATA,        (1 << 27)
 .equ PIO_FRAME,       (1 << 20)
@@ -257,7 +257,7 @@ my_fiq_handler:
  * At 47.923200 MHz 7 processor cycles are 2 carrier cycles of the 13.56MHz carrier
  */
  .equ SUB_TIME, 20 /* subtract 20 carrier cycles == 70 processor cycles */
- .equ ADD_TIME, (70-20) /* Add x processor cycles */
+ .equ ADD_TIME, (70-30) /* Add x processor cycles */
  
  				mov r8, #SUB_TIME
  				sub r11, r11, r8              
@@ -275,7 +275,41 @@ my_fiq_handler:
 				mov r11, r11, ASR #1           /* r11 = r11 / 2 */
 				
 				mov r8, #ADD_TIME
-				add r11, r11, r8               /* r11 = r11 + ADD_TIME */
+				adds r11, r11, r8              /* r11 = r11 + ADD_TIME */
+				
+				bmi .wait_zero 
+				
+/* The following contraption is designed to compensate for the fact
+   that the loop below will only be able to count CPU cycles with a
+   precision of 4 cycles. Constraint: Since we want to keep the value
+   of r11 there's only one free register: r8.*/
+				mov r8, #0x1
+				tst r11, r8
+				beq .wait_zero_or_two
+				bne .wait_one_or_three
+
+/*              relative timing ------+  All code paths have the same number of CPU cycles, except
+                                      V  for the relative timing given in these comments */
+.wait_zero_or_two:                /* +0    */
+				mov r8, #0x2
+				tst r11, r8
+				beq .wait_zero    /*    +0 */
+				nop
+				bne .wait_two     /*    +2 */
+
+.wait_one_or_three:               /* +1    */
+				mov r8, #0x2      
+				tst r11, r8
+				beq .wait_one     /*    +0 */
+				nop
+				bne .wait_three   /*    +2 */
+
+				nop /* Don't know if this nop is needed. Just add to make sure that nobody can assume that the "bne .wait_three" is no branch at all. */
+
+.wait_three:	
+.wait_two:		
+.wait_one:		
+.wait_zero:		
 				
 				mov r11, r11, ASR #2           /* r11 = r11 / 4   (4 is the number of cycles per loop run below) */
 				

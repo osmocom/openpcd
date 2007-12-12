@@ -94,6 +94,7 @@ void iso14443_transmit(ssc_dma_tx_buffer_t *buf, int fdt, int div)
 	ssc_tx_fiq_fdt_cdiv = fdt -3*div -1;
 	tc_fdt_set(ssc_tx_fiq_fdt_cdiv -MAX_TF_FIQ_ENTRY_DELAY -MAX_TF_FIQ_OVERHEAD);
 	ssc_tx_fiq_fdt_ssc  = fdt -div +1;
+	*AT91C_TC0_CCR = AT91C_TC_CLKDIS;
 	ssc_tx_start(buf);
 }
 
