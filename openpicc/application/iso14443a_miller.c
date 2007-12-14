@@ -55,38 +55,39 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 	enum miller_sequence current_seq;
 	unsigned int bitpos = 0;
 	
-	memset(frame, 0, sizeof(frame));
+	memset(frame, 0, sizeof(*frame));
 	frame->type = TYPE_A;
 	frame->parameters.a.parity = GIVEN_PARITY;
 	
 	for(i=0; i<sample_buf_len && bit != BIT_ENDMARKER; i++) {
+		DumpStringToUSB(" ");
+		DumpUIntToUSB(sample_buf[i]);
 		for(j=0; j<(signed)(sizeof(sample_buf[0])*8)/OVERSAMPLING_RATE && bit != BIT_ENDMARKER; j++) {
+			DumpStringToUSB(".");
 			int sample = (sample_buf[i]>>(j*OVERSAMPLING_RATE)) & ~(~0 << OVERSAMPLING_RATE);
 			switch(sample) {
-				case SEQ_X: current_seq = SEQUENCE_X; break;
-				case SEQ_Y: current_seq = SEQUENCE_Y; break;
-				case SEQ_Z: current_seq = SEQUENCE_Z; break;
-				default: current_seq = SEQUENCE_Y;
+				case SEQ_X: current_seq = SEQUENCE_X; DumpStringToUSB("X"); break;
+				case SEQ_Y: current_seq = SEQUENCE_Y; DumpStringToUSB("Y"); break;
+				case SEQ_Z: current_seq = SEQUENCE_Z; DumpStringToUSB("Z"); break;
+				default: DumpUIntToUSB(sample); current_seq = SEQUENCE_Y;
 			}
 			
 			switch(current_seq) {
-				case SEQ_X:
-				DumpStringToUSB("X");
+				case SEQUENCE_X:
 					bit = 1; break;
-				case SEQ_Y: /* Fall-through to SEQ_Z */
-				DumpStringToUSB("Y");
+				case SEQUENCE_Y: /* Fall-through to SEQUENCE_Z */
 					if(last_bit == 0) {
 						bit = BIT_ENDMARKER;
+						DumpStringToUSB("!");
 						break;
 					}
-				case SEQ_Z:
-				DumpStringToUSB("Z");
+				case SEQUENCE_Z:
 					bit = 0; break;
 			}
 			
 			switch(bit) {
 				case BIT_ENDMARKER:
-					bitpos--;
+					bitpos-=2; /* Subtract this sequence and the previous sequence (which was a 0) */
 					break;
 				case 0: /* Fall-through */
 				case 1: {
@@ -106,6 +107,11 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 	
 	frame->numbytes = bitpos/9;
 	frame->numbits = bitpos%9;
+	DumpStringToUSB(" ");
+	DumpUIntToUSB(frame->numbytes);
+	DumpStringToUSB(" bytes, ");
+	DumpUIntToUSB(frame->numbits);
+	DumpStringToUSB(" bits");
 	DumpStringToUSB("\n\r");
 	
 	return 0;

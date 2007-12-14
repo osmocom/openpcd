@@ -90,7 +90,7 @@ void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount)
 	ISO14443A_SHORT_TYPE *tmp = (ISO14443A_SHORT_TYPE*)buffer->data;
 	int i, dumped = 0;
 	unsigned int j;
-	for(i = buffer->len / sizeof(*tmp); i >= 0 ; i--) {
+	for(i = buffer->len / (sizeof(*tmp)*8); i >= 0 ; i--) {
 		if( *tmp != 0x00000000 ) {
 			if(dumped == 0) {
 				DumpUIntToUSB(buffer->len);
@@ -101,7 +101,7 @@ void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount)
 				DumpStringToUSB(" ");
 			}
 			dumped = 1;
-			DumpUIntToUSB(buffer->len / sizeof(*tmp) - i);
+			DumpUIntToUSB(buffer->len / (sizeof(*tmp)*8) - i);
 			DumpStringToUSB(": ");
 			for(j=0; j<sizeof(*tmp)*8; j++) {
 				usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);

@@ -48,7 +48,7 @@ typedef enum {
 } ssc_metric;
 extern int ssc_get_metric(ssc_metric metric);
 
-#define SSC_DMA_BUFFER_SIZE 2048
+#define SSC_RX_BUFFER_SIZE 2048
 #define SSC_DMA_BUFFER_COUNT 4
 
 typedef enum {
@@ -60,10 +60,16 @@ typedef enum {
 } ssc_dma_buffer_state_t;
 
 typedef struct {
+	enum ssc_mode mode;
+	u_int16_t transfersize; 
+	u_int16_t transfers;
+} ssc_mode_def;
+
+typedef struct {
 	volatile ssc_dma_buffer_state_t state;
-	u_int32_t len;  /* Length of the content */
-	enum ssc_mode reception_mode; /* The SSC mode that the buffer has been loaded for (affects element size and count) */
-	u_int8_t data[SSC_DMA_BUFFER_SIZE];
+	u_int32_t len;  /* Length of the content, in samples */
+	const ssc_mode_def *reception_mode; /* Pointer to the SSC mode definition that the buffer has been loaded for (affects element size and count) */
+	u_int8_t data[SSC_RX_BUFFER_SIZE];
 } ssc_dma_rx_buffer_t;
 
 extern xQueueHandle ssc_rx_queue;

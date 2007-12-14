@@ -311,8 +311,10 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 							}
 							if(1) {
 								DumpStringToUSB("Decoded: ");
-								iso14443a_decode_miller(&received_frame, buffer->data, buffer->len);
-								DumpBufferToUSB((char*)received_frame.data, 100);
+								DumpUIntToUSB(buffer->len);
+								DumpStringToUSB(" ");
+								iso14443a_decode_miller(&received_frame, buffer->data, buffer->len/8);
+								DumpBufferToUSB((char*)received_frame.data, received_frame.numbytes + (received_frame.numbits+7)/8);
 								DumpStringToUSB("\n\r");
 							}
 							/* For debugging, wait 1ms, then wait for another frame 

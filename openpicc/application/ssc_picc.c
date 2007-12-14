@@ -70,16 +70,16 @@ static struct ssc_state ssc_state;
 
 /* Note: Only use 8, 16 or 32 for the transfersize. (These are the sizes used by the PDC and even though
  * the SSC supports different sizes, all PDC tranfers will be either 8, 16 or 32, rounding up.) */
-static const struct {u_int16_t transfersize; u_int16_t transfers;} ssc_sizes[] = {
+static const ssc_mode_def ssc_sizes[] = {
 	/* Undefined, no size set */
-	[SSC_MODE_NONE]		   = {0, 0},
+	[SSC_MODE_NONE]		   = {SSC_MODE_NONE, 0, 0},
 	/* 14443A Short Frame: 1 transfer of ISO14443A_SHORT_LEN bits */
-	[SSC_MODE_14443A_SHORT]	   = {ISO14443A_SHORT_TRANSFER_SIZE, 1},
+	[SSC_MODE_14443A_SHORT]	   = {SSC_MODE_14443A_SHORT, ISO14443A_SHORT_TRANSFER_SIZE, 1},
 	/* 14443A Standard Frame: FIXME 16 transfers of 32 bits (maximum number), resulting in 512 samples */ 
-	[SSC_MODE_14443A_STANDARD] = {32, 4},	
-	[SSC_MODE_14443B]	   = {32, 16},	/* 64 bytes */
-	[SSC_MODE_EDGE_ONE_SHOT]   = {32, 16},	/* 64 bytes */
-	[SSC_MODE_CONTINUOUS]	   = {32, 511},	/* 2044 bytes */
+	[SSC_MODE_14443A_STANDARD] = {SSC_MODE_14443A_STANDARD, 32, 4},	
+	[SSC_MODE_14443B]	   = {SSC_MODE_14443B, 32, 16},	/* 64 bytes */
+	[SSC_MODE_EDGE_ONE_SHOT]   = {SSC_MODE_EDGE_ONE_SHOT, 32, 16},	/* 64 bytes */
+	[SSC_MODE_CONTINUOUS]	   = {SSC_MODE_CONTINUOUS, 32, 511},	/* 2044 bytes */
 };
 
 /* ************** SSC BUFFER HANDLING *********************** */
@@ -153,6 +153,7 @@ static int __ramfunc __ssc_rx_load(int secondary)
 	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
 		req_ctx_num(buffer), buffer->size);
 	buffer->len = ssc_sizes[ssc_state.mode].transfersize * ssc_sizes[ssc_state.mode].transfers;
+	buffer->reception_mode = &ssc_sizes[ssc_state.mode];
 	
 	if(ssc_state.buffer[secondary] != NULL) { 
 		/* This condition is not expected to happen and would probably indicate a bug 
@@ -198,7 +199,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	
 	u_int16_t remaining_transfers = (secondary ? rx_pdc->PDC_RNCR : rx_pdc->PDC_RCR);
 	u_int8_t* next_transfer_location = (u_int8_t*)(secondary ? rx_pdc->PDC_RNPR : rx_pdc->PDC_RPR);
-	u_int32_t remaining_size = ssc_sizes[buffer->reception_mode].transfersize *  remaining_transfers;
+	u_int32_t remaining_size = buffer->reception_mode->transfersize *  remaining_transfers;
 	/* Consistency check */
 	if( next_transfer_location - remaining_size != buffer->data ) {
 		ssc_buffer_errors++;
@@ -430,6 +431,7 @@ static void __ramfunc ssc_irq(void)
 	if (ssc_sr & AT91C_SSC_ENDRX) {
 		/* Ignore empty frames */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
+			/* This code section is probably bitrotten by now. */
 			tmp = (u_int32_t*)ssc_state.buffer[0]->data;
 			emptyframe = 1;
 			for(i = (ssc_state.buffer[0]->len) / 4 - 8/*WTF?*/; i > 0; i--) {
