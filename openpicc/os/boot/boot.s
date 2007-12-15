@@ -250,74 +250,57 @@ my_fiq_handler:
                 ldr   r11, =ssc_tx_fiq_fdt_cdiv
                 ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_cdiv */
 
-/* Problem: LDR from the timer still takes too long and causes us to miss the exact time.
- * Strategy: Spin on TC2 till we are very near the actual time. Then load the timer value, calculate
- * the difference to the target, then do a countdown spin without reading the timer.
+/* Problem: LDR from the timer and loop still take too long and cause us to miss the exact time.
+ * (One load-from-timer,compare,jump-back-if-less cycle are 7 CPU cycles, which are 2 carrier cycles.)
+ * Strategy: Spin on TC2 till 3 or 4 carrier cycles before the actual time. Then go into an unrolled
+ * 'loop' for the remaining time. (load-from-timer,compare,jump-forward-if-greater-or-equal are 5 CPU 
+ * cycles if the condition is not reached.)
  * 
  * At 47.923200 MHz 7 processor cycles are 2 carrier cycles of the 13.56MHz carrier
  */
- .equ SUB_TIME, 20 /* subtract 20 carrier cycles == 70 processor cycles */
- .equ ADD_TIME, (70-30) /* Add x processor cycles */
+ .equ SUB_TIME, 4 /* subtract 4 carrier cycles == 14 processor cycles */
  
  				mov r8, #SUB_TIME
- 				sub r11, r11, r8              
+ 				sub r11, r11, r8              /* r11 == fdt_cdiv-SUB_TIME */
 
-.wait_for_fdt_cdiv:  
+.wait_for_fdt_cdiv:
 				ldr   r8, [r12, #TC2_CV]
 				cmp   r8, r11
-				bmi   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv-SUB_TIM */
+				blt   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv-SUB_TIME */
 				
-				ldr r8, [r12, #TC2_CV]
-				sub r11, r11, r8               /* r11 == fdt_cdiv-SUB_TIME - TC2.CV */
-				
-				mov r8, #0x07
-				mul r11, r8, r11               /* r11 = r11 * 7 */
-				mov r11, r11, ASR #1           /* r11 = r11 / 2 */
-				
-				mov r8, #ADD_TIME
-				adds r11, r11, r8              /* r11 = r11 + ADD_TIME */
-				
-				bmi .wait_zero 
-				
-/* The following contraption is designed to compensate for the fact
-   that the loop below will only be able to count CPU cycles with a
-   precision of 4 cycles. Constraint: Since we want to keep the value
-   of r11 there's only one free register: r8.*/
-				mov r8, #0x1
-				tst r11, r8
-				beq .wait_zero_or_two
-				bne .wait_one_or_three
+				mov r8, #SUB_TIME
+				add r11, r11, r8               /* r11 == fdt_cdiv */
 
-/*              relative timing ------+  All code paths have the same number of CPU cycles, except
-                                      V  for the relative timing given in these comments */
-.wait_zero_or_two:                /* +0    */
-				mov r8, #0x2
-				tst r11, r8
-				beq .wait_zero    /*    +0 */
-				nop
-				bne .wait_two     /*    +2 */
+/* Seven copies of the loop contents, covering for 35 CPU cycles, or 10 carrier cycles */
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             /* jump forward if TC2.CV is greater than or equal fdt_cdiv */
 
-.wait_one_or_three:               /* +1    */
-				mov r8, #0x2      
-				tst r11, r8
-				beq .wait_one     /*    +0 */
-				nop
-				bne .wait_three   /*    +2 */
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             
 
-				nop /* Don't know if this nop is needed. Just add to make sure that nobody can assume that the "bne .wait_three" is no branch at all. */
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             
 
-.wait_three:	
-.wait_two:		
-.wait_one:		
-.wait_zero:		
-				
-				mov r11, r11, ASR #2           /* r11 = r11 / 4   (4 is the number of cycles per loop run below) */
-				
-				mov r8, #1
-.wait_for_my_time:
-				subs r11, r11, r8
-				bge .wait_for_my_time
-				
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             
+
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             
+
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             
+
+				ldr   r8, [r12, #TC2_CV]
+				cmp   r8, r11
+				bge   .fdt_expired             
+
+.fdt_expired:				
 				str   r9, [r12, #TC_CCR]       /* SWTRG on TC0 */
 				
                 ldr   r11, =ssc_tx_fiq_fdt_ssc
