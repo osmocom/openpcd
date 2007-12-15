@@ -67,7 +67,8 @@ typedef enum {
 
 typedef struct {
 	enum ssc_mode mode;
-	u_int16_t transfersize; 
+	u_int16_t transfersize_ssc;
+	u_int16_t transfersize_pdc;
 	u_int16_t transfers;
 } ssc_mode_def;
 

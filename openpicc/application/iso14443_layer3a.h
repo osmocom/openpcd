@@ -100,7 +100,8 @@ typedef struct {
   		enum { PARITY, /* Calculate parity on the fly, ignore the parity field below */ 
   		       GIVEN_PARITY, /* Use the parity bits from the parity field below */  
   		       NO_PARITY, /* Don't send any parity */
-  		} parity; 
+  		} parity;
+  		enum { ISO14443A_LAST_BIT_0 = 0, ISO14443A_LAST_BIT_1 = 1, ISO14443A_LAST_BIT_NONE } last_bit;
   	} a;
   } parameters;
   u_int32_t numbytes;

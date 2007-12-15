@@ -72,16 +72,16 @@ static struct ssc_state ssc_state;
  * the SSC supports different sizes, all PDC tranfers will be either 8, 16 or 32, rounding up.) */
 static const ssc_mode_def ssc_sizes[] = {
 	/* Undefined, no size set */
-	[SSC_MODE_NONE]		   = {SSC_MODE_NONE, 0, 0},
+	[SSC_MODE_NONE]		   = {SSC_MODE_NONE, 0, 0, 0},
 	/* 14443A Short Frame: 1 transfer of ISO14443A_SHORT_LEN bits */
-	[SSC_MODE_14443A_SHORT]	   = {SSC_MODE_14443A_SHORT, ISO14443A_SHORT_TRANSFER_SIZE, 1},
+	[SSC_MODE_14443A_SHORT]	   = {SSC_MODE_14443A_SHORT, ISO14443A_SHORT_LEN, ISO14443A_SHORT_TRANSFER_SIZE, 1},
 	/* 14443A Standard Frame: FIXME 16 transfers of 32 bits (maximum number), resulting in 512 samples */ 
-	[SSC_MODE_14443A_STANDARD] = {SSC_MODE_14443A_STANDARD, 32, 16},
+	[SSC_MODE_14443A_STANDARD] = {SSC_MODE_14443A_STANDARD, 32, 32, 16},
 	/* 14443A Frame, don't care if standard or short */
-	[SSC_MODE_14443A]          = {SSC_MODE_14443A, ISO14443A_SAMPLE_LEN, ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS},
-	[SSC_MODE_14443B]	   = {SSC_MODE_14443B, 32, 16},	/* 64 bytes */
-	[SSC_MODE_EDGE_ONE_SHOT]   = {SSC_MODE_EDGE_ONE_SHOT, 32, 16},	/* 64 bytes */
-	[SSC_MODE_CONTINUOUS]	   = {SSC_MODE_CONTINUOUS, 32, 511},	/* 2044 bytes */
+	[SSC_MODE_14443A]          = {SSC_MODE_14443A, ISO14443A_SAMPLE_LEN, 8, ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS},
+	[SSC_MODE_14443B]	   = {SSC_MODE_14443B, 32, 32, 16},	/* 64 bytes */
+	[SSC_MODE_EDGE_ONE_SHOT]   = {SSC_MODE_EDGE_ONE_SHOT, 32, 32,  16},	/* 64 bytes */
+	[SSC_MODE_CONTINUOUS]	   = {SSC_MODE_CONTINUOUS, 32, 32,  511},	/* 2044 bytes */
 };
 
 /* ************** SSC BUFFER HANDLING *********************** */
@@ -154,7 +154,7 @@ static int __ramfunc __ssc_rx_load(int secondary)
 	}
 	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
 		req_ctx_num(buffer), buffer->size);
-	buffer->len = ssc_sizes[ssc_state.mode].transfersize * ssc_sizes[ssc_state.mode].transfers;
+	buffer->len = ssc_sizes[ssc_state.mode].transfersize_ssc * ssc_sizes[ssc_state.mode].transfers;
 	buffer->reception_mode = &ssc_sizes[ssc_state.mode];
 	
 	if(ssc_state.buffer[secondary] != NULL) { 
@@ -202,7 +202,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	u_int16_t remaining_transfers = (secondary ? rx_pdc->PDC_RNCR : rx_pdc->PDC_RCR);
 	u_int8_t* next_transfer_location = (u_int8_t*)(secondary ? rx_pdc->PDC_RNPR : rx_pdc->PDC_RPR);
 	u_int16_t elapsed_transfers = buffer->reception_mode->transfers - remaining_transfers;
-	u_int32_t elapsed_size = buffer->reception_mode->transfersize/8  * elapsed_transfers;
+	u_int32_t elapsed_size = buffer->reception_mode->transfersize_pdc/8  * elapsed_transfers;
 	
 	/* Consistency check */
 	if( next_transfer_location - elapsed_size != buffer->data ) {

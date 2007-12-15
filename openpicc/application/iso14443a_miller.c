@@ -51,7 +51,7 @@ enum miller_sequence {
 int iso14443a_decode_miller(iso14443_frame *frame, 
 	const u_int8_t *sample_buf, const u_int16_t sample_buf_len)
 {
-	signed int i, j, bit = 0, last_bit = -1;
+	signed int i, j, bit = 0, last_bit = -1, next_to_last_bit = 0;
 	enum miller_sequence current_seq;
 	unsigned int bitpos = 0;
 	
@@ -88,6 +88,7 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 			switch(bit) {
 				case BIT_ENDMARKER:
 					bitpos-=2; /* Subtract this sequence and the previous sequence (which was a 0) */
+					frame->parameters.a.last_bit = next_to_last_bit;
 					break;
 				case 0: /* Fall-through */
 				case 1: {
@@ -100,6 +101,7 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 				}
 			}
 			
+			next_to_last_bit = last_bit;
 			last_bit = bit;
 			bitpos++;
 		}

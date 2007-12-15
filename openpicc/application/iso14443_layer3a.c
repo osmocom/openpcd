@@ -43,7 +43,7 @@
 static enum ISO14443_STATES state = STARTING_UP;
 const iso14443_frame ATQA_FRAME = {
 	TYPE_A,
-	{{STANDARD_FRAME, PARITY}},
+	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE}},
 	2,
 	0, 0,
 	{4, 0},
@@ -52,7 +52,7 @@ const iso14443_frame ATQA_FRAME = {
 
 const iso14443_frame NULL_FRAME = {
 	TYPE_A,
-	{{STANDARD_FRAME, PARITY}},
+	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE}},
 	4, 
 	0, 0,
 	//{0xF3, 0xFB, 0xAE, 0xED},
@@ -66,8 +66,8 @@ const iso14443_frame NULL_FRAME = {
 
 #define LAYER3_DEBUG usb_print_string
 
-#define INITIAL_STATE IDLE
-//#define INITIAL_STATE ACTIVE
+//#define INITIAL_STATE IDLE
+#define INITIAL_STATE ACTIVE
 
 #if INITIAL_STATE == IDLE
 #define INITIAL_FRAME ATQA_FRAME
@@ -307,12 +307,14 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				vLedBlinkGreen();
 				if(1) {
 					int i = usb_print_set_default_flush(0);
-					DumpBufferToUSB((char*)buffer->data, buffer->len/8);
+					DumpBufferToUSB((char*)buffer->data, (buffer->len+7)/8);
 					DumpStringToUSB(" Decoded: ");
 					DumpUIntToUSB(buffer->len);
 					DumpStringToUSB(" ");
-					iso14443a_decode_miller(&received_frame, buffer->data, buffer->len/8);
+					iso14443a_decode_miller(&received_frame, buffer->data, (buffer->len+7)/8);
 					DumpBufferToUSB((char*)received_frame.data, received_frame.numbytes + (received_frame.numbits+7)/8);
+					DumpStringToUSB(" ");
+					DumpUIntToUSB(received_frame.parameters.a.last_bit);
 					DumpStringToUSB("\n\r");
 					usb_print_set_default_flush(i);
 				}
