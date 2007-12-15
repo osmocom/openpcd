@@ -199,9 +199,15 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	
 	u_int16_t remaining_transfers = (secondary ? rx_pdc->PDC_RNCR : rx_pdc->PDC_RCR);
 	u_int8_t* next_transfer_location = (u_int8_t*)(secondary ? rx_pdc->PDC_RNPR : rx_pdc->PDC_RPR);
-	u_int32_t remaining_size = buffer->reception_mode->transfersize *  remaining_transfers;
+	u_int16_t elapsed_transfers = buffer->reception_mode->transfers - remaining_transfers;
+	u_int32_t elapsed_size = buffer->reception_mode->transfersize/8  * elapsed_transfers;
+	
 	/* Consistency check */
-	if( next_transfer_location - remaining_size != buffer->data ) {
+	if( next_transfer_location - elapsed_size != buffer->data ) {
+		int i=usb_print_set_default_flush(0);
+		DumpStringToUSB("!!! "); DumpUIntToUSB((int)next_transfer_location); DumpStringToUSB(" ");
+		DumpUIntToUSB(elapsed_size); DumpStringToUSB(" "); DumpUIntToUSB((int)buffer->data); DumpStringToUSB(" ");
+		usb_print_set_default_flush(i);
 		ssc_buffer_errors++;
 		if(buffer->state == PENDING) buffer->state = FREE;
 		ssc_state.buffer[secondary] = NULL;

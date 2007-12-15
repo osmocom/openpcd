@@ -297,6 +297,17 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 					main_help_print_buffer(buffer, &pktcount);
 				}
 				vLedBlinkGreen();
+				if(1) {
+					int i = usb_print_set_default_flush(0);
+					DumpBufferToUSB((char*)buffer->data, buffer->len/8);
+					DumpStringToUSB(" Decoded: ");
+					DumpUIntToUSB(buffer->len);
+					DumpStringToUSB(" ");
+					iso14443a_decode_miller(&received_frame, buffer->data, buffer->len/8);
+					DumpBufferToUSB((char*)received_frame.data, received_frame.numbytes + (received_frame.numbits+7)/8);
+					DumpStringToUSB("\n\r");
+					usb_print_set_default_flush(i);
+				}
 				
 				switch(state) {
 					case IDLE:
@@ -308,14 +319,6 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 							if(atqa_sent) {
 								LAYER3_DEBUG(", woke up to send ATQA\n\r");
 								atqa_sent = 0;
-							}
-							if(1) {
-								DumpStringToUSB("Decoded: ");
-								DumpUIntToUSB(buffer->len);
-								DumpStringToUSB(" ");
-								iso14443a_decode_miller(&received_frame, buffer->data, buffer->len/8);
-								DumpBufferToUSB((char*)received_frame.data, received_frame.numbytes + (received_frame.numbits+7)/8);
-								DumpStringToUSB("\n\r");
 							}
 							/* For debugging, wait 1ms, then wait for another frame 
 							 * Normally we'd go to anticol from here*/
@@ -330,12 +333,6 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 						break;
 					case ACTIVE:
 					case ACTIVE_STAR:
-#if 0
-								DumpStringToUSB("Decoded: ");
-								decoder_decode(DECODER_MILLER, (const char*)buffer->data, buffer->len, received_buffer);
-								DumpBufferToUSB((char*)received_buffer, 100);
-								DumpStringToUSB("\n\r");
-#endif
 							/* Wait for another frame */
 							if(0) {
 								ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);

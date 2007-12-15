@@ -51,7 +51,7 @@ enum miller_sequence {
 int iso14443a_decode_miller(iso14443_frame *frame, 
 	const u_int8_t *sample_buf, const u_int16_t sample_buf_len)
 {
-	signed int i, j, bit = 0, last_bit = 0;
+	signed int i, j, bit = 0, last_bit = -1;
 	enum miller_sequence current_seq;
 	unsigned int bitpos = 0;
 	
@@ -111,8 +111,7 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 	DumpUIntToUSB(frame->numbytes);
 	DumpStringToUSB(" bytes, ");
 	DumpUIntToUSB(frame->numbits);
-	DumpStringToUSB(" bits");
-	DumpStringToUSB("\n\r");
+	DumpStringToUSB(" bits ");
 	
 	return 0;
 }
