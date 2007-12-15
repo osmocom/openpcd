@@ -85,6 +85,8 @@ void vApplicationIdleHook(void)
     usb_print_flush();
 }
 
+#if 0
+// Bitrotten
 void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount)
 {
 	ISO14443A_SHORT_TYPE *tmp = (ISO14443A_SHORT_TYPE*)buffer->data;
@@ -140,6 +142,7 @@ void vMainTestSSCRXConsumer (void *pvParameters)
 		}
 	}
 }
+#endif
 
 /* This task pings the watchdog even when the idle task is not running
  * It should be started with a very high priority and will delay most of the time */

@@ -25,7 +25,7 @@
 
 #include "usb_print.h"
 
-#define BUFLEN 1024
+#define BUFLEN (2*1024)
 
 static char ringbuffer[BUFLEN];
 static int ringstart, ringstop;

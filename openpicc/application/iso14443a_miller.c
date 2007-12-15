@@ -24,6 +24,7 @@
 
 #include "iso14443_layer3a.h"
 #include "usb_print.h"
+#include "ssc_picc.h"
 #include "cmd.h"
 
 #ifdef FOUR_TIMES_OVERSAMPLING
@@ -49,9 +50,10 @@ enum miller_sequence {
 #define BIT_ENDMARKER -1
 
 int iso14443a_decode_miller(iso14443_frame *frame, 
-	const u_int8_t *sample_buf, const u_int16_t sample_buf_len)
+	const ssc_dma_rx_buffer_t *buffer)
 {
-	signed int i, j, bit = 0, last_bit = -1, next_to_last_bit = 0;
+	u_int32_t i,j;
+	signed int bit = 0, last_bit = ISO14443A_LAST_BIT_NONE, next_to_last_bit = ISO14443A_LAST_BIT_NONE;
 	enum miller_sequence current_seq;
 	unsigned int bitpos = 0;
 	
@@ -59,17 +61,23 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 	frame->type = TYPE_A;
 	frame->parameters.a.parity = GIVEN_PARITY;
 	
-	for(i=0; i<sample_buf_len && bit != BIT_ENDMARKER; i++) {
+	for(i=0; i<buffer->len_transfers && bit != BIT_ENDMARKER; i++) {
+		u_int32_t sample = 0;
 		DumpStringToUSB(" ");
-		DumpUIntToUSB(sample_buf[i]);
-		for(j=0; j<(signed)(sizeof(sample_buf[0])*8)/OVERSAMPLING_RATE && bit != BIT_ENDMARKER; j++) {
+		switch(buffer->reception_mode->transfersize_pdc) {
+			case 8:  sample = ((u_int8_t*)buffer->data)[i];  break;
+			case 16: sample = ((u_int16_t*)buffer->data)[i]; break;
+			case 32: sample = ((u_int32_t*)buffer->data)[i]; break;
+		}
+		DumpUIntToUSB(sample);
+		for(j=0; j<buffer->reception_mode->transfersize_ssc/OVERSAMPLING_RATE && bit != BIT_ENDMARKER; j++) {
 			DumpStringToUSB(".");
-			int sample = (sample_buf[i]>>(j*OVERSAMPLING_RATE)) & ~(~0 << OVERSAMPLING_RATE);
-			switch(sample) {
+			int bitsample = (sample>>(j*OVERSAMPLING_RATE)) & ~(~0 << OVERSAMPLING_RATE);
+			switch(bitsample) {
 				case SEQ_X: current_seq = SEQUENCE_X; DumpStringToUSB("X"); break;
 				case SEQ_Y: current_seq = SEQUENCE_Y; DumpStringToUSB("Y"); break;
 				case SEQ_Z: current_seq = SEQUENCE_Z; DumpStringToUSB("Z"); break;
-				default: DumpUIntToUSB(sample); current_seq = SEQUENCE_Y;
+				default: DumpUIntToUSB(bitsample); current_seq = SEQUENCE_Y;
 			}
 			
 			switch(current_seq) {

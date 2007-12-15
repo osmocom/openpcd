@@ -1,5 +1,6 @@
 /* AT91SAM7 SSC controller routines for OpenPICC
  * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
+ * (C) 2007 Henryk Plötz <henryk@ploetzli.ch>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by 
@@ -154,7 +155,7 @@ static int __ramfunc __ssc_rx_load(int secondary)
 	}
 	DEBUGR("filling SSC RX%u dma ctx: %u (len=%u) ", secondary,
 		req_ctx_num(buffer), buffer->size);
-	buffer->len = ssc_sizes[ssc_state.mode].transfersize_ssc * ssc_sizes[ssc_state.mode].transfers;
+	buffer->len_transfers = ssc_sizes[ssc_state.mode].transfers;
 	buffer->reception_mode = &ssc_sizes[ssc_state.mode];
 	
 	if(ssc_state.buffer[secondary] != NULL) { 
@@ -176,6 +177,21 @@ static int __ramfunc __ssc_rx_load(int secondary)
 				ssc_sizes[ssc_state.mode].transfers);
 		ssc_state.buffer[0] = buffer;
 	}
+	
+	if(secondary) {int i=usb_print_set_default_flush(0);
+		DumpStringToUSB("{1:");
+		DumpUIntToUSB(rx_pdc->PDC_RNCR);
+		DumpStringToUSB(" ");
+		DumpUIntToUSB(rx_pdc->PDC_RNPR);
+		DumpStringToUSB("} ");
+		usb_print_set_default_flush(i);}
+	else {int i=usb_print_set_default_flush(0);
+		DumpStringToUSB("{0:");
+		DumpUIntToUSB(rx_pdc->PDC_RCR);
+		DumpStringToUSB(" ");
+		DumpUIntToUSB(rx_pdc->PDC_RPR);
+		DumpStringToUSB("} ");
+		usb_print_set_default_flush(i);}
 
 	return 0;
 }
@@ -199,15 +215,40 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	ssc_dma_rx_buffer_t *buffer = ssc_state.buffer[secondary];
 	if(buffer == NULL) return NULL;
 	
+	if(secondary) {int i=usb_print_set_default_flush(0);
+		DumpStringToUSB("(1:");
+		DumpUIntToUSB(rx_pdc->PDC_RNCR);
+		DumpStringToUSB(" ");
+		DumpUIntToUSB(rx_pdc->PDC_RNPR);
+		DumpStringToUSB(") ");
+		usb_print_set_default_flush(i);}
+	else {int i=usb_print_set_default_flush(0);
+		DumpStringToUSB("(0:");
+		DumpUIntToUSB(rx_pdc->PDC_RCR);
+		DumpStringToUSB(" ");
+		DumpUIntToUSB(rx_pdc->PDC_RPR);
+		DumpStringToUSB(") ");
+		usb_print_set_default_flush(i);}
+	
 	u_int16_t remaining_transfers = (secondary ? rx_pdc->PDC_RNCR : rx_pdc->PDC_RCR);
 	u_int8_t* next_transfer_location = (u_int8_t*)(secondary ? rx_pdc->PDC_RNPR : rx_pdc->PDC_RPR);
 	u_int16_t elapsed_transfers = buffer->reception_mode->transfers - remaining_transfers;
+	
+	/* BUG BUG BUG For some reason the RNCR is zero, even though there have been no transfers in the secondary
+	 * buffer. For now just assume that secondary==1 && remaining_transfers==0 is a bug condition and actually
+	 * means elapsed_transfers == 0. Of course this will fail should they second buffer really be completely full. */
+	if(secondary && remaining_transfers==0) {
+		remaining_transfers = buffer->reception_mode->transfers;
+		elapsed_transfers = 0;
+	}
+	
 	u_int32_t elapsed_size = buffer->reception_mode->transfersize_pdc/8  * elapsed_transfers;
 	
 	/* Consistency check */
 	if( next_transfer_location - elapsed_size != buffer->data ) {
 		int i=usb_print_set_default_flush(0);
-		DumpStringToUSB("!!! "); DumpUIntToUSB((int)next_transfer_location); DumpStringToUSB(" ");
+		DumpStringToUSB("!!!"); DumpUIntToUSB(secondary); DumpStringToUSB(" "); 
+		DumpUIntToUSB((int)next_transfer_location); DumpStringToUSB(" ");
 		DumpUIntToUSB(elapsed_size); DumpStringToUSB(" "); DumpUIntToUSB((int)buffer->data); DumpStringToUSB(" ");
 		usb_print_set_default_flush(i);
 		ssc_buffer_errors++;
@@ -221,7 +262,14 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	} else {
 		AT91F_PDC_SetRx(rx_pdc, 0, 0);
 	}
-	if(buffer->state == PENDING) buffer->state = FREE;
+	if(buffer->state == PENDING) {
+		buffer->len_transfers = elapsed_transfers;
+		if(elapsed_transfers > 0) {
+			buffer->state = FULL;
+		} else {
+			buffer->state = FREE;
+		}
+	}
 	ssc_state.buffer[secondary] = NULL;
 	 
 	return buffer;
@@ -439,7 +487,11 @@ static void __ramfunc ssc_irq(void)
 		 vLedSetRed(1);
 	}
 	
+	if(ssc_sr & AT91C_SSC_CP1) usb_print_string_f("CP1 ", 0);
+	
 	if (ssc_sr & (AT91C_SSC_ENDRX | AT91C_SSC_CP1)) {
+#if 0
+// Bitrotten
 		/* Ignore empty frames */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
 			/* This code section is probably bitrotten by now. */
@@ -455,6 +507,10 @@ static void __ramfunc ssc_irq(void)
 				}
 			}
 		}
+#else
+		(void)i;
+		(void)tmp;
+#endif
 		//DEBUGP("Sending primary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
 		/* Mark primary RCTX as ready to send for usb */
 		if(!emptyframe) {
@@ -472,10 +528,12 @@ static void __ramfunc ssc_irq(void)
 		}
 		vLedSetGreen(1);
 
-		/* second buffer gets propagated to primary */
 		inbuf = ssc_state.buffer[0];
-		ssc_state.buffer[0] = ssc_state.buffer[1];
-		ssc_state.buffer[1] = NULL;
+		if(ssc_sr & AT91C_SSC_ENDRX) {
+			/* second buffer gets propagated to primary */
+			ssc_state.buffer[0] = ssc_state.buffer[1];
+			ssc_state.buffer[1] = NULL;
+		}
 		if(ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT
 			|| ssc_state.mode == SSC_MODE_14443A_STANDARD || (ssc_state.mode == SSC_MODE_14443A && ssc_sr & AT91C_SSC_CP1)) {
 			// Stop sampling here

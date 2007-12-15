@@ -74,7 +74,7 @@ typedef struct {
 
 typedef struct {
 	volatile ssc_dma_buffer_state_t state;
-	u_int32_t len;  /* Length of the content, in samples */
+	u_int32_t len_transfers;  /* Length of the content, in transfers */
 	const ssc_mode_def *reception_mode; /* Pointer to the SSC mode definition that the buffer has been loaded for (affects element size and count) */
 	u_int8_t data[SSC_RX_BUFFER_SIZE];
 } ssc_dma_rx_buffer_t;
