@@ -66,8 +66,8 @@ const iso14443_frame NULL_FRAME = {
 
 #define LAYER3_DEBUG usb_print_string
 
-//#define INITIAL_STATE IDLE
-#define INITIAL_STATE ACTIVE
+#define INITIAL_STATE IDLE
+//#define INITIAL_STATE ACTIVE
 
 #if INITIAL_STATE == IDLE
 #define INITIAL_FRAME ATQA_FRAME
