@@ -18,6 +18,7 @@ enum ISO14443_STATES {
 /******************** RX ************************************/
 #ifdef FOUR_TIMES_OVERSAMPLING
 /* definitions for four-times oversampling */
+#define ISO14443A_SAMPLE_LEN    4
 /* Sample values for the REQA and WUPA short frames */
 #define REQA	0x10410441
 #define WUPA	0x04041041
@@ -39,12 +40,17 @@ enum ISO14443_STATES {
 
 #else
 /* definitions for two-times oversampling */
+#define ISO14443A_SAMPLE_LEN    2
+
 #define REQA	0x4929
 #define WUPA	0x2249
 
 #define ISO14443A_SOF_SAMPLE	0x01
 #define ISO14443A_SOF_LEN	2
 #define ISO14443A_SHORT_LEN     18
+
+#define ISO14443A_EOF_SAMPLE    0x00
+#define ISO14443A_EOF_LEN       4
 
 #endif
 
@@ -66,6 +72,7 @@ enum ISO14443_STATES {
 #error ISO14443A_SHORT_LEN defined too big
 #endif
 
+#define ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS (256*9 +2)
 /******************** TX ************************************/
 /* Magic delay, don't know where it comes from */
 #define MAGIC_OFFSET -32

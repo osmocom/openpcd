@@ -75,6 +75,14 @@ const iso14443_frame NULL_FRAME = {
 #define INITIAL_FRAME NULL_FRAME
 #endif
 
+#if 1
+#define SHORT_MODE SSC_MODE_14443A_SHORT
+#define STANDARD_MODE SSC_MODE_14443A_STANDARD
+#else
+#define SHORT_MODE SSC_MODE_14443A
+#define STANDARD_MODE SSC_MODE_14443A
+#endif
+
 #define ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 -1
 #define ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1 -2
 
@@ -104,7 +112,7 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 {
 	(void)ssc_sr;
 	int fdt;
-	if(ssc_mode == SSC_MODE_14443A_SHORT && samples) {
+	if((ssc_mode == SSC_MODE_14443A_SHORT || ssc_mode == SSC_MODE_14443A) && samples) {
 		ISO14443A_SHORT_TYPE sample =  *(ISO14443A_SHORT_TYPE*)samples;
 		portBASE_TYPE send_atqa = 0;
 		if(sample == REQA) {
@@ -259,9 +267,9 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 						DumpStringToUSB("\n\r");
 						state=INITIAL_STATE;
 						if(INITIAL_STATE == IDLE)
-							enable_reception(SSC_MODE_14443A_SHORT);
+							enable_reception(SHORT_MODE);
 						else if(INITIAL_STATE == ACTIVE)
-							enable_reception(SSC_MODE_14443A_STANDARD);
+							enable_reception(STANDARD_MODE);
 						else enable_reception(SSC_MODE_NONE);
 					} else {
 						LAYER3_DEBUG("SSC TX overflow error, please debug");
@@ -324,18 +332,18 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 							 * Normally we'd go to anticol from here*/
 							vTaskDelay(portTICK_RATE_MS);
 							if(prefill_buffer(&ssc_tx_buffer, &ATQA_FRAME)) {
-								enable_reception(SSC_MODE_14443A_SHORT);
+								enable_reception(SHORT_MODE);
 							}
 						} else {
 							/* Wait for another frame */
-							enable_reception(SSC_MODE_14443A_SHORT);
+							enable_reception(SHORT_MODE);
 						}
 						break;
 					case ACTIVE:
 					case ACTIVE_STAR:
 							/* Wait for another frame */
 							if(0) {
-								ssc_rx_mode_set(SSC_MODE_14443A_STANDARD);
+								ssc_rx_mode_set(STANDARD_MODE);
 								ssc_rx_start();
 							} else {
 								//vTaskDelay(portTICK_RATE_MS);
@@ -351,7 +359,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 									usb_print_flush();
 								}
 							/* Wait for another frame */
-							enable_reception(SSC_MODE_14443A_STANDARD);
+							enable_reception(STANDARD_MODE);
 							}
 					default:
 						break;
