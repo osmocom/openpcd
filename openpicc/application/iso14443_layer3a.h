@@ -50,7 +50,7 @@ enum ISO14443_STATES {
 #define ISO14443A_SHORT_LEN     18
 
 #define ISO14443A_EOF_SAMPLE    0x00
-#define ISO14443A_EOF_LEN       4
+#define ISO14443A_EOF_LEN       5
 
 #endif
 

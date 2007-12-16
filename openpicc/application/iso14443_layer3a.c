@@ -307,10 +307,15 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				vLedBlinkGreen();
 				if(1) {
 					int i = usb_print_set_default_flush(0);
-					DumpBufferToUSB((char*)buffer->data, (buffer->len_transfers * buffer->reception_mode->transfersize_pdc)/8);
-					DumpStringToUSB(" Decoded: ");
+					DumpStringToUSB("[");
+					DumpUIntToUSB((unsigned int)buffer);
+					DumpStringToUSB(":");
 					DumpUIntToUSB(buffer->len_transfers);
 					DumpStringToUSB(" ");
+					DumpUIntToUSB((unsigned int)buffer->data);
+					DumpStringToUSB("] ");
+					DumpBufferToUSB((char*)buffer->data, (buffer->len_transfers * buffer->reception_mode->transfersize_pdc)/8);
+					DumpStringToUSB(" Decoded: ");
 					iso14443a_decode_miller(&received_frame, buffer);
 					DumpBufferToUSB((char*)received_frame.data, received_frame.numbytes + (received_frame.numbits+7)/8);
 					DumpStringToUSB(" ");

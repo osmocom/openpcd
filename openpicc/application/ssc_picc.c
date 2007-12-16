@@ -262,8 +262,15 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	} else {
 		AT91F_PDC_SetRx(rx_pdc, 0, 0);
 	}
-	if(buffer->state == PENDING) {
+	if(buffer->state == PENDING || buffer->state==FULL) {
 		buffer->len_transfers = elapsed_transfers;
+		{int i=usb_print_set_default_flush(0);
+			DumpStringToUSB("<");
+			DumpUIntToUSB((unsigned int)buffer);
+			DumpStringToUSB(": ");
+			DumpUIntToUSB(elapsed_transfers);
+			DumpStringToUSB("> ");
+		usb_print_set_default_flush(i);}
 		if(elapsed_transfers > 0) {
 			buffer->state = FULL;
 		} else {
@@ -293,6 +300,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 {
 	u_int8_t data_len=0, num_data=0, sync_len=0;
 	u_int32_t start_cond=0;
+	u_int32_t clock_gating=0;
 	u_int8_t stop = 0;
 
 	/* disable Rx and all Rx interrupt sources */
@@ -306,6 +314,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE;
 		data_len = ISO14443A_SHORT_LEN;
 		num_data = 2;
+		clock_gating = (0x2 << 6);
 		break;
 	case SSC_MODE_14443A_STANDARD:
 		start_cond = AT91C_SSC_START_0;
@@ -313,14 +322,17 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE;
 		data_len = 32;
 		num_data = 16;	/* FIXME */
+		clock_gating = (0x2 << 6);
 		break;
 	case SSC_MODE_14443A:
 		start_cond = AT91C_SSC_START_0;
-		sync_len = ISO14443A_SOF_LEN;
-		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE;
+		sync_len = ISO14443A_EOF_LEN;
+		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE << (ISO14443A_EOF_LEN-ISO14443A_SOF_LEN);
+		ssc->SSC_RC1R = ISO14443A_EOF_SAMPLE;
 		data_len = ISO14443A_SAMPLE_LEN;
 		num_data = 16; /* Start with 16, then switch to continuous in the IRQ handler */
-		stop = 1;      /* Actually the documentation indicates that setting STOP makes switching to continuous unnecessary */
+		stop = 1;      /* It's impossible to use "stop on compare 1" for the stop condition here */
+		clock_gating = (0x0 << 6);
 		break;
 	case SSC_MODE_14443B:
 		/* start sampling at first falling data edge */
@@ -336,6 +348,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		sync_len = 0;
 		data_len = 32;
 		num_data = 16;
+		clock_gating = (0x2 << 6);
 		break;
 	case SSC_MODE_NONE:
 		goto out_set_mode;
@@ -348,7 +361,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 			//| AT91C_SSC_MSBF
 			;
 	ssc->SSC_RCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | 
-			(0x2 << 6) | AT91C_SSC_CKI | start_cond | (stop << 12);
+			clock_gating | AT91C_SSC_CKI | start_cond | (stop << 12);
 
 	/* Enable Rx DMA */
 	AT91F_PDC_EnableRx(rx_pdc);
@@ -471,7 +484,8 @@ static void __ramfunc ssc_irq(void)
 	if ((ssc_sr & AT91C_SSC_CP0) && (ssc_state.mode == SSC_MODE_14443A_SHORT || ssc_state.mode == SSC_MODE_14443A)) {
 		if(ssc_state.mode == SSC_MODE_14443A && ISO14443A_SOF_LEN != ISO14443A_EOF_LEN) {
 			/* Need to reprogram FSLEN */
-			ssc->SSC_RFMR = (ssc->SSC_RFMR & ~(0xf << 16)) | ( ((ISO14443A_EOF_LEN-1)&0xf) << 16 );
+			//ssc->SSC_RFMR = (ssc->SSC_RFMR & ~(0xf << 16)) | ( ((ISO14443A_EOF_LEN-1)&0xf) << 16 );
+			//ssc->SSC_RCMR = (ssc->SSC_RCMR & ~(0xf << 8)) | AT91C_SSC_START_CONTINOUS;
 		}
 		/* Short frame, busy loop till the frame is received completely to
 		 * prevent a second irq entrance delay when the actual frame end 
