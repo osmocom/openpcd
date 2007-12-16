@@ -331,7 +331,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		ssc->SSC_RC1R = ISO14443A_EOF_SAMPLE;
 		data_len = ISO14443A_SAMPLE_LEN;
 		num_data = 16; /* Start with 16, then switch to continuous in the IRQ handler */
-		stop = 1;      /* It's impossible to use "stop on compare 1" for the stop condition here */
+		stop = 1;      /* Actually the documentation indicates that setting STOP makes switching to continuous unnecessary */
 		clock_gating = (0x0 << 6);
 		break;
 	case SSC_MODE_14443B:
@@ -482,11 +482,6 @@ static void __ramfunc ssc_irq(void)
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 	
 	if ((ssc_sr & AT91C_SSC_CP0) && (ssc_state.mode == SSC_MODE_14443A_SHORT || ssc_state.mode == SSC_MODE_14443A)) {
-		if(ssc_state.mode == SSC_MODE_14443A && ISO14443A_SOF_LEN != ISO14443A_EOF_LEN) {
-			/* Need to reprogram FSLEN */
-			//ssc->SSC_RFMR = (ssc->SSC_RFMR & ~(0xf << 16)) | ( ((ISO14443A_EOF_LEN-1)&0xf) << 16 );
-			//ssc->SSC_RCMR = (ssc->SSC_RCMR & ~(0xf << 8)) | AT91C_SSC_START_CONTINOUS;
-		}
 		/* Short frame, busy loop till the frame is received completely to
 		 * prevent a second irq entrance delay when the actual frame end 
 		 * irq is raised. (The scheduler masks interrupts for about 56us,
