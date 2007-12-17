@@ -27,6 +27,16 @@
 #include "ssc_picc.h"
 #include "cmd.h"
 
+#if 0
+// With debugging
+#define MILLER_DEBUG_STRING DumpStringToUSB
+#define MILLER_DEBUG_UINT DumpUIntToUSB 
+#else
+// Without debugging
+#define MILLER_DEBUG_STRING(...) if(0){(void)__VA_ARGS__;}
+#define MILLER_DEBUG_UINT(...) if(0){(void)__VA_ARGS__;} 
+#endif
+
 #ifdef FOUR_TIMES_OVERSAMPLING
 #define OVERSAMPLING_RATE	4
 
@@ -49,8 +59,10 @@ enum miller_sequence {
 
 #define BIT_ENDMARKER -1
 
+static const int BITSAMPLE_MASK = ~(~0 << OVERSAMPLING_RATE);
+
 int iso14443a_decode_miller(iso14443_frame *frame, 
-	const ssc_dma_rx_buffer_t *buffer)
+	const ssc_dma_rx_buffer_t * const buffer)
 {
 	u_int32_t i,j;
 	signed int bit = 0, last_bit = ISO14443A_LAST_BIT_NONE, next_to_last_bit = ISO14443A_LAST_BIT_NONE;
@@ -61,23 +73,34 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 	frame->type = TYPE_A;
 	frame->parameters.a.parity = GIVEN_PARITY;
 	
+	u_int32_t sample = 0;
+	u_int8_t *sample_8=0;
+	u_int16_t *sample_16=0;
+	u_int32_t *sample_32=0;
+	
+	switch(buffer->reception_mode->transfersize_pdc) {
+		case 8:  sample_8 =  ((u_int8_t*)buffer->data);  break;
+		case 16: sample_16 = ((u_int16_t*)buffer->data); break;
+		case 32: sample_32 = ((u_int32_t*)buffer->data); break;
+	}
+	
 	for(i=0; i<buffer->len_transfers && bit != BIT_ENDMARKER; i++) {
-		u_int32_t sample = 0;
-		DumpStringToUSB(" ");
+		MILLER_DEBUG_STRING(" ");
 		switch(buffer->reception_mode->transfersize_pdc) {
-			case 8:  sample = ((u_int8_t*)buffer->data)[i];  break;
-			case 16: sample = ((u_int16_t*)buffer->data)[i]; break;
-			case 32: sample = ((u_int32_t*)buffer->data)[i]; break;
+			case 8:  sample = *sample_8++;  break;
+			case 16: sample = *sample_16++; break;
+			case 32: sample = *sample_32++; break;
 		}
-		DumpUIntToUSB(sample);
-		for(j=0; j<buffer->reception_mode->transfersize_ssc/OVERSAMPLING_RATE && bit != BIT_ENDMARKER; j++) {
-			DumpStringToUSB(".");
-			int bitsample = (sample>>(j*OVERSAMPLING_RATE)) & ~(~0 << OVERSAMPLING_RATE);
+		MILLER_DEBUG_UINT(sample);
+		
+		for(j=0; j<buffer->reception_mode->transfersize_ssc && bit != BIT_ENDMARKER; j+=OVERSAMPLING_RATE) {
+			MILLER_DEBUG_STRING(".");
+			int bitsample = (sample>>j) & BITSAMPLE_MASK;
 			switch(bitsample) {
-				case SEQ_X: current_seq = SEQUENCE_X; DumpStringToUSB("X"); break;
-				case SEQ_Y: current_seq = SEQUENCE_Y; DumpStringToUSB("Y"); break;
-				case SEQ_Z: current_seq = SEQUENCE_Z; DumpStringToUSB("Z"); break;
-				default: DumpUIntToUSB(bitsample); current_seq = SEQUENCE_Y;
+				case SEQ_X: current_seq = SEQUENCE_X; MILLER_DEBUG_STRING("X"); break;
+				case SEQ_Y: current_seq = SEQUENCE_Y; MILLER_DEBUG_STRING("Y"); break;
+				case SEQ_Z: current_seq = SEQUENCE_Z; MILLER_DEBUG_STRING("Z"); break;
+				default: MILLER_DEBUG_UINT(bitsample); current_seq = SEQUENCE_Y;
 			}
 			
 			switch(current_seq) {
@@ -86,7 +109,7 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 				case SEQUENCE_Y: /* Fall-through to SEQUENCE_Z */
 					if(last_bit == 0) {
 						bit = BIT_ENDMARKER;
-						DumpStringToUSB("!");
+						MILLER_DEBUG_STRING("!");
 						break;
 					}
 				case SEQUENCE_Z:
@@ -117,11 +140,11 @@ int iso14443a_decode_miller(iso14443_frame *frame,
 	
 	frame->numbytes = bitpos/9;
 	frame->numbits = bitpos%9;
-	DumpStringToUSB(" ");
-	DumpUIntToUSB(frame->numbytes);
-	DumpStringToUSB(" bytes, ");
-	DumpUIntToUSB(frame->numbits);
-	DumpStringToUSB(" bits ");
+	MILLER_DEBUG_STRING(" ");
+	MILLER_DEBUG_UINT(frame->numbytes);
+	MILLER_DEBUG_STRING(" bytes, ");
+	MILLER_DEBUG_UINT(frame->numbits);
+	MILLER_DEBUG_STRING(" bits ");
 	
 	return 0;
 }
