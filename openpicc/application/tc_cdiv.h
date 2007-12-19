@@ -23,5 +23,5 @@ static inline void tc_cdiv_phase_dec(void)
 extern void tc_cdiv_print(void);
 extern void tc_cdiv_init(void);
 extern void tc_cdiv_fini(void);
-
+extern void tc_cdiv_reset(void);
 #endif

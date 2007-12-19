@@ -44,7 +44,12 @@ void __ramfunc tc_cdiv_set_divider(u_int16_t div)
 	 * In order to not lose phase information when doing that we'll busy wait till CV is
 	 * zero modulo the new RC.*/
 	/*tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));*/
-	if(tcb->TCB_TC0.TC_CV > div) {
+	if(tcb->TCB_TC0.TC_CV > div
+#ifdef OPENPICC_MODIFIED_BOARD
+	/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
+	&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME_BURST))
+#endif
+	) {
 		while(tcb->TCB_TC0.TC_CV % div != 0);
 		tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
 	}
@@ -62,6 +67,12 @@ void __ramfunc tc_cdiv_phase_add(int16_t inc)
 	}
 }
 
+void tc_cdiv_reset(void)
+{
+	/* Reset to start timers */
+	tcb->TCB_BCR = 1;
+}
+
 void tc_cdiv_init(void)
 {
 	/* Cfg PA28(TCLK1), PA0(TIOA0), PA1(TIOB0), PA20(TCLK2) as Periph B */
@@ -69,7 +80,11 @@ void tc_cdiv_init(void)
 			    OPENPICC_PIO_CARRIER_IN |
 			    OPENPICC_PIO_CARRIER_DIV_OUT |
 			    OPENPICC_PIO_CDIV_HELP_OUT |
-			    OPENPICC_PIO_CDIV_HELP_IN);
+			    OPENPICC_PIO_CDIV_HELP_IN
+#ifdef OPENPICC_MODIFIED_BOARD
+				| OPENPICC_PIO_FRAME_BURST
+#endif
+			    );
 
 	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC, 
 				    ((unsigned int) 1 << AT91C_ID_TC0));
@@ -80,22 +95,31 @@ void tc_cdiv_init(void)
 	/* Connect TCLK1 to XC1, TCLK2 to XC2 */
 	tcb->TCB_BMR &= ~(AT91C_TCB_TC1XC1S | AT91C_TCB_TC2XC2S);
 	tcb->TCB_BMR |=  (AT91C_TCB_TC1XC1S_TCLK1 | AT91C_TCB_TC2XC2S_TCLK2);
+#ifdef OPENPICC_MODIFIED_BOARD
+	/* Connect TCLK0 to XC0 */
+	tcb->TCB_BMR &= ~(AT91C_TCB_TC0XC0S);
+	tcb->TCB_BMR |=  (AT91C_TCB_TC0XC0S_TCLK0);
+#endif
 
 	/* Clock XC1, Wave mode, Reset on RC comp
 	 * TIOA0 on RA comp = set, * TIOA0 on RC comp = clear,
 	 * TIOB0 on EEVT = set, TIOB0 on RB comp = clear,
-	 * EEVT = XC2 (TIOA0) */
+	 * EEVT = XC2 (TIOA0) 
+	 * if OPENPICC_MODIFIED_BOARD: BURST on XC0 */
 	tcb->TCB_TC0.TC_CMR = AT91C_TC_CLKS_XC1 | AT91C_TC_WAVE |
 			      AT91C_TC_WAVESEL_UP_AUTO | 
 			      AT91C_TC_ACPA_SET | AT91C_TC_ACPC_CLEAR |
 			      AT91C_TC_BEEVT_SET | AT91C_TC_BCPB_CLEAR |
 			      AT91C_TC_EEVT_XC2 | AT91C_TC_ETRGEDG_RISING |
-			      AT91C_TC_BSWTRG_CLEAR | AT91C_TC_ASWTRG_CLEAR;
+			      AT91C_TC_BSWTRG_CLEAR | AT91C_TC_ASWTRG_CLEAR
+#ifdef OPENPICC_MODIFIED_BOARD
+				| AT91C_TC_BURST_XC0
+#endif
+			      ;
 
 	tc_cdiv_set_divider(128);
 
-	/* Reset to start timers */
-	tcb->TCB_BCR = 1;
+	tc_cdiv_reset();
 }
 
 void tc_cdiv_print(void)

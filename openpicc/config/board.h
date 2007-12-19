@@ -50,6 +50,13 @@
 #define MCKKHz		(MCK/1000)	//
 
 /*-----------------*/
+/* Board version   */
+/*-----------------*/
+/* Modified board, routing PLL_LOCK to PA5 and a copy of FRAME to PA4, enabling the use of the T/C BURST feature. */
+#define OPENPICC_MODIFIED_BOARD
+
+
+/*-----------------*/
 /* Pins            */
 /*-----------------*/
 
@@ -59,15 +66,25 @@
 
 #define OPENPICC_PIO_SS2_DT_THRESH AT91C_PIO_PA8
 #define OPENPICC_PIO_PLL_INHIBIT   AT91C_PIO_PA24
+#ifdef OPENPICC_MODIFIED_BOARD
+#define OPENPICC_PIO_PLL_LOCK      AT91C_PIO_PA5
+#else
 #define OPENPICC_PIO_PLL_LOCK      AT91C_PIO_PA4
+#endif
 
 #define OPENPICC_MOD_PWM	   AT91C_PA23_PWM0
 #define OPENPICC_MOD_SSC	   AT91C_PA17_TD
 #define OPENPICC_SSC_DATA	   AT91C_PA18_RD
 #define OPENPICC_SSC_CLOCK	   AT91C_PA19_RK
 #define OPENPICC_SSC_TF		   AT91C_PIO_PA15
+#ifdef OPENPICC_MODIFIED_BOARD
+#define OPENPICC_SSC_DATA_GATE	   AT91C_PA30
+#endif
 
 #define OPENPICC_PIO_FRAME         AT91C_PIO_PA20
+#ifdef OPENPICC_MODIFIED_BOARD
+#define OPENPICC_PIO_FRAME_BURST   AT91C_PIO_PA4
+#endif
 #define OPENPICC_PIO_SSC_DATA_CONTROL   AT91C_PIO_PA21
 #define OPENPICC_PIO_AB_DETECT          AT91C_PIO_PA22
 #define OPENPICC_PIO_PLL_INHIBIT        AT91C_PIO_PA24

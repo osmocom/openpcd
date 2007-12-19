@@ -217,7 +217,7 @@ my_fiq_handler:
                 tst     r8, #PIO_DATA           /* check for PIO_DATA change */
                 ldrne   r11, [r10, #PIOA_PDSR]
                 tstne   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
-                strne   r9, [r12, #TC_CCR]      /* software trigger */
+                /*strne   r9, [r12, #TC_CCR]      /* software trigger */
 
                 movne   r11, #PIO_DATA
                 strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */

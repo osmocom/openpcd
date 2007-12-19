@@ -6,6 +6,7 @@
 #include "pio_irq.h"
 #include "openpicc.h"
 #include "led.h"
+#include "tc_cdiv.h"
 
 #define USE_IRQ
 
@@ -39,12 +40,16 @@ void tc_cdiv_sync_reset(void)
 		DEBUGPCRF("CDIV_SYNC_FLOP");
 		//vLedSetGreen(1);
 
-		/* reset the hardware flipflop */
+		/* reset the hardware flipflop, this clears FRAME */
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA,
 				      OPENPICC_PIO_SSC_DATA_CONTROL);
 		for (i = 0; i < 0xff; i++) ;
 		AT91F_PIO_SetOutput(AT91C_BASE_PIOA,
 				    OPENPICC_PIO_SSC_DATA_CONTROL);
+#ifdef OPENPICC_MODIFIED_BOARD
+		/* reset tc_cdiv counter, the cleared frame signal stopped the tc_cdiv clock */
+		tc_cdiv_reset();
+#endif
 	}
 }
 
