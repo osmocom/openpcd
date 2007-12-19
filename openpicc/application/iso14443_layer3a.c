@@ -61,6 +61,8 @@ const iso14443_frame NULL_FRAME = {
 	{}
 };
 
+const u_int8_t ISO14443A_SHORT_FRAME_REQA[ISO14443A_SHORT_FRAME_COMPARE_LENGTH] = _ISO14443A_SHORT_FRAME_REQA;
+const u_int8_t ISO14443A_SHORT_FRAME_WUPA[ISO14443A_SHORT_FRAME_COMPARE_LENGTH] = _ISO14443A_SHORT_FRAME_WUPA;
 
 #define PLL_LOCK_HYSTERESIS portTICK_RATE_MS*5
 
@@ -106,6 +108,28 @@ void iso14443_transmit(ssc_dma_tx_buffer_t *buf, int fdt, int div)
 	ssc_tx_start(buf);
 }
 
+static void _is_reqa_or_wupa(enum ssc_mode ssc_mode, u_int8_t* samples, int *is_reqa, int *is_wupa)
+{
+	if(ssc_mode == SSC_MODE_14443A_SHORT) {
+		*is_reqa = *is_wupa = 0;
+		ISO14443A_SHORT_TYPE sample =  *(ISO14443A_SHORT_TYPE*)samples;
+		if(sample == REQA) {
+			*is_reqa = 1;
+		} else if(sample == WUPA) {
+			*is_wupa = 1;
+		}
+	} else if(ssc_mode == SSC_MODE_14443A) {
+		int i;
+		*is_reqa = *is_wupa = 1;
+		for(i=0; i<ISO14443A_SHORT_FRAME_COMPARE_LENGTH; i++) {
+			if(samples[i] !=  ISO14443A_SHORT_FRAME_REQA[i]) is_reqa = 0;
+			if(samples[i] !=  ISO14443A_SHORT_FRAME_WUPA[i]) is_wupa = 0;
+		}
+	} else {
+		*is_reqa = *is_wupa = 0;
+	}
+}
+
 static int atqa_sent = 0;
 /* Running in ISR mode */
 void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t* samples)
@@ -113,13 +137,15 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 	(void)ssc_sr;
 	int fdt;
 	if((ssc_mode == SSC_MODE_14443A_SHORT || ssc_mode == SSC_MODE_14443A) && samples) {
-		ISO14443A_SHORT_TYPE sample =  *(ISO14443A_SHORT_TYPE*)samples;
-		portBASE_TYPE send_atqa = 0;
-		if(sample == REQA) {
+		int is_reqa, is_wupa;
+		_is_reqa_or_wupa(ssc_mode, samples, &is_reqa, &is_wupa);
+		portBASE_TYPE send_atqa = is_reqa || is_wupa; 
+		
+		if(is_reqa) {
 			fdt = ISO14443A_FDT_SHORT_0;
 			if(state == IDLE)
 				send_atqa = 1;
-		} else if(sample == WUPA) {
+		} else if(is_wupa) {
 			fdt = ISO14443A_FDT_SHORT_1;
 			if(state == IDLE || state == HALT)
 				send_atqa = 1;
@@ -316,7 +342,11 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 					DumpStringToUSB("] ");
 					DumpBufferToUSB((char*)buffer->data, (buffer->len_transfers * buffer->reception_mode->transfersize_pdc)/8);
 					DumpStringToUSB(" Decoded: ");
+					vLedBlinkGreen();
+					vLedSetGreen(1);
 					iso14443a_decode_miller(&received_frame, buffer);
+					vLedBlinkGreen();
+					vLedSetGreen(0);
 					DumpBufferToUSB((char*)received_frame.data, received_frame.numbytes + (received_frame.numbits+7)/8);
 					DumpStringToUSB(" ");
 					DumpUIntToUSB(received_frame.parameters.a.last_bit);
@@ -324,13 +354,16 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 					usb_print_set_default_flush(i);
 				}
 				
+				int is_reqa=0, is_wupa=0;
 				switch(state) {
 					case IDLE:
 					case HALT:
-						if(first_sample == WUPA || (state==IDLE && first_sample==REQA)) {
+						if(buffer->data) _is_reqa_or_wupa(buffer->reception_mode->mode, buffer->data, &is_reqa, &is_wupa);
+						
+						if(is_wupa || (state==IDLE && is_reqa)) {
 							/* Need to transmit ATQA */
 							LAYER3_DEBUG("Received ");
-							LAYER3_DEBUG(first_sample == WUPA ? "WUPA" : "REQA");
+							LAYER3_DEBUG(is_wupa ? "WUPA" : "REQA");
 							if(atqa_sent) {
 								LAYER3_DEBUG(", woke up to send ATQA\n\r");
 								atqa_sent = 0;
@@ -358,7 +391,11 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 								if(prefill_buffer(&ssc_tx_buffer, &NULL_FRAME)) {
 									usb_print_string_f("Sending response ...",0);
 									ssc_tx_buffer.state = PROCESSING;
-									iso14443_transmit(&ssc_tx_buffer, ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1, 8);
+									iso14443_transmit(&ssc_tx_buffer,
+										received_frame.parameters.a.last_bit==ISO14443A_LAST_BIT_0 ?
+										ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 :
+										ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1, 
+									8);
 									while( ssc_tx_buffer.state != FREE ) {
 										vTaskDelay(portTICK_RATE_MS);
 									}

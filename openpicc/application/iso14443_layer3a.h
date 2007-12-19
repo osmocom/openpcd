@@ -42,17 +42,29 @@ enum ISO14443_STATES {
 /* definitions for two-times oversampling */
 #define ISO14443A_SAMPLE_LEN    2
 
+/* For SSC_MODE_ISO14443A_SHORT */
+#define ISO14443A_SHORT_LEN     18
 #define REQA	0x4929
 #define WUPA	0x2249
 
 #define ISO14443A_SOF_SAMPLE	0x01
 #define ISO14443A_SOF_LEN	2
-#define ISO14443A_SHORT_LEN     18
 
 #define ISO14443A_EOF_SAMPLE    0x00
 #define ISO14443A_EOF_LEN       5
 
+/* For SSC_MODE_ISO14443A */
+#define ISO14443A_SHORT_FRAME_COMPARE_LENGTH 2
+#define _ISO14443A_SHORT_FRAME_REQA { 0x29, 0x49 }
+#define _ISO14443A_SHORT_FRAME_WUPA { 0x49, 0x22 }
+// FIXME not correct. This should be compare_length == 3 (which is 9 at 4 per compare), but this
+// needs enhanced ssc irq code to transfer the last read (incomplete) data from the ssc holding 
+// register to the buffer 
+
 #endif
+
+extern const u_int8_t ISO14443A_SHORT_FRAME_REQA[ISO14443A_SHORT_FRAME_COMPARE_LENGTH];
+extern const u_int8_t ISO14443A_SHORT_FRAME_WUPA[ISO14443A_SHORT_FRAME_COMPARE_LENGTH];
 
 /* A short frame should be received in one single SSC transfer */
 #if (ISO14443A_SHORT_LEN <= 8)

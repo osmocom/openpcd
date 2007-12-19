@@ -56,6 +56,7 @@
 #define DEBUGR(x, args ...)
 #endif
 
+#define DEBUG_LOAD_AND_UNLOAD 0
 
 static const AT91PS_SSC ssc = AT91C_BASE_SSC;
 static AT91PS_PDC rx_pdc;
@@ -79,7 +80,10 @@ static const ssc_mode_def ssc_sizes[] = {
 	/* 14443A Standard Frame: FIXME 16 transfers of 32 bits (maximum number), resulting in 512 samples */ 
 	[SSC_MODE_14443A_STANDARD] = {SSC_MODE_14443A_STANDARD, 32, 32, 16},
 	/* 14443A Frame, don't care if standard or short */
-	[SSC_MODE_14443A]          = {SSC_MODE_14443A, ISO14443A_SAMPLE_LEN, 8, ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS},
+	[SSC_MODE_14443A]          = {SSC_MODE_14443A, 
+		4 * ISO14443A_SAMPLE_LEN,               // transfersize_ssc 
+		4 * ISO14443A_SAMPLE_LEN <= 8 ? 8 : 16, // transfersize_pdc 
+		ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS},
 	[SSC_MODE_14443B]	   = {SSC_MODE_14443B, 32, 32, 16},	/* 64 bytes */
 	[SSC_MODE_EDGE_ONE_SHOT]   = {SSC_MODE_EDGE_ONE_SHOT, 32, 32,  16},	/* 64 bytes */
 	[SSC_MODE_CONTINUOUS]	   = {SSC_MODE_CONTINUOUS, 32, 32,  511},	/* 2044 bytes */
@@ -178,6 +182,7 @@ static int __ramfunc __ssc_rx_load(int secondary)
 		ssc_state.buffer[0] = buffer;
 	}
 	
+	if(DEBUG_LOAD_AND_UNLOAD) {
 	if(secondary) {int i=usb_print_set_default_flush(0);
 		DumpStringToUSB("{1:");
 		DumpUIntToUSB(rx_pdc->PDC_RNCR);
@@ -192,6 +197,7 @@ static int __ramfunc __ssc_rx_load(int secondary)
 		DumpUIntToUSB(rx_pdc->PDC_RPR);
 		DumpStringToUSB("} ");
 		usb_print_set_default_flush(i);}
+	}
 
 	return 0;
 }
@@ -215,6 +221,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	ssc_dma_rx_buffer_t *buffer = ssc_state.buffer[secondary];
 	if(buffer == NULL) return NULL;
 	
+	if(DEBUG_LOAD_AND_UNLOAD) {
 	if(secondary) {int i=usb_print_set_default_flush(0);
 		DumpStringToUSB("(1:");
 		DumpUIntToUSB(rx_pdc->PDC_RNCR);
@@ -229,6 +236,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 		DumpUIntToUSB(rx_pdc->PDC_RPR);
 		DumpStringToUSB(") ");
 		usb_print_set_default_flush(i);}
+	}
 	
 	u_int16_t remaining_transfers = (secondary ? rx_pdc->PDC_RNCR : rx_pdc->PDC_RCR);
 	u_int8_t* next_transfer_location = (u_int8_t*)(secondary ? rx_pdc->PDC_RNPR : rx_pdc->PDC_RPR);
@@ -264,6 +272,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 	}
 	if(buffer->state == PENDING || buffer->state==FULL) {
 		buffer->len_transfers = elapsed_transfers;
+		if(DEBUG_LOAD_AND_UNLOAD)
 		{int i=usb_print_set_default_flush(0);
 			DumpStringToUSB("<");
 			DumpUIntToUSB((unsigned int)buffer);
@@ -329,7 +338,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 		sync_len = ISO14443A_EOF_LEN;
 		ssc->SSC_RC0R = ISO14443A_SOF_SAMPLE << (ISO14443A_EOF_LEN-ISO14443A_SOF_LEN);
 		ssc->SSC_RC1R = ISO14443A_EOF_SAMPLE;
-		data_len = ISO14443A_SAMPLE_LEN;
+		data_len = ssc_sizes[SSC_MODE_14443A].transfersize_ssc;
 		num_data = 16; /* Start with 16, then switch to continuous in the IRQ handler */
 		stop = 1;      /* Actually the documentation indicates that setting STOP makes switching to continuous unnecessary */
 		clock_gating = (0x0 << 6);
