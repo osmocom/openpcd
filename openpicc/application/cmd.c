@@ -212,6 +212,17 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			DumpStringToUSB("cdiv_sync enabled \n\r");
 		    }
 		    break;
+#ifdef OPENPICC_MODIFIED_BOARD
+		case 'G':
+		    i=atoiEx(args, &args);
+		    ssc_set_data_gate(i);
+		    if(i==0) {
+			DumpStringToUSB("SSC_DATA disabled \n\r");
+		    } else {
+			DumpStringToUSB("SSC_DATA enabled \n\r");
+		    }
+		    break;
+#endif
 		case 'D':
 		    i=atoiEx(args, &args);
 		    tc_cdiv_set_divider(i);
@@ -404,6 +415,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
 			" * j,k  - increase, decrease fdt_offset\n\r"
 			" * a    - change load modulation level\n\r"
+#ifdef OPENPICC_MODIFIED_BOARD
+			" * g 0/1- disable or enable SSC_DATA through gate\n\r"
+#endif
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"
