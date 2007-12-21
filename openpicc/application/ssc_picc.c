@@ -441,6 +441,9 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	AT91F_SSC_EnableTx(AT91C_BASE_SSC);
 #else
 	ssc_tx_pending = 1;
+#ifdef OPENPICC_USE_SSC_DATA_GATING
+	ssc_set_data_gate(0);
+#endif
 	pio_irq_enable(OPENPICC_SSC_TF);
 	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) {
 		/* TF was probably already high when we enabled the PIO change interrupt for it. */
@@ -590,6 +593,9 @@ static void __ramfunc ssc_irq(void)
 		DEBUGP("TXSYN ");
 	
 	if(ssc_sr & AT91C_SSC_ENDTX) {
+#ifdef OPENPICC_USE_SSC_DATA_GATING
+		ssc_set_data_gate(1);
+#endif
 		//usb_print_string_f("ENDTX ", 0);
 		if(ssc_tx_buffer.state == PENDING) {
 			ssc_tx_buffer.state = FREE;

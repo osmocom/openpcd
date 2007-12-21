@@ -45,7 +45,7 @@ void __ramfunc tc_cdiv_set_divider(u_int16_t div)
 	 * zero modulo the new RC.*/
 	/*tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));*/
 	if(tcb->TCB_TC0.TC_CV > div
-#ifdef OPENPICC_MODIFIED_BOARD
+#ifdef OPENPICC_USE_CLOCK_GATING
 	/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
 	&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME_BURST))
 #endif
@@ -81,7 +81,7 @@ void tc_cdiv_init(void)
 			    OPENPICC_PIO_CARRIER_DIV_OUT |
 			    OPENPICC_PIO_CDIV_HELP_OUT |
 			    OPENPICC_PIO_CDIV_HELP_IN
-#ifdef OPENPICC_MODIFIED_BOARD
+#ifdef OPENPICC_USE_CLOCK_GATING
 				| OPENPICC_PIO_FRAME_BURST
 #endif
 			    );
@@ -95,7 +95,7 @@ void tc_cdiv_init(void)
 	/* Connect TCLK1 to XC1, TCLK2 to XC2 */
 	tcb->TCB_BMR &= ~(AT91C_TCB_TC1XC1S | AT91C_TCB_TC2XC2S);
 	tcb->TCB_BMR |=  (AT91C_TCB_TC1XC1S_TCLK1 | AT91C_TCB_TC2XC2S_TCLK2);
-#ifdef OPENPICC_MODIFIED_BOARD
+#ifdef OPENPICC_USE_CLOCK_GATING
 	/* Connect TCLK0 to XC0 */
 	tcb->TCB_BMR &= ~(AT91C_TCB_TC0XC0S);
 	tcb->TCB_BMR |=  (AT91C_TCB_TC0XC0S_TCLK0);
@@ -112,7 +112,7 @@ void tc_cdiv_init(void)
 			      AT91C_TC_BEEVT_SET | AT91C_TC_BCPB_CLEAR |
 			      AT91C_TC_EEVT_XC2 | AT91C_TC_ETRGEDG_RISING |
 			      AT91C_TC_BSWTRG_CLEAR | AT91C_TC_ASWTRG_CLEAR
-#ifdef OPENPICC_MODIFIED_BOARD
+#ifdef OPENPICC_USE_CLOCK_GATING
 				| AT91C_TC_BURST_XC0
 #endif
 			      ;

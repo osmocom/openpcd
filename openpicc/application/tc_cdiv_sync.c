@@ -46,7 +46,7 @@ void tc_cdiv_sync_reset(void)
 		for (i = 0; i < 0xff; i++) ;
 		AT91F_PIO_SetOutput(AT91C_BASE_PIOA,
 				    OPENPICC_PIO_SSC_DATA_CONTROL);
-#ifdef OPENPICC_MODIFIED_BOARD
+#ifdef OPENPICC_USE_CLOCK_GATING
 		/* reset tc_cdiv counter, the cleared frame signal stopped the tc_cdiv clock */
 		tc_cdiv_reset();
 #endif

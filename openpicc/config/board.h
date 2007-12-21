@@ -55,6 +55,10 @@
 /* Modified board, routing PLL_LOCK to PA5 and a copy of FRAME to PA4, enabling the use of the T/C BURST feature. */
 #define OPENPICC_MODIFIED_BOARD
 
+#ifdef OPENPICC_MODIFIED_BOARD
+#define OPENPICC_USE_SSC_DATA_GATING
+#define OPENPICC_USE_CLOCK_GATING
+#endif
 
 /*-----------------*/
 /* Pins            */
