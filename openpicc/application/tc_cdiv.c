@@ -34,6 +34,14 @@ AT91PS_TCB tcb = AT91C_BASE_TCB;
 /* set carrier divider to a specific */
 void __ramfunc tc_cdiv_set_divider(u_int16_t div)
 {
+	if(tcb->TCB_TC0.TC_CV > div
+#ifdef OPENPICC_USE_CLOCK_GATING
+	/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
+	&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME_BURST))
+#endif
+	) {
+		while(tcb->TCB_TC0.TC_CV > 3); /* Three carrier cycles are about 10 clock cycles, should be enough for the loop */  
+	}
 	tcb->TCB_TC0.TC_RC = div;
 
 	/* set to 50% duty cycle */

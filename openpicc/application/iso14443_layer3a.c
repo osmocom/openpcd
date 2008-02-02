@@ -1,6 +1,7 @@
 /***************************************************************
  *
  * OpenPICC - ISO 14443 Layer 3 Type A state machine
+ * Handles initialization and anticollision
  *
  * Copyright 2007 Henryk Plötz <henryk@ploetzli.ch>
  *
@@ -77,7 +78,7 @@ const u_int8_t ISO14443A_SHORT_FRAME_WUPA[ISO14443A_SHORT_FRAME_COMPARE_LENGTH] 
 #define INITIAL_FRAME NULL_FRAME
 #endif
 
-#if 1
+#if 0
 #define SHORT_MODE SSC_MODE_14443A_SHORT
 #define STANDARD_MODE SSC_MODE_14443A_STANDARD
 #else
@@ -101,10 +102,14 @@ void iso14443_transmit(ssc_dma_tx_buffer_t *buf, int fdt, int div)
 	} else if (fdt == ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1) {
 		fdt = tc_fdt_get_next_slot(ISO14443A_FDT_SHORT_1, ISO14443A_FDT_SLOTLEN);
 	}
-	ssc_tx_fiq_fdt_cdiv = fdt -3*div -1;
-	tc_fdt_set(ssc_tx_fiq_fdt_cdiv -MAX_TF_FIQ_ENTRY_DELAY -MAX_TF_FIQ_OVERHEAD);
-	ssc_tx_fiq_fdt_ssc  = fdt -div +1;
-	*AT91C_TC0_CCR = AT91C_TC_CLKDIS;
+	if(0) {
+		ssc_tx_fiq_fdt_cdiv = fdt -3*div -1;
+		tc_fdt_set(ssc_tx_fiq_fdt_cdiv -MAX_TF_FIQ_ENTRY_DELAY -MAX_TF_FIQ_OVERHEAD);
+		ssc_tx_fiq_fdt_ssc  = fdt -div +1;
+		*AT91C_TC0_CCR = AT91C_TC_CLKDIS;
+	} else {
+		tc_fdt_set(fdt);
+	}
 	ssc_tx_start(buf);
 }
 

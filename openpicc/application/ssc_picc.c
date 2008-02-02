@@ -388,7 +388,7 @@ out_set_mode:
  * a PIO change interrupt, have Fast Forcing enabled for the PIO change interrupt and
  * then activate the SSC TX in the FIQ handler on rising TF. ssc_tx_pending is queried
  * by the fiq handler to see whether to start the transmitter. */
-#define USE_SSC_TX_TF_WORKAROUND
+//#define USE_SSC_TX_TF_WORKAROUND
 volatile u_int32_t ssc_tx_pending = 0;
 
 /* This is the time that the TF FIQ should spin until before SWTRG'ing the tc_cdiv.
@@ -398,7 +398,7 @@ volatile u_int32_t ssc_tx_fiq_fdt_cdiv = 0;
  * There must be enough time between these two! */
 volatile u_int32_t ssc_tx_fiq_fdt_ssc = 0;
 #ifndef USE_SSC_TX_TF_WORKAROUND
-#error Transmission is broken without USE_SSC_TX_TF_WORKAROUND, see comments in code
+//#error Transmission is broken without USE_SSC_TX_TF_WORKAROUND, see comments in code
 #endif
 
 void ssc_tf_irq(u_int32_t pio);
@@ -417,7 +417,7 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 #ifdef USE_SSC_TX_TF_WORKAROUND
 	start_cond = AT91C_SSC_START_CONTINOUS;
 #else
-	start_cond = AT91C_SSC_START_RISE_RF;
+	start_cond = AT91C_SSC_START_HIGH_RF;
 #endif
 	sync_len = 1;
 	data_len = 32;
@@ -435,15 +435,15 @@ void ssc_tx_start(ssc_dma_tx_buffer_t *buf)
 	AT91F_SSC_EnableIt(ssc, AT91C_SSC_ENDTX);
 	/* Enable DMA */
 	AT91F_PDC_EnableTx(tx_pdc);
-	AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
+	//AT91F_PDC_SetTx(tx_pdc, buf->data, num_data);
+#ifdef OPENPICC_USE_SSC_DATA_GATING
+	ssc_set_data_gate(0);
+#endif
 	/* Start Transmission */
 #ifndef USE_SSC_TX_TF_WORKAROUND
 	AT91F_SSC_EnableTx(AT91C_BASE_SSC);
 #else
 	ssc_tx_pending = 1;
-#ifdef OPENPICC_USE_SSC_DATA_GATING
-	ssc_set_data_gate(0);
-#endif
 	pio_irq_enable(OPENPICC_SSC_TF);
 	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) {
 		/* TF was probably already high when we enabled the PIO change interrupt for it. */
@@ -596,6 +596,7 @@ static void __ramfunc ssc_irq(void)
 #ifdef OPENPICC_USE_SSC_DATA_GATING
 		ssc_set_data_gate(1);
 #endif
+		AT91F_SSC_EnableTx(AT91C_BASE_SSC);
 		//usb_print_string_f("ENDTX ", 0);
 		if(ssc_tx_buffer.state == PENDING) {
 			ssc_tx_buffer.state = FREE;

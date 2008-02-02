@@ -87,7 +87,8 @@ extern const u_int8_t ISO14443A_SHORT_FRAME_WUPA[ISO14443A_SHORT_FRAME_COMPARE_L
 #define ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS (256*9 +2)
 /******************** TX ************************************/
 /* Magic delay, don't know where it comes from */
-#define MAGIC_OFFSET -32
+//#define MAGIC_OFFSET -32
+#define MAGIC_OFFSET -10
 /* Delay from modulation till detection in SSC_DATA */
 #define DETECTION_DELAY 11
 /* See fdt_timinig.dia for these values */

@@ -240,6 +240,7 @@ my_fiq_handler:
                 ldrne   r8, [r11]
                 tstne   r8, #0x01              /* Check whether a TX is pending */
                 beq     .no_ssc
+                b .no_ssc
                 
                 mov   r8, #PIO_LED1
                 str   r8, [r10, #PIOA_SODR] /* disable LED */
