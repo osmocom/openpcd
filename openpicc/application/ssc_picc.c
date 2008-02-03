@@ -656,8 +656,8 @@ void ssc_rx_stop(void)
 	/* Disable reception */
 	AT91F_SSC_DisableRx(AT91C_BASE_SSC);
 	AT91F_PDC_DisableRx(rx_pdc);
-	__ssc_tx_unload_all(NULL, NULL);
 	AT91F_SSC_DisableIt(ssc, SSC_RX_IRQ_MASK);
+	__ssc_tx_unload_all(NULL, NULL);
 }
 
 void ssc_tx_init(void)
