@@ -87,6 +87,31 @@ void DumpBufferToUSB(char* buffer, int len)
 }
 /**********************************************************************/
 
+void DumpTimeToUSB(long ticks)
+{
+	int h, s, m, ms;
+	ms = ticks;
+	
+	s=ms/1000;
+	ms%=1000;
+	h=s/3600;
+	s%=3600;
+	m=s/60;
+	s%=60;
+	DumpUIntToUSB(h);
+	DumpStringToUSB("h:");
+	if(m < 10) DumpStringToUSB("0");
+	DumpUIntToUSB(m);
+	DumpStringToUSB("m:");
+	if(s < 10) DumpStringToUSB("0");
+	DumpUIntToUSB(s);
+	DumpStringToUSB("s.");
+	if(ms < 10) DumpStringToUSB("0");
+	if(ms < 100) DumpStringToUSB("0");
+	DumpUIntToUSB(ms);
+	DumpStringToUSB("ms");
+}
+
 /*
  * Convert a string to an integer. Ignores leading spaces.
  * Optionally returns a pointer to the end of the number in the string */
@@ -145,7 +170,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	static int led = 0;
 	portCHAR cByte = cmd & 0xff;
 	portLONG j;
-	int i,h,m,s;
+	int i,ms;
 	if(cByte>='A' && cByte<='Z')
 	    cByte-=('A'-'a');
 	
@@ -242,17 +267,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"
 			" *\n\r");
 		    DumpStringToUSB(" * Uptime is ");
-		    s=xTaskGetTickCount()/1000;
-		    h=s/3600;
-		    s%=3600;
-		    m=s/60;
-		    s%=60;
-		    DumpUIntToUSB(h);
-		    DumpStringToUSB("h:");
-		    DumpUIntToUSB(m);
-		    DumpStringToUSB("m:");
-		    DumpUIntToUSB(s);
-		    DumpStringToUSB("s");
+		    ms=xTaskGetTickCount();
+		    DumpTimeToUSB(ms);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * The reader id is ");
 		    DumpUIntToUSB(env.e.reader_id);

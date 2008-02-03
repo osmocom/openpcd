@@ -14,6 +14,7 @@ portBASE_TYPE vCmdInit(void);
 extern void DumpUIntToUSB(unsigned int data);
 extern void DumpStringToUSB(char *string);
 extern void DumpBufferToUSB(char* buffer, int len);
+extern void DumpTimeToUSB(long ticks);
 extern xQueueHandle xCmdQueue;
 
 #endif /*CMD_H_*/
