@@ -70,6 +70,22 @@ enum rc632_registers {
 	RC632_REG_TEST_DIGI_SELECT	= 0x3d,
 };
 
+enum rc632_reg_status {
+	RC632_STAT_LOALERT		= 0x01,
+	RC632_STAT_HIALERT		= 0x02,
+	RC632_STAT_IRQ			= 0x04,
+	RC632_STAT_ERR			= 0x08,
+#define RC632_STAT_MODEM_MASK		0x70
+	RC632_STAT_MODEM_IDLE		= 0x00,
+	RC632_STAT_MODEM_TXSOF		= 0x10,
+	RC632_STAT_MODEM_TXDATA		= 0x20,
+	RC632_STAT_MODEM_TXEOF		= 0x30,
+	RC632_STAT_MODEM_GOTORX		= 0x40,
+	RC632_STAT_MODEM_PREPARERX	= 0x50,
+	RC632_STAT_MODEM_AWAITINGRX	= 0x60,
+	RC632_STAT_MODEM_RECV		= 0x70,
+};
+
 enum rc632_reg_command {
 	RC632_CMD_IDLE			= 0x00,
 	RC632_CMD_WRITE_E2		= 0x01,
@@ -97,8 +113,12 @@ enum rc632_reg_interrupt {
 };
 
 enum rc632_reg_control {
+	RC632_CONTROL_FIFO_FLUSH	= 0x01,
+	RC632_CONTROL_TIMER_START	= 0x02,
+	RC632_CONTROL_TIMER_STOP	= 0x04,
 	RC632_CONTROL_CRYPTO1_ON	= 0x08,
 	RC632_CONTROL_POWERDOWN		= 0x10,
+	RC632_CONTROL_STANDBY		= 0x20,
 };
 
 enum rc632_reg_error_flag {
@@ -125,10 +145,16 @@ enum rc632_reg_tx_control {
 };
 
 enum rc632_reg_coder_control {
+	 /* bit 2-0 TXCoding */
+#define RC632_CDRCTRL_TXCD_MASK		0x07
 	RC632_CDRCTRL_TXCD_NRZ		= 0x00,
 	RC632_CDRCTRL_TXCD_14443A	= 0x01,
 	RC632_CDRCTRL_TXCD_ICODE_STD	= 0x04,
+	RC632_CDRCTRL_TXCD_ICODE_FAST	= 0x05,
+	RC632_CDRCTRL_TXCD_15693_STD	= 0x06,
+	RC632_CDRCTRL_TXCD_15693_FAST	= 0x07,
 
+	/* bit5-3 CoderRate*/
 #define RC632_CDRCTRL_RATE_MASK		0x38
 	RC632_CDRCTRL_RATE_848K		= 0x00,
 	RC632_CDRCTRL_RATE_424K		= 0x08,
@@ -137,6 +163,9 @@ enum rc632_reg_coder_control {
 	RC632_CDRCTRL_RATE_14443B	= 0x20,
 	RC632_CDRCTRL_RATE_15693	= 0x28,
 	RC632_CDRCTRL_RATE_ICODE_FAST	= 0x30,
+
+	/* bit 7 SendOnePuls */
+	RC632_CDRCTRL_15693_EOF_PULSE	= 0x80,
 };
 
 enum rc632_erg_type_b_framing {
@@ -222,10 +251,10 @@ enum rc632_reg_channel_redundancy {
 };
 
 enum rc632_reg_timer_control {
-       RC632_TMR_START_TX_BEGIN        = 0x01,
-       RC632_TMR_START_TX_END          = 0x02,
-       RC632_TMR_STOP_RX_BEGIN         = 0x04,
-       RC632_TMR_STOP_RX_END           = 0x08,
+	RC632_TMR_START_TX_BEGIN	= 0x01,
+	RC632_TMR_START_TX_END		= 0x02,
+	RC632_TMR_STOP_RX_BEGIN		= 0x04,
+	RC632_TMR_STOP_RX_END		= 0x08,
 };
  
 enum rc632_reg_irq_pin_cfg {
@@ -233,5 +262,10 @@ enum rc632_reg_irq_pin_cfg {
 	RC632_IRQCFG_INV		= 0x02,
 };
 
+enum rc632_reg_secondary_status {
+	RC632_SEC_ST_TMR_RUNNING	= 0x80,
+	RC632_SEC_ST_E2_READY		= 0x40,
+	RC632_SEC_ST_CRC_READY		= 0x20,
+};
 
 #endif
