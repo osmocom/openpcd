@@ -94,6 +94,57 @@ rc632_power_down(struct rfid_asic_handle *handle)
 			      RC632_CONTROL_POWERDOWN);
 }
 
+#define MAX_WRITE_LEN	16	/* see Sec. 18.6.1.2 of RC632 Spec Rev. 3.2. */
+
+int
+rc632_write_eeprom(struct rfid_asic_handle *handle, 
+		   u_int16_t addr, u_int8_t len, u_int8_t *data)
+{
+	u_int8_t sndbuf[MAX_WRITE_LEN + 2];
+	u_int8_t reg;
+	int ret;
+
+	if (len > MAX_WRITE_LEN)
+		return -EINVAL;
+	if (addr < 0x10)
+		return -EPERM;
+	if (addr > 0x1ff)
+		return -EINVAL;
+
+	sndbuf[0] = addr & 0x00ff;	/* LSB */
+	sndbuf[1] = addr >> 8;		/* MSB */
+	memcpy(&sndbuf[2], data, len);
+
+	ret = opcd_rc632_fifo_write(handle, len + 2, sndbuf, 0x03);
+	if (ret < 0)
+		return ret;
+
+	ret = opcd_rc632_reg_write(handle, RC632_REG_COMMAND, RC632_CMD_WRITE_E2);
+	if (ret < 0)
+		return ret;
+	
+	ret = opcd_rc632_reg_read(handle, RC632_REG_ERROR_FLAG, &reg);
+	if (ret < 0)
+		return ret;
+
+	if (reg & RC632_ERR_FLAG_ACCESS_ERR)
+		return -EPERM;
+
+	while (1) {
+		ret = opcd_rc632_reg_read(handle, RC632_REG_SECONDARY_STATUS, &reg);
+		if (ret < 0)
+			return ret;
+
+		if (reg & RC632_SEC_ST_E2_READY) {
+			/* the E2Write command must be terminated, See sec. 18.6.1.3 */
+			ret = opcd_rc632_reg_write(handle, RC632_REG_COMMAND, RC632_CMD_IDLE);
+			break;
+		}
+	}
+	
+	return ret;
+}
+
 int
 rc632_read_eeprom(struct rfid_asic_handle *handle, u_int16_t addr, u_int8_t len,
 		  u_int8_t *recvbuf)
