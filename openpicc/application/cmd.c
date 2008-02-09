@@ -184,22 +184,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	// Note: Commands have been uppercased when this code is called
 	    switch(cmd)
 	    {
-	    	case '4':
-	    	case '3':
-	    	case '2':
-	    	case '1':
-		    env.e.mode=cmd-'0';
-		    DumpStringToUSB(" * Switched to transmit mode at power level ");
-		    DumpUIntToUSB(env.e.mode);
-		    DumpStringToUSB("\n\r");
-	    	    break;
-		case 'S':
-		    env_store();
-		    DumpStringToUSB(" * Stored environment variables\n\r");
-		    break;
-		case '0':
-		    DumpStringToUSB(" * switched to RX mode\n\r");		    
-		    break;
 		case 'TEST':
 		    DumpStringToUSB("Testing critical sections\r\n");
 		    j=ulCriticalNesting;
@@ -217,15 +201,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB("Nesting is now ");
 		    DumpUIntToUSB(j);
 		    DumpStringToUSB("\n\r");
-		    break;
-		case 'I':
-		    i=atoiEx(args, &args);
-		    if(i!=0) {
-			env.e.reader_id = i;
-			DumpStringToUSB("Reader ID set to ");
-			DumpUIntToUSB(env.e.reader_id);
-			DumpStringToUSB("\n\r");
-		    }
 		    break;
 		case 'Z':
 		    i=atoiEx(args, &args);
@@ -413,14 +388,11 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * Version " COMPILE_SVNREV "\n\r"
 			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"
 			" *\n\r"
-			" * s    - store transmitter settings\n\r"
 			" * test - test critical sections\n\r"
 #if ( configUSE_TRACE_FACILITY == 1 )
 			" * t    - print task list and stack usage\n\r"
 #endif
 			" * c    - print configuration\n\r"
-			" * 0    - receive only mode\n\r"
-			" * 1..4 - automatic transmit at selected power levels\n\r"
 			" * +,-  - decrease/increase comparator threshold\n\r"
 			" * l    - cycle LEDs\n\r"
 			" * p    - print PIO pins\n\r"
