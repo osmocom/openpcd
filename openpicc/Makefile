@@ -88,7 +88,9 @@ ARM_SRC= \
   application/tc_fdt.c \
   application/tc_cdiv.c \
   application/usb_print.c \
+  application/iso14443_layer2a.c \
   application/iso14443_layer3a.c \
+  application/iso14443_sniffer.c \
   application/iso14443a_manchester.c \
   application/iso14443a_miller.c \
   application/load_modulation.c \

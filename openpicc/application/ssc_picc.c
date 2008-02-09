@@ -167,6 +167,7 @@ static int __ramfunc __ssc_rx_load(int secondary)
 		 * of some sort. However, instead of leaking buffers we'll just pretend it to
 		 * be free again. */
 		 ssc_buffer_errors++;
+		 usb_print_buffer_f("^", 0, 1, 0);
 		 if(ssc_state.buffer[secondary]->state == PENDING) {
 		 	ssc_state.buffer[secondary]->state = FREE;
 		 }
@@ -260,6 +261,7 @@ static ssc_dma_rx_buffer_t* __ramfunc __ssc_rx_unload(int secondary)
 		DumpUIntToUSB(elapsed_size); DumpStringToUSB(" "); DumpUIntToUSB((int)buffer->data); DumpStringToUSB(" ");
 		usb_print_set_default_flush(i);
 		ssc_buffer_errors++;
+		usb_print_buffer_f("°", 0, 1, 0);
 		if(buffer->state == PENDING) buffer->state = FREE;
 		ssc_state.buffer[secondary] = NULL;
 		return NULL;
@@ -370,7 +372,7 @@ void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 			//| AT91C_SSC_MSBF
 			;
 	ssc->SSC_RCMR = AT91C_SSC_CKS_RK | AT91C_SSC_CKO_NONE | 
-			clock_gating | AT91C_SSC_CKI | start_cond | (stop << 12);
+			clock_gating | (0&AT91C_SSC_CKI) | start_cond | (stop << 12);
 
 	/* Enable Rx DMA */
 	AT91F_PDC_EnableRx(rx_pdc);
@@ -488,8 +490,6 @@ static void __ramfunc ssc_irq(void)
 
 	u_int32_t ssc_sr = ssc->SSC_SR;
 	u_int32_t orig_ssc_sr = ssc_sr;
-	int i, emptyframe = 0;
-	u_int32_t *tmp;
 	ssc_dma_rx_buffer_t *inbuf=NULL;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 	
@@ -499,7 +499,7 @@ static void __ramfunc ssc_irq(void)
 		 * irq is raised. (The scheduler masks interrupts for about 56us,
 		 * which is too much for anticollision.) */
 		 int i = 0;
-		 vLedBlinkRed();
+		 //vLedBlinkRed();
 		 while( ! ((ssc_sr=ssc->SSC_SR) & (AT91C_SSC_ENDRX | AT91C_SSC_CP1)) ) {
 		 	i++;
 		 	if(i > 9600) break; /* Break out, clearly this is not a short frame or a reception error happened */
@@ -508,55 +508,29 @@ static void __ramfunc ssc_irq(void)
 		 vLedSetRed(1);
 	}
 	
+	if(orig_ssc_sr & AT91C_SSC_CP1) {usb_print_string_f("oCP1 ", 0); vLedBlinkRed();}
 	if(ssc_sr & AT91C_SSC_CP1) usb_print_string_f("CP1 ", 0);
 	
 	if (ssc_sr & (AT91C_SSC_ENDRX | AT91C_SSC_CP1)) {
-#if 0
-// Bitrotten
-		/* Ignore empty frames */
-		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
-			/* This code section is probably bitrotten by now. */
-			tmp = (u_int32_t*)ssc_state.buffer[0]->data;
-			emptyframe = 1;
-			for(i = (ssc_state.buffer[0]->len) / 4 - 8/*WTF?*/; i > 0; i--) {
-				if( *tmp++ != 0x0 ) {
-					DEBUGPCR("NONEMPTY(%08x, %i): %08x", tmp, i, *(tmp-1));
-					emptyframe = 0;
-					break;
-				} else {
-					//DEBUGPCR("DUNNO(%08x, %i): %08x", tmp, i, tmp[i]);
-				}
-			}
-		}
-#else
-		(void)i;
-		(void)tmp;
-#endif
-		//DEBUGP("Sending primary RCTX(%u, len=%u) ", req_ctx_num(ssc_state.rx_ctx[0]), ssc_state.rx_ctx[0]->tot_len);
-		/* Mark primary RCTX as ready to send for usb */
-		if(!emptyframe) {
-			//unsigned int i;
-			DEBUGP("NONEMPTY");
-			//gaportENTER_CRITICAL();
-			ssc_state.buffer[0]->state = FULL;
-			//gaportEXIT_CRITICAL();
-			task_woken = xQueueSendFromISR(ssc_rx_queue, &ssc_state.buffer[0], task_woken);
-		} else {
-			DEBUGP("EMPTY");
-			//gaportENTER_CRITICAL();
-			ssc_state.buffer[0]->state = FREE;
-			//gaportEXIT_CRITICAL();			
-		}
-		vLedSetGreen(1);
-
 		inbuf = ssc_state.buffer[0];
+		if(ssc_sr & AT91C_SSC_CP1 && !(ssc_sr & AT91C_SSC_ENDRX)) {
+			/* Manually unload buffer 0, since only the SSC has stopped, not the PDC */
+			__ssc_rx_unload(0);
+			__ssc_rx_load(0);
+		}
+		
+		inbuf->state = FULL;
+		task_woken = xQueueSendFromISR(ssc_rx_queue, &inbuf, task_woken);
+		vLedSetGreen(1);
+		
 		if(ssc_sr & AT91C_SSC_ENDRX) {
-			/* second buffer gets propagated to primary */
+			/* second buffer got propagated to primary */
 			ssc_state.buffer[0] = ssc_state.buffer[1];
 			ssc_state.buffer[1] = NULL;
 		}
+		
 		if(ssc_state.mode == SSC_MODE_EDGE_ONE_SHOT || ssc_state.mode == SSC_MODE_14443A_SHORT
-			|| ssc_state.mode == SSC_MODE_14443A_STANDARD || (ssc_state.mode == SSC_MODE_14443A && ssc_sr & AT91C_SSC_CP1)) {
+			|| ssc_state.mode == SSC_MODE_14443A_STANDARD) {
 			// Stop sampling here
 			ssc_rx_stop();
 		} else {
@@ -576,7 +550,7 @@ static void __ramfunc ssc_irq(void)
 							    AT91C_SSC_OVRUN);
 			}
 	
-			if(ssc_sr & AT91C_SSC_RXENA) if (__ssc_rx_load(1) == -1)
+			if(ssc_sr & AT91C_SSC_RXENA && ssc_state.buffer[1] == NULL) if (__ssc_rx_load(1) == -1)
 				AT91F_SSC_DisableIt(ssc, AT91C_SSC_ENDRX |
 						    AT91C_SSC_RXBUFF |
 						    AT91C_SSC_OVRUN);
