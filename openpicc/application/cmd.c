@@ -14,6 +14,7 @@
 #include "led.h"
 #include "da.h"
 #include "adc.h"
+#include "pll.h"
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
@@ -44,7 +45,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?hq9fjka";
+static const char *SHORT_COMMANDS = "!pc+-l?hq9fjkai";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -356,6 +357,10 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case 'F':
 		    startstop_field_meter();
 		    break;
+		case 'I':
+			pll_inhibit(!pll_is_inhibited());
+			if(pll_is_inhibited()) DumpStringToUSB(" * PLL is now inhibited\n\r");
+			else DumpStringToUSB(" * PLL is now running\n\r");
 #if ( configUSE_TRACE_FACILITY == 1 )
 		case 'T':
 		    memset(pcWriteBuffer, 0, sizeof(pcWriteBuffer));
@@ -397,6 +402,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * l    - cycle LEDs\n\r"
 			" * p    - print PIO pins\n\r"
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
+			" * i    - inhibit/uninhibit PLL\n\r"
 			" * !    - reset tc_cdiv_sync\n\r"
 			" * q    - start rx\n\r"
 			" * f    - start/stop field meter\n\r"

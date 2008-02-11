@@ -33,6 +33,11 @@ void pll_inhibit(int inhibit)
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_INHIBIT);
 }
 
+int pll_is_inhibited(void)
+{
+	return AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_INHIBIT);
+}
+
 int pll_is_locked(void)
 {
 	return AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_LOCK);
