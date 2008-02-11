@@ -20,6 +20,7 @@
 
 #include <sys/types.h>
 #include <lib_AT91SAM7.h>
+#include "pll.h"
 #include "pio_irq.h"
 #include "dbgu.h"
 #include "led.h"
@@ -40,7 +41,7 @@ int pll_is_inhibited(void)
 
 int pll_is_locked(void)
 {
-	return AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_LOCK);
+	return AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC->PLL_LOCK);
 }
 
 static void pll_lock_change_cb(u_int32_t pio)
@@ -55,9 +56,9 @@ static void pll_lock_change_cb(u_int32_t pio)
 void pll_init(void)
 {
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_INHIBIT);
-	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_LOCK);
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC->PLL_LOCK);
 	pll_inhibit(0);
 
-	pio_irq_register(OPENPICC_PIO_PLL_LOCK, &pll_lock_change_cb);
-	pio_irq_enable(OPENPICC_PIO_PLL_LOCK);
+	pio_irq_register(OPENPICC->PLL_LOCK, &pll_lock_change_cb);
+	pio_irq_enable(OPENPICC->PLL_LOCK);
 }

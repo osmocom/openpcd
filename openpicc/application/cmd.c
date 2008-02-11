@@ -138,8 +138,9 @@ static const struct {ssc_metric metric; char *description;} SSC_METRICS[] = {
 	{FREE_BUFFERS,  "free rx buffers"},
 	{LATE_FRAMES,   "late frames"},
 };
-static const struct { int pin; char * description; } PIO_PINS[] = {
-	{OPENPICC_PIO_PLL_LOCK, "pll lock   "},
+#define DYNAMIC_PIN_PLL_LOCK -1
+static struct { int pin; char * description; } PIO_PINS[] = {
+	{DYNAMIC_PIN_PLL_LOCK,  "pll lock   "},
 	{OPENPICC_PIO_FRAME,    "frame start"},
 };
 void print_pio(void)
@@ -152,6 +153,7 @@ void print_pio(void)
         	" *****************************************************\n\r"
         	" *\n\r");
 	for(i=0; i<sizeof(PIO_PINS)/sizeof(PIO_PINS[0]); i++) {
+			if(PIO_PINS[i].pin < 0) continue;
         	DumpStringToUSB(" * ");
         	DumpStringToUSB(PIO_PINS[i].description);
         	DumpStringToUSB(": ");
@@ -213,17 +215,19 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			DumpStringToUSB("cdiv_sync enabled \n\r");
 		    }
 		    break;
-#ifdef OPENPICC_MODIFIED_BOARD
 		case 'G':
+			if(!OPENPICC->features.data_gating) {
+				DumpStringToUSB("This hardware does not have data gating capability\n\r");
+				break;
+			}
 		    i=atoiEx(args, &args);
 		    ssc_set_data_gate(i);
 		    if(i==0) {
-			DumpStringToUSB("SSC_DATA disabled \n\r");
+		    	DumpStringToUSB("SSC_DATA disabled \n\r");
 		    } else {
-			DumpStringToUSB("SSC_DATA enabled \n\r");
+		    	DumpStringToUSB("SSC_DATA enabled \n\r");
 		    }
 		    break;
-#endif
 		case 'D':
 		    i=atoiEx(args, &args);
 		    tc_cdiv_set_divider(i);
@@ -241,7 +245,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" *****************************************************\n\r"
 			" * Version " COMPILE_SVNREV "\n\r"
 			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"
-			" *\n\r");
+			" * running on ");
+		    DumpStringToUSB(OPENPICC->release_name);
+		    DumpStringToUSB("\n\r *\n\r");
 		    DumpStringToUSB(" * Uptime is ");
 		    ms=xTaskGetTickCount();
 		    DumpTimeToUSB(ms);
@@ -392,7 +398,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" *****************************************************\n\r"
 			" * Version " COMPILE_SVNREV "\n\r"
 			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"
-			" *\n\r"
+			" * running on ");
+		    DumpStringToUSB(OPENPICC->release_name);
+		    DumpStringToUSB("\n\r *\n\r"
 			" * test - test critical sections\n\r"
 #if ( configUSE_TRACE_FACILITY == 1 )
 			" * t    - print task list and stack usage\n\r"
@@ -409,9 +417,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
 			" * j,k  - increase, decrease fdt_offset\n\r"
 			" * a    - change load modulation level\n\r"
-#ifdef OPENPICC_MODIFIED_BOARD
 			" * g 0/1- disable or enable SSC_DATA through gate\n\r"
-#endif
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"
@@ -542,7 +548,14 @@ void startstop_field_meter(void) {
 	}
 }
 
-portBASE_TYPE vCmdInit(void) {
+portBASE_TYPE vCmdInit() {
+	unsigned int i;
+	for(i=0; i<sizeof(PIO_PINS)/sizeof(PIO_PINS[0]); i++) {
+		if(PIO_PINS[i].pin == DYNAMIC_PIN_PLL_LOCK) {
+			PIO_PINS[i].pin = OPENPICC->PLL_LOCK;
+		}
+	}
+	
 	/* FIXME Maybe modify to use pointers? */
 	xCmdQueue = xQueueCreate( 10, sizeof(cmd_type) );
 	if(xCmdQueue == 0) {

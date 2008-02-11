@@ -52,13 +52,30 @@
 /*-----------------*/
 /* Board version   */
 /*-----------------*/
-/* Modified board, routing PLL_LOCK to PA5 and a copy of FRAME to PA4, enabling the use of the T/C BURST feature. */
-#define OPENPICC_MODIFIED_BOARD
+enum openpicc_release {
+	OPENPICC_v0_4,    /* Schematics v0.4, as sold in the shop */
+	
+	OPENPICC_v0_4_p1, /* based on schematics v0.4; Modifications: 
+	 				   * + PLL_LOCK relocated from PA4 to PA5
+	 				   * + Copy of FRAME routed to PA4 
+	 				   * + Connection between R18 and 3V3 removed, instead R18 is now connected to PA31*/
+};
+struct openpicc_hardware {
+	enum openpicc_release release;
+	char *release_name;
+	struct {
+		int data_gating:1;
+		int clock_gating:1;
+	} features;
+	
+	int PLL_LOCK;
+	
+	int CLOCK_GATE;
+	int DATA_GATE;
+};
 
-#ifdef OPENPICC_MODIFIED_BOARD
-#define OPENPICC_USE_SSC_DATA_GATING
-#define OPENPICC_USE_CLOCK_GATING
-#endif
+extern const struct openpicc_hardware OPENPICC_HARDWARE[];
+extern const struct openpicc_hardware *OPENPICC;
 
 /*-----------------*/
 /* Pins            */
@@ -70,11 +87,6 @@
 
 #define OPENPICC_PIO_SS2_DT_THRESH AT91C_PIO_PA8
 #define OPENPICC_PIO_PLL_INHIBIT   AT91C_PIO_PA24
-#ifdef OPENPICC_MODIFIED_BOARD
-#define OPENPICC_PIO_PLL_LOCK      AT91C_PIO_PA5
-#else
-#define OPENPICC_PIO_PLL_LOCK      AT91C_PIO_PA4
-#endif
 
 #define OPENPICC_MOD_PWM	   AT91C_PA23_PWM0
 #define OPENPICC_MOD_SSC	   AT91C_PA17_TD
@@ -83,10 +95,7 @@
 #define OPENPICC_SSC_TF		   AT91C_PIO_PA15
 
 #define OPENPICC_PIO_FRAME         AT91C_PIO_PA20
-#ifdef OPENPICC_MODIFIED_BOARD
-#define OPENPICC_PIO_FRAME_BURST   AT91C_PIO_PA4
-#define OPENPICC_PIO_SSC_DATA_GATE AT91C_PIO_PA31
-#endif
+
 #define OPENPICC_PIO_SSC_DATA_CONTROL   AT91C_PIO_PA21
 #define OPENPICC_PIO_AB_DETECT          AT91C_PIO_PA22
 #define OPENPICC_PIO_PLL_INHIBIT        AT91C_PIO_PA24

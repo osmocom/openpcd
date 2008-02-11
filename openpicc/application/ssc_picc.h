@@ -100,8 +100,6 @@ extern void ssc_tx_start(ssc_dma_tx_buffer_t *buf);
 extern volatile u_int32_t ssc_tx_fiq_fdt_cdiv;
 extern volatile u_int32_t ssc_tx_fiq_fdt_ssc;
 
-#ifdef OPENPICC_MODIFIED_BOARD
 extern void ssc_set_data_gate(int enable);
-#endif
 
 #endif

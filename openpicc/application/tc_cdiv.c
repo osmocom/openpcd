@@ -34,13 +34,17 @@ AT91PS_TCB tcb = AT91C_BASE_TCB;
 /* set carrier divider to a specific */
 void __ramfunc tc_cdiv_set_divider(u_int16_t div)
 {
-	if(tcb->TCB_TC0.TC_CV > div
-#ifdef OPENPICC_USE_CLOCK_GATING
-	/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
-	&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME_BURST))
-#endif
-	) {
-		while(tcb->TCB_TC0.TC_CV > 3); /* Three carrier cycles are about 10 clock cycles, should be enough for the loop */  
+	if(OPENPICC->features.clock_gating) {
+		if(tcb->TCB_TC0.TC_CV > div
+				/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
+				&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC->CLOCK_GATE))
+		) {
+			while(tcb->TCB_TC0.TC_CV > 3); /* Three carrier cycles are about 10 clock cycles, should be enough for the loop */  
+		}
+	} else {
+		if(tcb->TCB_TC0.TC_CV > div) {
+			while(tcb->TCB_TC0.TC_CV > 3); /* Three carrier cycles are about 10 clock cycles, should be enough for the loop */  
+		}
 	}
 	tcb->TCB_TC0.TC_RC = div;
 
@@ -51,15 +55,19 @@ void __ramfunc tc_cdiv_set_divider(u_int16_t div)
 	/* We must reset CV to zero when it was greater than RC.
 	 * In order to not lose phase information when doing that we'll busy wait till CV is
 	 * zero modulo the new RC.*/
-	/*tc_cdiv_phase_add(tcb->TCB_TC0.TC_RC-(tcb->TCB_TC0.TC_CV%tcb->TCB_TC0.TC_RC));*/
-	if(tcb->TCB_TC0.TC_CV > div
-#ifdef OPENPICC_USE_CLOCK_GATING
-	/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
-	&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME_BURST))
-#endif
-	) {
-		while(tcb->TCB_TC0.TC_CV % div != 0);
-		tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
+	if(OPENPICC->features.clock_gating) {
+		if(tcb->TCB_TC0.TC_CV > div
+				/* Don't spin if FRAME_BURST is clear, the clock is stopped in this case */
+				&& !(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC->CLOCK_GATE))
+		) {
+			while(tcb->TCB_TC0.TC_CV % div != 0);
+			tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
+		}
+	} else {
+		if(tcb->TCB_TC0.TC_CV > div) {
+			while(tcb->TCB_TC0.TC_CV % div != 0);
+			tcb->TCB_TC0.TC_CCR = AT91C_TC_SWTRG;
+		}
 	}
 }
 
@@ -88,11 +96,9 @@ void tc_cdiv_init(void)
 			    OPENPICC_PIO_CARRIER_IN |
 			    OPENPICC_PIO_CARRIER_DIV_OUT |
 			    OPENPICC_PIO_CDIV_HELP_OUT |
-			    OPENPICC_PIO_CDIV_HELP_IN
-#ifdef OPENPICC_USE_CLOCK_GATING
-				| OPENPICC_PIO_FRAME_BURST
-#endif
-			    );
+			    OPENPICC_PIO_CDIV_HELP_IN);
+	if(OPENPICC->features.clock_gating)
+		AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 0, OPENPICC->CLOCK_GATE); 
 
 	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC, 
 				    ((unsigned int) 1 << AT91C_ID_TC0));
@@ -113,16 +119,14 @@ void tc_cdiv_init(void)
 	 * TIOA0 on RA comp = set, * TIOA0 on RC comp = clear,
 	 * TIOB0 on EEVT = set, TIOB0 on RB comp = clear,
 	 * EEVT = XC2 (TIOA0) 
-	 * if OPENPICC_MODIFIED_BOARD: BURST on XC0 */
+	 * if features.clock_gating: BURST on XC0 */
 	tcb->TCB_TC0.TC_CMR = AT91C_TC_CLKS_XC1 | AT91C_TC_WAVE |
 			      AT91C_TC_WAVESEL_UP_AUTO | 
 			      AT91C_TC_ACPA_SET | AT91C_TC_ACPC_CLEAR |
 			      AT91C_TC_BEEVT_SET | AT91C_TC_BCPB_CLEAR |
 			      AT91C_TC_EEVT_XC2 | AT91C_TC_ETRGEDG_RISING |
 			      AT91C_TC_BSWTRG_CLEAR | AT91C_TC_ASWTRG_CLEAR
-#ifdef OPENPICC_USE_CLOCK_GATING
-				| AT91C_TC_BURST_XC0
-#endif
+				| (OPENPICC->features.clock_gating ? AT91C_TC_BURST_XC0 : 0)
 			      ;
 
 	tc_cdiv_set_divider(128);

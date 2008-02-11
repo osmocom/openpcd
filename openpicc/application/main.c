@@ -42,7 +42,6 @@
 #include "adc.h"
 #include "pll.h"
 #include "pio_irq.h"
-#include "ssc_picc.h"
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
@@ -54,6 +53,13 @@
 /**********************************************************************/
 static inline void prvSetupHardware (void)
 {
+	/* The very, very first thing we do is setup the global OPENPICC variable to point to
+	 * the correct hardware information.
+	 * FIXME: Detect dynamically in the future
+	 */
+	OPENPICC = &OPENPICC_HARDWARE[OPENPICC_v0_4_p1];
+	
+	
     /*	When using the JTAG debugger the hardware is not always initialised to
 	the correct default state.  This line just ensures that this does not
 	cause all interrupts to be masked at the start. */

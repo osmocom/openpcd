@@ -649,17 +649,16 @@ void ssc_tx_init(void)
 	tx_pdc = (AT91PS_PDC) &(ssc->SSC_RPR);
 }
 
-#ifdef OPENPICC_MODIFIED_BOARD
 void ssc_set_data_gate(int enable)
 {
+	if(! OPENPICC->features.clock_gating) return;
 	if(enable)
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_GATE);
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
 	else
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_GATE);
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
 }
-#endif
 
-void ssc_rx_init(void)
+void ssc_rx_init()
 { 
 	tc_cdiv_sync_init();
 	tc_cdiv_sync_enable();
@@ -679,10 +678,10 @@ void ssc_rx_init(void)
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	
-#ifdef OPENPICC_MODIFIED_BOARD
-	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_GATE);
-	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_GATE);
-#endif
+	if(OPENPICC->features.clock_gating) {
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
+	}
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_SSC,
 			      OPENPICC_IRQ_PRIO_SSC,

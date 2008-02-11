@@ -75,6 +75,7 @@ LINKER_FLAGS=-Xlinker -oopenpicc.elf -Xlinker -M -Xlinker -Map=openpicc.map
 # Source files that must be built to ARM mode.
 #
 ARM_SRC= \
+  config/board.c \
   application/main.c \
   application/led.c \
   application/cmd.c \

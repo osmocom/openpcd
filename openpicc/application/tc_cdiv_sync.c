@@ -2,6 +2,7 @@
 
 #include <lib_AT91SAM7.h>
 #include <AT91SAM7.h>
+#include "tc_cdiv_sync.h"
 #include "dbgu.h"
 #include "pio_irq.h"
 #include "openpicc.h"
@@ -46,10 +47,11 @@ void tc_cdiv_sync_reset(void)
 		for (i = 0; i < 0xff; i++) ;
 		AT91F_PIO_SetOutput(AT91C_BASE_PIOA,
 				    OPENPICC_PIO_SSC_DATA_CONTROL);
-#ifdef OPENPICC_USE_CLOCK_GATING
-		/* reset tc_cdiv counter, the cleared frame signal stopped the tc_cdiv clock */
-		tc_cdiv_reset();
-#endif
+		
+		if(OPENPICC->features.clock_gating) {
+			/* reset tc_cdiv counter, the cleared frame signal stopped the tc_cdiv clock */
+			tc_cdiv_reset();
+		}
 	}
 }
 
@@ -68,7 +70,7 @@ void tc_cdiv_sync_enable(void)
 	*AT91C_PIOA_IER = OPENPICC_PIO_FRAME;
 }
 
-void tc_cdiv_sync_init(void)
+void tc_cdiv_sync_init()
 {
 	pio_irq_init_once();
 	DEBUGPCRF("initializing");
