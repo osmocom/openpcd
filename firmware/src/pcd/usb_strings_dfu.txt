@@ -1,5 +1,5 @@
 bitmanufaktur.de IT Solutions and hmw-consulting.de
-OpenPCD RFID Simulator - DFU Mode
+OpenPCD RFID Reader - DFU Mode
 OpenPCD DFU Configuration
 OpenPCD DFU Interface - Application Partition
 OpenPCD DFU Interface - Bootloader Partition
