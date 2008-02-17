@@ -474,8 +474,19 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 		}
 		break;
 	case DFU_STATE_dfuMANIFEST:
-		dfu_state = DFU_STATE_dfuERROR;
-		ret = RET_STALL;
+		switch (req) {
+		case USB_REQ_DFU_GETSTATUS:
+			dfu_state = DFU_STATE_dfuIDLE;
+			handle_getstatus();
+			break;
+		case USB_REQ_DFU_GETSTATE:
+			handle_getstate();
+			break;
+		default:
+			dfu_state = DFU_STATE_dfuERROR;
+			ret = RET_STALL;
+			break;
+		}
 		break;
 	case DFU_STATE_dfuMANIFEST_WAIT_RST:
 		/* we should never go here */
@@ -557,8 +568,13 @@ __dfustruct const struct usb_device_descriptor dfu_dev_descriptor = {
 	.idVendor		= USB_VENDOR_ID,
 	.idProduct		= USB_PRODUCT_ID,
 	.bcdDevice		= 0x0000,
+#ifdef CONFIG_USB_STRING
 	.iManufacturer		= 1,
 	.iProduct		= 2,
+#else
+	.iManufacturer		= 0,
+	.iProduct		= 0,
+#endif
 	.iSerialNumber		= 0x00,
 	.bNumConfigurations	= 0x01,
 };
@@ -876,7 +892,7 @@ void __dfufunc dfu_main(void)
 
 	AT91F_DBGU_Init();
 	AT91F_DBGU_Printk("\n\r\n\rsam7dfu - AT91SAM7 USB DFU bootloader\n\r"
-		 "(C) 2006 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
+		 "(C) 2006-2008 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
 		 "This software is FREE SOFTWARE licensed under GNU GPL\n\r");
 	AT91F_DBGU_Printk("Version " COMPILE_SVNREV 
 			  " compiled " COMPILE_DATE 
