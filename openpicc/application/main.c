@@ -1,12 +1,12 @@
 /***************************************************************
  *
- * OpenBeacon.org - main entry for 2.4GHz RFID USB reader
+ * OpenPICC.org - Main file for RFID sniffer-only firmware 
  *
  * Copyright 2007 Milosch Meriac <meriac@openbeacon.de>
+ * Copyright 2008 Henryk Plötz <henryk@ploetzli.ch>
  *
  * basically starts the USB task, initializes all IO ports
- * and introduces idle application hook to handle the HF traffic
- * from the nRF24L01 chip
+ * and starts the sniffer task
  *
  ***************************************************************
 
@@ -45,6 +45,7 @@
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
 #include "usb_print.h"
+#include "tc_sniffer.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -70,74 +71,8 @@ static inline void prvSetupHardware (void)
 /**********************************************************************/
 void vApplicationIdleHook(void)
 {
-    static char disabled_green = 0;
-    //static int i=0;
-    //vLedSetGreen(i^=1);
-    if(!disabled_green) {
-    	//vLedSetGreen(0);
-    	disabled_green = 1;
-    }
     usb_print_flush();
 }
-
-#if 0
-// Bitrotten
-void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount)
-{
-	ISO14443A_SHORT_TYPE *tmp = (ISO14443A_SHORT_TYPE*)buffer->data;
-	int i, dumped = 0;
-	unsigned int j;
-	for(i = buffer->len / (sizeof(*tmp)*8); i >= 0 ; i--) {
-		if( *tmp != 0x00000000 ) {
-			if(dumped == 0) {
-				DumpUIntToUSB(buffer->len);
-				DumpStringToUSB(", ");
-				DumpUIntToUSB((*pktcount)++);
-				DumpStringToUSB(": ");
-			} else {
-				DumpStringToUSB(" ");
-			}
-			dumped = 1;
-			DumpUIntToUSB(buffer->len / (sizeof(*tmp)*8) - i);
-			DumpStringToUSB(": ");
-			for(j=0; j<sizeof(*tmp)*8; j++) {
-				usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
-			}
-			usb_print_flush();
-			//DumpBufferToUSB((char*)(tmp), sizeof(*tmp));
-		}
-		tmp++;
-	}
-	if(dumped) DumpStringToUSB("\n\r");
-}
-
-void vMainTestSSCRXConsumer (void *pvParameters)
-{
-	static int pktcount=0;
-	(void)pvParameters;
-	while(1) {
-		ssc_dma_rx_buffer_t* buffer;
-		if(xQueueReceive(ssc_rx_queue, &buffer, portMAX_DELAY)) {
-			portENTER_CRITICAL();
-			buffer->state = PROCESSING;
-			portEXIT_CRITICAL();
-			/*vLedBlinkGreen();
-			for(i=0; i<buffer->len*8; i++) {
-				vLedSetGreen( buffer->data[i/8] & (1<<(i%8)) );
-			}
-			vLedBlinkGreen();*/
-			//i = usb_print_set_default_flush(0);
-			
-			main_help_print_buffer(buffer, &pktcount);
-			
-			//usb_print_set_default_flush(i);
-			portENTER_CRITICAL();
-			buffer->state = FREE;
-			portEXIT_CRITICAL();
-		}
-	}
-}
-#endif
 
 /* This task pings the watchdog even when the idle task is not running
  * It should be started with a very high priority and will delay most of the time */
@@ -165,8 +100,8 @@ int main (void)
     da_init();
     adc_init();
     
-    /*xTaskCreate (tc_sniffer, (signed portCHAR *) "RFID-SNIFFER", TASK_ISO_STACK,
-	NULL, TASK_ISO_PRIORITY, NULL);*/
+    xTaskCreate (tc_sniffer, (signed portCHAR *) "RFID-SNIFFER", TASK_ISO_STACK,
+	NULL, TASK_ISO_PRIORITY, NULL);
 
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
 	NULL, TASK_USB_PRIORITY, NULL);

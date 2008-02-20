@@ -4,6 +4,7 @@
 	.extern exit
 	.extern AT91F_LowLevelInit
 	.extern pio_irq_isr_value
+	.extern tc_sniffer_next_buffer_for_fiq
 
 	.text
 	.code 32
@@ -44,15 +45,14 @@
 .equ AT91C_BASE_MC,   (0xFFFFFF00)
 .equ AT91C_BASE_PIOA, 0xFFFFF400
 .equ AT91C_BASE_TC0,  0xFFFA0000
+.equ AT91C_BASE_TC2,  0xFFFA0080
 .equ AT91C_BASE_SSC,  0xFFFD4000
 .equ SSC_CR,          0x0
 .equ SSC_RCMR,        0x10
 .equ SSC_CR_TXEN,     0x100
 .equ AT91C_TC_SWTRG,  ((1 << 2)|1)
 .equ AT91C_TC_CLKEN,  (1 << 0)
-.equ PIO_DATA,        (1 << 27)
-.equ PIO_FRAME,       (1 << 20)
-.equ PIO_SSC_TF,      (1 << 15)
+.equ PIO_DATA,        (1 << 18)
 .equ PIOA_SODR,       0x30
 .equ PIOA_CODR,       0x34
 .equ PIOA_PDSR,       0x3c
@@ -67,6 +67,8 @@
 .equ AIC_ISCR,        (0x12C)
 .equ PIO_SECONDARY_IRQ, 31
 .equ PIO_SECONDARY_IRQ_BIT, (1 << PIO_SECONDARY_IRQ)
+
+.equ BUFSIZE, 1024
 
 start:
 _start:
@@ -87,7 +89,6 @@ _mainCRTStartup:
     ldr     r10, =AT91C_BASE_PIOA
     ldr     r12, =AT91C_BASE_TC0
     ldr     r8, =AT91C_BASE_AIC
-    mov     r9, #AT91C_TC_SWTRG
     /*ldr     r9, =AT91C_BASE_SSC*/
     mov   sp, r0
     sub   r0, r0, #FIQ_STACK_SIZE
@@ -193,7 +194,7 @@ endless_loop:
 my_fiq_handler:
                 /* code that uses pre-initialized FIQ reg */
                 /* r8   tmp
-                   r9   AT91C_TC_SWTRG
+                   r9   tmp
                    r10  AT91C_BASE_PIOA
                    r11  tmp
                    r12  AT91C_BASE_TC0
@@ -212,13 +213,47 @@ my_fiq_handler:
                 str   r8, [r11]
                 
                 tst     r8, #PIO_DATA           /* check for PIO_DATA change */
-                ldrne   r11, [r10, #PIOA_PDSR]
-                tstne   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
-                /*strne   r9, [r12, #TC_CCR]      /* software trigger */
+                beq     .no_buffer
+                
+                ldr   r11, [r10, #PIOA_PDSR]
+                tst   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
+                beq   .no_buffer
 
-                movne   r11, #PIO_DATA
-                strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
+                mov     r11, #PIO_LED2
+                str     r11, [r10, #PIOA_CODR] /* disable LED */
 
+                /* Load the TC2.CV into r9 */
+                ldr r9, [r12, #TC2_CV]
+                
+                ldr r11, =tc_sniffer_next_buffer_for_fiq
+                ldr r11, [r11]
+                /* r11 now contains the value of tc_sniffer_next_buffer_for_fiq, e.q. the address
+                 * of the next buffer */
+                
+                /* Jump to .no_buffer if the pointer is 0, indicating that no buffer is set */
+                cmp r11, #0
+                beq .no_buffer 
+                
+		/* Increment the value at the location the pointer points to */
+		ldr r8, [r11]
+		add r8, r8, #1
+		str r8, [r11]
+		
+		/* At this point:
+		   r8  = count
+		   r9  = TC2.CV
+		   r11 = pointer to buffer
+		 */
+		
+		cmp r8, #BUFSIZE
+		bge .no_buffer
+		
+		str r9, [r11, r8, LSL #2]
+		
+.no_buffer:
+                mov     r11, #PIO_LED2
+                str     r11, [r10, #PIOA_SODR] /* disable LED */
+                
                 /* Trigger PIO_SECONDARY_IRQ */
                 mov r11, #PIO_SECONDARY_IRQ_BIT
                 ldr r8, =AT91C_BASE_AIC
