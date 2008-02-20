@@ -82,6 +82,7 @@ void vUSBCDCTask (void *pvParameters);
 /* Send cByte down the USB port.  Characters are simply buffered and not
 sent unless the port is connected. */
 void vUSBSendByte (portCHAR cByte);
+void vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length);
 portLONG vUSBRecvByte (portCHAR *cByte,portLONG size, portTickType xTicksToWait);
 
 #endif
