@@ -1,0 +1,24 @@
+#!/bin/sh
+
+MAX_LEN=32
+TRUNCATE="sed -e s/\(.\{1,$MAX_LEN\}\).*/\1/"
+
+DATE=`LC_ALL=C LANG=C date +%Y%m%d-%H%M%S`
+BY=`whoami`
+HOST=`hostname | $TRUNCATE`
+BYHOST=`echo ${BY}@${HOST} | $TRUNCATE`
+SVNREV=`svn info | grep \^Revision: | cut -c 11-`
+
+svn st | grep \^M >/dev/null
+
+[ "$?" -eq "0" ] && SVNREV=${SVNREV}-unclean
+
+echo "#ifndef _COMPILE_H"
+echo "#define _COMPILE_H"
+echo
+echo /\* This file is auto generated \*/
+echo \#define COMPILE_DATE \"${DATE}\"
+echo \#define COMPILE_BY \"${BYHOST}\"
+echo \#define COMPILE_SVNREV \"${SVNREV}\"
+echo
+echo "#endif /* _COMPILE_H */"
