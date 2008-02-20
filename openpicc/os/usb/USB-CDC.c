@@ -123,6 +123,8 @@ transmitted.  Rx queue must be larger than FIFO size. */
 static xQueueHandle xRxCDC;
 static xQueueHandle xTxCDC;
 
+#define CHUNK_SIZE 8
+
 /* Line coding - 115,200 baud, N-8-1 */
 static const unsigned portCHAR pxLineCoding[] =
   { 0x00, 0xC2, 0x01, 0x00, 0x00, 0x00, 0x08 };
@@ -142,6 +144,8 @@ vUSBCDCTask (void *pvParameters)
   unsigned portLONG ulStatus;
   unsigned portLONG ulRxBytes;
   unsigned portCHAR ucByte;
+  unsigned char chunk[CHUNK_SIZE]; 
+  portBASE_TYPE i;
   portBASE_TYPE xByte;
 
   (void) pvParameters;
@@ -185,16 +189,19 @@ vUSBCDCTask (void *pvParameters)
 	       (AT91C_BASE_UDP->UDP_CSR[usbEND_POINT_2] & AT91C_UDP_TXPKTRDY))
 	      && uxQueueMessagesWaiting (xTxCDC))
 	    {
-	      for (xByte = 0; xByte < 64; xByte++)
+	      for (xByte = 0; xByte < 64-CHUNK_SIZE+1; xByte++)
 		{
-		  if (!xQueueReceive (xTxCDC, &ucByte, 0))
+		  if (!xQueueReceive (xTxCDC, &chunk, 0))
 		    {
 		      /* No data buffered to transmit. */
 		      break;
 		    }
 
-		  /* Got a byte to transmit. */
-		  AT91C_BASE_UDP->UDP_FDR[usbEND_POINT_2] = ucByte;
+		  /* Got a byte (or more) to transmit. */
+		  for(i=0; i<chunk[0]; i++) {
+			  AT91C_BASE_UDP->UDP_FDR[usbEND_POINT_2] = chunk[1+i];
+			  xByte++;
+		  }
 		}
 	      AT91C_BASE_UDP->UDP_CSR[usbEND_POINT_2] |= AT91C_UDP_TXPKTRDY;
 	    }
@@ -255,8 +262,27 @@ vUSBCDCTask (void *pvParameters)
 void
 vUSBSendByte (portCHAR cByte)
 {
+	char chunk[CHUNK_SIZE];
+	chunk[0] = 1;
+	chunk[1] = cByte;
   /* Queue the byte to be sent.  The USB task will send it. */
-  xQueueSend (xTxCDC, &cByte, usbNO_BLOCK);
+  xQueueSend (xTxCDC, &chunk, usbNO_BLOCK);
+}
+
+#define MIN(a,b) ((a)>(b)?(b):(a))
+void
+vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length)
+{
+	unsigned char chunk[CHUNK_SIZE];
+	while(length > 0) {
+		int next_size = MIN(length, CHUNK_SIZE-1);
+		chunk[0] = next_size;
+		memcpy(chunk+1, buffer+offset, next_size);
+		/* Queue the bytes to be sent.  The USB task will send it. */
+		xQueueSend (xTxCDC, &chunk, usbNO_BLOCK);
+		length -= next_size;
+		offset += next_size;
+	}
 }
 
 /*------------------------------------------------------------*/
@@ -782,8 +808,8 @@ vInitUSBInterface (void)
     xQueueCreate (USB_CDC_QUEUE_SIZE,
 		  (unsigned portCHAR) sizeof (signed portCHAR));
   xTxCDC =
-    xQueueCreate (USB_CDC_QUEUE_SIZE + 1,
-		  (unsigned portCHAR) sizeof (signed portCHAR));
+    xQueueCreate ( (USB_CDC_QUEUE_SIZE/CHUNK_SIZE) + 1,
+		  (unsigned portCHAR) CHUNK_SIZE * sizeof (signed portCHAR));
 
   if ((!xUSBInterruptQueue) || (!xRxCDC) || (!xTxCDC))
     {
