@@ -123,7 +123,7 @@ transmitted.  Rx queue must be larger than FIFO size. */
 static xQueueHandle xRxCDC;
 static xQueueHandle xTxCDC;
 
-#define CHUNK_SIZE 8
+#define CHUNK_SIZE 9
 
 /* Line coding - 115,200 baud, N-8-1 */
 static const unsigned portCHAR pxLineCoding[] =

@@ -203,8 +203,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * current field strength: ");
 		    DumpUIntToUSB(adc_get_field_strength());
 		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * TC0_CV value: ");
-		    DumpUIntToUSB(*AT91C_TC0_CV);
+		    DumpStringToUSB(" * TC2_CV value: ");
+		    DumpUIntToUSB(*AT91C_TC2_CV);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
