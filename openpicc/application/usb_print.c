@@ -29,7 +29,7 @@
 
 static char ringbuffer[BUFLEN];
 static int ringstart, ringstop;
-static int default_flush = 1;
+static int default_flush = 1, forced_silence = 0;
 static xSemaphoreHandle print_semaphore;
 
 void usb_print_buffer(const char* buffer, int start, int stop) {
@@ -92,11 +92,20 @@ int usb_print_set_default_flush(int flush)
 	return old_flush;
 }
 
+int usb_print_set_force_silence(int silence)
+{
+	int old_silence = forced_silence;
+	forced_silence = silence;
+	return old_silence;
+}
+
 
 /* Must NOT be called from ISR context */
 void usb_print_flush(void)
 {
 	int oldstop, newstart;
+	if(forced_silence) return;
+	
 	taskENTER_CRITICAL();
 	if(print_semaphore == NULL)
 		usb_print_init();

@@ -219,8 +219,8 @@ my_fiq_handler:
                 tst   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
                 beq   .no_buffer
 
-                mov     r11, #PIO_LED2
-                str     r11, [r10, #PIOA_CODR] /* disable LED */
+/*                mov     r11, #PIO_LED2
+                str     r11, [r10, #PIOA_CODR] /* enable LED */
 
                 /* Load the TC2.CV into r9 */
                 ldr r9, [r12, #TC2_CV]
@@ -251,7 +251,7 @@ my_fiq_handler:
 		str r9, [r11, r8, LSL #2]
 		
 .no_buffer:
-                mov     r11, #PIO_LED2
+/*                mov     r11, #PIO_LED2
                 str     r11, [r10, #PIOA_SODR] /* disable LED */
                 
                 /* Trigger PIO_SECONDARY_IRQ */

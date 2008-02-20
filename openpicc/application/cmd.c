@@ -14,11 +14,9 @@
 #include "da.h"
 #include "adc.h"
 #include "pll.h"
-#include "tc_cdiv.h"
-#include "tc_cdiv_sync.h"
 #include "pio_irq.h"
 #include "usb_print.h"
-#include "load_modulation.h"
+#include "tc_sniffer.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -43,7 +41,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?hq9fjkai";
+static const char *SHORT_COMMANDS = "r!pc+-l?hq9fjkai";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -164,7 +162,6 @@ extern volatile unsigned portLONG ulCriticalNesting;
 void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	static int led = 0;
 	portCHAR cByte = cmd & 0xff;
-	portLONG j;
 	int i,ms;
 	if(cByte>='A' && cByte<='Z')
 	    cByte-=('A'-'a');
@@ -179,41 +176,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	// Note: Commands have been uppercased when this code is called
 	    switch(cmd)
 	    {
-		case 'TEST':
-		    DumpStringToUSB("Testing critical sections\r\n");
-		    j=ulCriticalNesting;
-		    DumpStringToUSB("Nesting is now ");
-		    DumpUIntToUSB(j);
-		    DumpStringToUSB("\n\r");
-		    taskENTER_CRITICAL();
-		    for(i=0; i<1000; i++) {;}
-		    j=ulCriticalNesting;
-		    taskEXIT_CRITICAL();
-		    DumpStringToUSB("Nesting was  ");
-		    DumpUIntToUSB(j);
-		    DumpStringToUSB("\n\r");
-		    j=ulCriticalNesting;
-		    DumpStringToUSB("Nesting is now ");
-		    DumpUIntToUSB(j);
-		    DumpStringToUSB("\n\r");
-		    break;
-		case 'Z':
-		    i=atoiEx(args, &args);
-		    if(i==0) {
-			tc_cdiv_sync_disable();
-			DumpStringToUSB("cdiv_sync disabled \n\r");
-		    } else {
-			tc_cdiv_sync_enable();
-			DumpStringToUSB("cdiv_sync enabled \n\r");
-		    }
-		    break;
-		case 'D':
-		    i=atoiEx(args, &args);
-		    tc_cdiv_set_divider(i);
-		    DumpStringToUSB("tc_cdiv set to ");
-		    DumpUIntToUSB(i);
-		    DumpStringToUSB("\n\r");
-		    break;
 		case 'P':
 		    print_pio();
 		    break;
@@ -240,15 +202,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * current field strength: ");
 		    DumpUIntToUSB(adc_get_field_strength());
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * fdt_offset: ");
-		    if(fdt_offset < 0) {
-		    	DumpStringToUSB("-");
-		    	DumpUIntToUSB(-fdt_offset);
-		    } else DumpUIntToUSB(fdt_offset);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * load_mod_level: ");
-		    DumpUIntToUSB(load_mod_level_set);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * TC0_CV value: ");
 		    DumpUIntToUSB(*AT91C_TC0_CV);
@@ -281,23 +234,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    vUSBSendByte( (char)led + '0' );
 		    DumpStringToUSB("\n\r");
 		    break;
-		case '!':
-		    tc_cdiv_sync_reset();
-		    break;
-		case 'J':
-		    fdt_offset++;
-		    DumpStringToUSB("fdt_offset is now ");
-		    if(fdt_offset<0) { DumpStringToUSB("-"); DumpUIntToUSB(-fdt_offset); }
-		    else { DumpStringToUSB("+"); DumpUIntToUSB(fdt_offset); }
-		    DumpStringToUSB("\n\r");
-		    break;
-		case 'K':
-		    fdt_offset--;
-		    DumpStringToUSB("fdt_offset is now ");
-		    if(fdt_offset<0) { DumpStringToUSB("-"); DumpUIntToUSB(-fdt_offset); }
-		    else { DumpStringToUSB("+"); DumpUIntToUSB(fdt_offset); }
-		    DumpStringToUSB("\n\r");
-		    break;
 		case 'F':
 		    startstop_field_meter();
 		    break;
@@ -305,6 +241,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			pll_inhibit(!pll_is_inhibited());
 			if(pll_is_inhibited()) DumpStringToUSB(" * PLL is now inhibited\n\r");
 			else DumpStringToUSB(" * PLL is now running\n\r");
+		case 'R':
+			start_stop_sniffing();
+			break;
 #if ( configUSE_TRACE_FACILITY == 1 )
 		case 'T':
 		    memset(pcWriteBuffer, 0, sizeof(pcWriteBuffer));
@@ -312,13 +251,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB((char*)pcWriteBuffer);
 		    break;
 #endif
-		case 'A':
-		    load_mod_level_set = (load_mod_level_set+1) % 4;
-		    load_mod_level(load_mod_level_set);
-		    DumpStringToUSB("load_mod_level is now ");
-		    DumpUIntToUSB(load_mod_level_set);
-		    DumpStringToUSB("\n\r");
-		    break;
 		case 'H':	
 		case '?':
 		    DumpStringToUSB(
@@ -332,7 +264,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * running on ");
 		    DumpStringToUSB(OPENPICC->release_name);
 		    DumpStringToUSB("\n\r *\n\r"
-			" * test - test critical sections\n\r"
 #if ( configUSE_TRACE_FACILITY == 1 )
 			" * t    - print task list and stack usage\n\r"
 #endif
@@ -340,15 +271,13 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * +,-  - decrease/increase comparator threshold\n\r"
 			" * l    - cycle LEDs\n\r"
 			" * p    - print PIO pins\n\r"
-			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * i    - inhibit/uninhibit PLL\n\r"
-			" * !    - reset tc_cdiv_sync\n\r"
 			" * f    - start/stop field meter\n\r"
-			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
-			" * j,k  - increase, decrease fdt_offset\n\r"
-			" * a    - change load modulation level\n\r"
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
+		    " *\n\r"
+		    " * WARNING: This command will print out binary data:\n\r"
+		    " * r    - start/stop receiving\n\r"
 			" *\n\r"
 			" *****************************************************\n\r"
 			);

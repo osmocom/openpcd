@@ -32,6 +32,8 @@
 #include <task.h>
 #include <string.h>
 
+#include <USB-CDC.h>
+
 #include "tc_sniffer.h"
 #include "load_modulation.h"
 #include "pll.h"
@@ -53,25 +55,25 @@ fiq_buffer_t fiq_buffers[2];
 
 fiq_buffer_t *tc_sniffer_next_buffer_for_fiq = 0;
 
+portBASE_TYPE currently_sniffing = 0;
+enum { NONE, REQUEST_START, REQUEST_STOP } request_change = NONE;
+
 void flush_buffer(fiq_buffer_t *buffer)
 {
-	unsigned int i;
 	/* Write all data from the given buffer out, then zero the count */
 	if(buffer->count > 0) {
-		DumpUIntToUSB(buffer->count);
-		DumpStringToUSB(":");
-		for(i=0; i<buffer->count; i++) {
-			DumpStringToUSB(" ");
-			DumpUIntToUSB(buffer->data[i]);
-		}
-		DumpStringToUSB("\n\r");
+		vUSBSendBuffer((unsigned char*)(&(buffer->data[0])), 0, buffer->count*4);
+		vUSBSendBuffer((unsigned char*)"____", 0, 4);
 		buffer->count = 0;
 	}
 }
 
-void dummy(void)
+void start_stop_sniffing(void)
 {
-	
+	if(currently_sniffing)
+		request_change = REQUEST_STOP;
+	else
+		request_change = REQUEST_START;
 }
 
 void tc_sniffer (void *pvParameters)
@@ -104,12 +106,33 @@ void tc_sniffer (void *pvParameters)
 	while(1) {
 		/* Main loop of the sniffer */
 		
-		int next = (current+1)%(sizeof(fiq_buffers)/sizeof(fiq_buffers[0]));
-		flush_buffer( &fiq_buffers[next] );
-		/* The buffer designated by next is now empty, give it to the fiq,
-		 * we'll just guess that this write is atomic */ 
-		tc_sniffer_next_buffer_for_fiq = &fiq_buffers[current=next];
-		
-		vTaskDelay(2* portTICK_RATE_MS);
+		if(currently_sniffing) {
+			int next = (current+1)%(sizeof(fiq_buffers)/sizeof(fiq_buffers[0]));
+			flush_buffer( &fiq_buffers[next] );
+			/* The buffer designated by next is now empty, give it to the fiq,
+			 * we'll just guess that this write is atomic */ 
+			tc_sniffer_next_buffer_for_fiq = &fiq_buffers[current=next];
+
+			if(request_change == REQUEST_STOP) {
+				currently_sniffing = 0;
+				request_change = NONE;
+				
+				tc_sniffer_next_buffer_for_fiq = 0;
+				memset(fiq_buffers, 0, sizeof(fiq_buffers));
+				current = 0;
+				vUSBSendBuffer((unsigned char *)"----", 0, 4);
+				usb_print_set_force_silence(0);
+			} else vTaskDelay(2* portTICK_RATE_MS);
+		} else {
+			// Do nothing, wait longer
+			
+			if(request_change == REQUEST_START) {
+				// Prevent usb_print code from barging in
+				usb_print_set_force_silence(1);
+				vUSBSendBuffer((unsigned char *)"----", 0, 4);
+				currently_sniffing = 1;
+				request_change = NONE;
+			} else vTaskDelay(100 * portTICK_RATE_MS);
+		}
 	}
 }
