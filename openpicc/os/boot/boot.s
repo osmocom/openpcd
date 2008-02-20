@@ -4,9 +4,6 @@
 	.extern exit
 	.extern AT91F_LowLevelInit
 	.extern pio_irq_isr_value
-	.extern ssc_tx_pending
-	.extern ssc_tx_fiq_fdt_cdiv
-	.extern ssc_tx_fiq_fdt_ssc
 
 	.text
 	.code 32
@@ -221,105 +218,7 @@ my_fiq_handler:
 
                 movne   r11, #PIO_DATA
                 strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
-                beq .no_pio_data
-/* .loop_high:
-				ldr     r11, [r10, #PIOA_PDSR]
-				tst     r11, #PIO_DATA
-				bne     .loop_high
-                str   r9, [r12, #TC_CCR]      /* software trigger */
 
-.no_pio_data:
-                tst     r8, #PIO_SSC_TF         /* check for SSC Transmit Frame signal */
-                ldrne   r11, [r10, #PIOA_PDSR]
-                tstne   r11, #PIO_SSC_TF        /* check for SSC_TF == 1 */
-                
-                movne   r11, #PIO_SSC_TF
-                strne   r11, [r10, #PIOA_IDR]   /* disable further SSC_TF FIQ */
-                
-                ldrne   r11, =ssc_tx_pending
-                ldrne   r8, [r11]
-                tstne   r8, #0x01              /* Check whether a TX is pending */
-                beq     .no_ssc
-                b .no_ssc
-                
-                mov   r8, #PIO_LED1
-                str   r8, [r10, #PIOA_SODR] /* disable LED */
-                
-                mov   r8, #0x00
-                str   r8, [r11]                /* Set ssc_tx_pending to 0 */
-                
-                ldr   r11, =ssc_tx_fiq_fdt_cdiv
-                ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_cdiv */
-
-/* Problem: LDR from the timer and loop still take too long and cause us to miss the exact time.
- * (One load-from-timer,compare,jump-back-if-less cycle are 7 CPU cycles, which are 2 carrier cycles.)
- * Strategy: Spin on TC2 till 3 or 4 carrier cycles before the actual time. Then go into an unrolled
- * 'loop' for the remaining time. (load-from-timer,compare,jump-forward-if-greater-or-equal are 5 CPU 
- * cycles if the condition is not reached.)
- * 
- * At 47.923200 MHz 7 processor cycles are 2 carrier cycles of the 13.56MHz carrier
- */
- .equ SUB_TIME, 4 /* subtract 4 carrier cycles == 14 processor cycles */
- 
- 				mov r8, #SUB_TIME
- 				sub r11, r11, r8              /* r11 == fdt_cdiv-SUB_TIME */
-
-.wait_for_fdt_cdiv:
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				blt   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv-SUB_TIME */
-				
-				mov r8, #SUB_TIME
-				add r11, r11, r8               /* r11 == fdt_cdiv */
-
-/* Seven copies of the loop contents, covering for 35 CPU cycles, or 10 carrier cycles */
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             /* jump forward if TC2.CV is greater than or equal fdt_cdiv */
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-.fdt_expired:				
-				str   r9, [r12, #TC_CCR]       /* SWTRG on TC0 */
-				
-                ldr   r11, =ssc_tx_fiq_fdt_ssc
-                ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_ssc */
-
-.wait_for_fdt_ssc:
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bmi   .wait_for_fdt_ssc        /* spin while TC2.CV is less fdt_ssc */
-                
-                mov   r11, #PIO_LED1
-                str   r11, [r10, #PIOA_CODR] /* enable LED */
-                
-                ldr   r11, =AT91C_BASE_SSC
-                mov   r8, #SSC_CR_TXEN
-                str   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
-
-.no_ssc:               
                 /* Trigger PIO_SECONDARY_IRQ */
                 mov r11, #PIO_SECONDARY_IRQ_BIT
                 ldr r8, =AT91C_BASE_AIC

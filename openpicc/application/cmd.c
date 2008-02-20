@@ -8,7 +8,6 @@
 #include <compile.h>
 #include <string.h>
 
-#include "env.h"
 #include "cmd.h"
 #include "openpicc.h"
 #include "led.h"
@@ -18,7 +17,6 @@
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
-#include "ssc_picc.h"
 #include "usb_print.h"
 #include "load_modulation.h"
 
@@ -132,12 +130,6 @@ int atoiEx(const char * nptr, char * * eptr)
 	return sign * curval;
 }
 
-static const struct {ssc_metric metric; char *description;} SSC_METRICS[] = {
-	{OVERFLOWS,     "overflows"},
-	{BUFFER_ERRORS, "internal buffer management errors"},
-	{FREE_BUFFERS,  "free rx buffers"},
-	{LATE_FRAMES,   "late frames"},
-};
 #define DYNAMIC_PIN_PLL_LOCK -1
 static struct { int pin; char * description; } PIO_PINS[] = {
 	{DYNAMIC_PIN_PLL_LOCK,  "pll lock   "},
@@ -215,19 +207,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			DumpStringToUSB("cdiv_sync enabled \n\r");
 		    }
 		    break;
-		case 'G':
-			if(!OPENPICC->features.data_gating) {
-				DumpStringToUSB("This hardware does not have data gating capability\n\r");
-				break;
-			}
-		    i=atoiEx(args, &args);
-		    ssc_set_data_gate(i);
-		    if(i==0) {
-		    	DumpStringToUSB("SSC_DATA disabled \n\r");
-		    } else {
-		    	DumpStringToUSB("SSC_DATA enabled \n\r");
-		    }
-		    break;
 		case 'D':
 		    i=atoiEx(args, &args);
 		    tc_cdiv_set_divider(i);
@@ -252,15 +231,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    ms=xTaskGetTickCount();
 		    DumpTimeToUSB(ms);
 		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * The reader id is ");
-		    DumpUIntToUSB(env.e.reader_id);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * The mode is ");
-		    DumpUIntToUSB(env.e.mode);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * The transmit interval is ");
-		    DumpUIntToUSB(env.e.speed);
-		    DumpStringToUSB("00ms\n\r");
 		    DumpStringToUSB(" * The comparator threshold is ");
 		    DumpUIntToUSB(da_get_value());
 		    DumpStringToUSB("\n\r");
@@ -280,40 +250,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * load_mod_level: ");
 		    DumpUIntToUSB(load_mod_level_set);
 		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC performance metrics:\n\r");
-		    for(i=0; i<(int)(sizeof(SSC_METRICS)/sizeof(SSC_METRICS[0])); i++) {
-		    	DumpStringToUSB(" * \t");
-		    	DumpStringToUSB(SSC_METRICS[i].description);
-		    	DumpStringToUSB(": ");
-		    	DumpUIntToUSB(ssc_get_metric(SSC_METRICS[i].metric));
-		    	DumpStringToUSB("\n\r");
-		    }
-		    DumpStringToUSB(" * SSC status: ");
-		    DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
-		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * TC0_CV value: ");
 		    DumpUIntToUSB(*AT91C_TC0_CV);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_SR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_SR);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_RCMR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_RCMR);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_TCMR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_TCMR);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_TFMR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_TFMR);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_TPR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_TPR);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_TCR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_TCR);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * SSC_IMR value: ");
-		    DumpUIntToUSB(*AT91C_SSC_IMR);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
@@ -374,13 +312,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB((char*)pcWriteBuffer);
 		    break;
 #endif
-		case 'Q':
-		    ssc_rx_start();
-		    while(0) {
-		    	DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
-		    	DumpStringToUSB("\n\r");
-		    }
-		    break;
 		case 'A':
 		    load_mod_level_set = (load_mod_level_set+1) % 4;
 		    load_mod_level(load_mod_level_set);
@@ -392,7 +323,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case '?':
 		    DumpStringToUSB(
 			" *****************************************************\n\r"
-			" * OpenPICC USB terminal                             *\n\r"
+			" * OpenPICC-Sniffer USB terminal                     *\n\r"
 			" * (C) 2007 Milosch Meriac <meriac@openbeacon.de>    *\n\r"
 			" * (C) 2007 Henryk Plötz <henryk@ploetzli.ch>        *\n\r"
 			" *****************************************************\n\r"
@@ -412,12 +343,10 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * i    - inhibit/uninhibit PLL\n\r"
 			" * !    - reset tc_cdiv_sync\n\r"
-			" * q    - start rx\n\r"
 			" * f    - start/stop field meter\n\r"
 			" * d div- set tc_cdiv divider value 16, 32, 64, ...\n\r"
 			" * j,k  - increase, decrease fdt_offset\n\r"
 			" * a    - change load modulation level\n\r"
-			" * g 0/1- disable or enable SSC_DATA through gate\n\r"
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 			" *\n\r"

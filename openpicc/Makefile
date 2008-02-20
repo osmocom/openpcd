@@ -79,25 +79,15 @@ ARM_SRC= \
   application/main.c \
   application/led.c \
   application/cmd.c \
-  application/env.c \
   application/da.c \
   application/adc.c \
   application/pll.c \
   application/pio_irq.c \
-  application/ssc_picc.c \
   application/tc_cdiv_sync.c \
   application/tc_fdt.c \
   application/tc_cdiv.c \
   application/usb_print.c \
-  application/iso14443_layer2a.c \
-  application/iso14443_layer3a.c \
-  application/iso14443_sniffer.c \
-  application/iso14443a_manchester.c \
-  application/iso14443a_miller.c \
   application/load_modulation.c \
-  application/decoder_miller.c \
-  application/decoder_nrzl.c \
-  application/decoder.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

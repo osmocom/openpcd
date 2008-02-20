@@ -40,7 +40,6 @@
 #include "tc_cdiv.h"
 #include "tc_fdt.h"
 #include "usb_print.h"
-#include "ssc_picc.h"
 #include "cmd.h"
 
 static AT91PS_TC tcfdt = AT91C_BASE_TC2;
@@ -84,7 +83,6 @@ static void __ramfunc tc_fdt_irq(void)
 	if (sr & AT91C_TC_CPBS) {
 	usb_print_string_f("tc_cpbs ", 0);
 		DEBUGP("Frame_end ");
-		ssc_rx_stop_frame_ended();
 	}
 	if (sr & AT91C_TC_CPCS) {
 		DEBUGP("Compare_C ");

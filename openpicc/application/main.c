@@ -36,7 +36,6 @@
 #include "openpicc.h"
 #include "board.h"
 #include "led.h"
-#include "env.h"
 #include "cmd.h"
 #include "da.h"
 #include "adc.h"
@@ -46,9 +45,6 @@
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
 #include "usb_print.h"
-#include "iso14443_layer3a.h"
-#include "iso14443_sniffer.h"
-#include "decoder.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -57,7 +53,7 @@ static inline void prvSetupHardware (void)
 	 * the correct hardware information.
 	 * FIXME: Detect dynamically in the future
 	 */
-	OPENPICC = &OPENPICC_HARDWARE[OPENPICC_v0_4_p1];
+	OPENPICC = &OPENPICC_HARDWARE[OPENPICC_v0_4];
 	
 	
     /*	When using the JTAG debugger the hardware is not always initialised to
@@ -69,14 +65,6 @@ static inline void prvSetupHardware (void)
     AT91C_BASE_PMC->PMC_PCER = 1 << AT91C_ID_PIOA;
     AT91C_BASE_PMC->PMC_PCER = 1 << AT91C_ID_PIOB;    
 
-    /* initialize environment variables */
-    env_init();
-    if(!env_load())
-    {
-	env.e.mode=0;
-	env.e.reader_id=255;
-	env_store();
-    }
 }
 
 /**********************************************************************/
@@ -169,7 +157,6 @@ int main (void)
 {
     prvSetupHardware ();
     usb_print_init();
-    decoder_init();
     
     pio_irq_init();
     
@@ -178,12 +165,8 @@ int main (void)
     da_init();
     adc_init();
     
-    /*xTaskCreate (vMainTestSSCRXConsumer, (signed portCHAR *) "SSC_CONSUMER", TASK_USB_STACK,
-	NULL, TASK_USB_PRIORITY, NULL);*/
-    /*xTaskCreate (iso14443_layer3a_state_machine, (signed portCHAR *) "ISO14443A-3", TASK_ISO_STACK,
+    /*xTaskCreate (tc_sniffer, (signed portCHAR *) "RFID-SNIFFER", TASK_ISO_STACK,
 	NULL, TASK_ISO_PRIORITY, NULL);*/
-    xTaskCreate (iso14443_sniffer, (signed portCHAR *) "ISO14443-SNIFF", TASK_ISO_STACK,
-	NULL, TASK_ISO_PRIORITY, NULL);
 
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
 	NULL, TASK_USB_PRIORITY, NULL);
