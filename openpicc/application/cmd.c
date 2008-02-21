@@ -241,6 +241,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			pll_inhibit(!pll_is_inhibited());
 			if(pll_is_inhibited()) DumpStringToUSB(" * PLL is now inhibited\n\r");
 			else DumpStringToUSB(" * PLL is now running\n\r");
+			break;
 		case 'R':
 			start_stop_sniffing();
 			break;
@@ -257,7 +258,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" *****************************************************\n\r"
 			" * OpenPICC-Sniffer USB terminal                     *\n\r"
 			" * (C) 2007 Milosch Meriac <meriac@openbeacon.de>    *\n\r"
-			" * (C) 2007 Henryk Plötz <henryk@ploetzli.ch>        *\n\r"
+			" * (C) 2007/2008 Henryk Plötz <henryk@ploetzli.ch>   *\n\r"
 			" *****************************************************\n\r"
 			" * Version " COMPILE_SVNREV "\n\r"
 			" * compiled " COMPILE_DATE " by " COMPILE_BY "\n\r"

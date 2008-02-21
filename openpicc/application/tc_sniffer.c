@@ -58,12 +58,16 @@ fiq_buffer_t *tc_sniffer_next_buffer_for_fiq = 0;
 portBASE_TYPE currently_sniffing = 0;
 enum { NONE, REQUEST_START, REQUEST_STOP } request_change = NONE;
 
+#define MIN(a, b) ((a)>(b)?(b):(a))
 void flush_buffer(fiq_buffer_t *buffer)
 {
 	/* Write all data from the given buffer out, then zero the count */
 	if(buffer->count > 0) {
-		vUSBSendBuffer((unsigned char*)(&(buffer->data[0])), 0, buffer->count*4);
-		vUSBSendBuffer((unsigned char*)"____", 0, 4);
+		vUSBSendBuffer((unsigned char*)(&(buffer->data[0])), 0, MIN(buffer->count,BUFSIZE)*4);
+		if(buffer->count >= BUFSIZE)
+			vUSBSendBuffer((unsigned char*)"////", 0, 4);
+		else
+			vUSBSendBuffer((unsigned char*)"____", 0, 4);
 		buffer->count = 0;
 	}
 }
