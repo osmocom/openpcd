@@ -105,7 +105,8 @@ void tc_fdt_print(void)
 void tc_fdt_init(void)
 {
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA15_TF,
-			    AT91C_PA26_TIOA2 | AT91C_PA27_TIOB2);
+		    		OPENPICC_PIO_CARRIER_IN |
+		    		AT91C_PA26_TIOA2 | AT91C_PA27_TIOB2);
 	AT91F_PMC_EnablePeriphClock(AT91C_BASE_PMC,
 				    ((unsigned int) 1 << AT91C_ID_TC2));
 	/* Enable Clock for TC2 */
@@ -113,6 +114,10 @@ void tc_fdt_init(void)
 
 	tcfdt->TC_RC = 0xffff;
 	tc_frame_end_set(128*2);
+	
+	/* Connect XC1 to TCLK1 */
+	AT91C_BASE_TCB->TCB_BMR &= ~AT91C_TCB_TC1XC1S;
+	AT91C_BASE_TCB->TCB_BMR |=  AT91C_TCB_TC1XC1S_TCLK1;
 
 	/* Clock XC1, Wave Mode, No automatic reset on RC comp
 	 * TIOA2 in RA comp = set, TIOA2 on RC comp = clear,
