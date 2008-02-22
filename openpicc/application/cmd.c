@@ -7,6 +7,7 @@
 #include <board.h>
 #include <compile.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "cmd.h"
 #include "openpicc.h"
@@ -378,6 +379,17 @@ static portBASE_TYPE field_meter_enabled = 0;
 void vFieldMeter(void *pvParameters) {
 	(void) pvParameters;
 	char meter_string[FIELD_METER_WIDTH+2];
+	int brightness=0;
+	
+	
+	for(brightness=-1000; brightness<=1000; brightness+=4) {
+		vLedSetBrightness(LED_GREEN, 1000-abs(brightness)); 
+		vTaskDelay(portTICK_RATE_MS);
+	}
+	for(brightness=-1000; brightness<=1000; brightness+=4) {
+		vLedSetBrightness(LED_RED, 1000-abs(brightness));
+		vTaskDelay(portTICK_RATE_MS);
+	}
 	
 	while(1) {
 		int ad_value = adc_get_field_strength(); 
