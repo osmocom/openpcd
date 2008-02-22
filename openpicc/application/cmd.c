@@ -22,7 +22,6 @@ xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
 xTaskHandle xCmdRecvUsbTask;
 xTaskHandle xFieldMeterTask;
-xSemaphoreHandle xFieldMeterMutex;
 
 volatile int fdt_offset=0;
 volatile int load_mod_level_set=3;
@@ -373,14 +372,17 @@ static portBASE_TYPE field_meter_enabled = 0;
 #define FIELD_METER_WIDTH 80
 #define FIELD_METER_MAX_VALUE 160
 #define FIELD_METER_SCALE_FACTOR (FIELD_METER_MAX_VALUE/FIELD_METER_WIDTH)
-// A task to print the field strength as a bar graph
+#define FIELD_LED_NOISE_FLOOR 2
+#define FIELD_LED_MAX_VALUE 110
+// A task to output the field strength as led brightness and optionally as a bar graph
 void vFieldMeter(void *pvParameters) {
 	(void) pvParameters;
 	char meter_string[FIELD_METER_WIDTH+2];
 	
 	while(1) {
-		if(xSemaphoreTake(xFieldMeterMutex, portMAX_DELAY)) {
-			int i,ad_value = adc_get_field_strength();
+		int ad_value = adc_get_field_strength(); 
+		if(field_meter_enabled) {
+			int i;
 			meter_string[0] = '\r';
 			
 			for(i=0; i<FIELD_METER_WIDTH; i++) 
@@ -391,10 +393,12 @@ void vFieldMeter(void *pvParameters) {
 						(((i*FIELD_METER_SCALE_FACTOR)/10)%10)+'0' : '#' );
 			meter_string[i+1] = 0;
 			usb_print_string(meter_string);
-			
-			vTaskDelay(100*portTICK_RATE_MS);
-			if(field_meter_enabled == 1) xSemaphoreGive(xFieldMeterMutex);
 		}
+		
+		vLedSetBrightness(LED_RED, ((ad_value-FIELD_LED_NOISE_FLOOR) * 1000) / FIELD_LED_MAX_VALUE);
+		vLedSetGreen(pll_is_locked());
+		
+		vTaskDelay(100*portTICK_RATE_MS);
 	}
 }
 
@@ -403,7 +407,6 @@ void startstop_field_meter(void) {
 		field_meter_enabled = 0;
 	} else {
 		field_meter_enabled = 1;
-		xSemaphoreGive(xFieldMeterMutex);
 	}
 }
 
@@ -420,12 +423,6 @@ portBASE_TYPE vCmdInit() {
 	if(xCmdQueue == 0) {
 		return 0;
 	}
-	vSemaphoreCreateBinary( xFieldMeterMutex );
-	if(xFieldMeterMutex == 0) {
-		return 0;
-	}
-	xSemaphoreTake(xFieldMeterMutex, portMAX_DELAY);
-	
 	
 	if(xTaskCreate(vCmdCode, (signed portCHAR *)"CMD", TASK_CMD_STACK, NULL, 
 		TASK_CMD_PRIORITY, &xCmdTask) != pdPASS) {
