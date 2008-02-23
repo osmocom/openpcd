@@ -34,7 +34,7 @@
 # - 19. Apr. 2006  - option FLASH_TOOL (default lpc21isp); variable IMGEXT (mth)
 # - 19. Mai. 2006  - USE_THUMB_MODE switch, ROM_RUN->RUN_FROM_ROM RAM_RUN->RUN_FROM_RAM
 
-LIBRFID_DIR:=../librfid/
+LIBRFID_DIR:=../../librfid/
 
 FLASH_TOOL = AT91FLASH
 #FLASH_TOOL = UVISION
