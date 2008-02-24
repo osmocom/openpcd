@@ -119,7 +119,10 @@ void end_frame(frame **target) {
 
   if((*target)->numbytes > 0 || (*target)->numbits > 0) {
     /* Frame finished, do something with it */
-    if(!print_bits) process_frame(*target);
+    if(!print_bits) {
+    	if((*target)->numbytes*8 + (*target)->numbits >= 7)
+    		process_frame(*target);
+    }
   }
   
   free(*target);
