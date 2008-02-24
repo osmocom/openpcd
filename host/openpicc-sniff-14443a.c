@@ -445,12 +445,6 @@ void print_help(const char* message)
 			);
 }
 
-u_int32_t testdata[] = {
-		94, 160, 222, 93, 94, 223, 225, 159, 94, 95, 94, 97, 94, 95, 158, 94, 99, 223, 95, 159, 96, 95, 95, 94, 159, 163, 159, 95, 159, 65535,
-		19, 3400, 4000, 160, 92, 160, 222, 19,
-		94, 160, 222, 93, 94, 223, 225, 159, 94, 95, 94, 97, 94, 95, 158, 94, 99, 223, 95, 159, 96, 95, 95, 94, 159, 163, 159, 95, 159, 65535
-};
-
 int main(int argc, char *argv[])
 {
 	int i, samples=0;
@@ -461,13 +455,6 @@ int main(int argc, char *argv[])
 	
 	Miller_End_Frame();
 	
-	goto notest;
-	for(i=0; i< sizeof(testdata)/sizeof(testdata[0]); i++) {
-		Miller_Edge(testdata[i]);
-	}
-	exit(0);
-notest:
-
 	while( (option=getopt_long(argc, argv, shortopts, options, NULL)) != 1) {
 		if(option==-1) break;
 		switch(option) {
