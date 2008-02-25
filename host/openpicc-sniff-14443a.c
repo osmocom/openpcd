@@ -202,8 +202,8 @@ void Miller_End_Frame()
 		end_frame(&current_pcd_frame);
 		
 		if(!crc)
-			DEBUGP("CRC OK");
-		DEBUGP("\n"); 
+			DEBUGP("%s","CRC OK");
+		DEBUGP("%s","\n"); 
 	}
 	counter=0;
 	byte=0;
@@ -382,7 +382,7 @@ void Miller_Edge(unsigned int delta)
 		DEBUGP("%c ", 'X'-sym_x+entry->first);
 		Miller_Symbol(old_state = entry->first);
 	} else {
-		DEBUGP("! ");
+		DEBUGP("%s","! ");
 	}
 	
 	if(entry->second != NO_SYM) {
@@ -485,9 +485,11 @@ void receive_openpicc(char *devicenode)
 		len = len/sizeof(buffer[0]);
 		for(i=0; i<len && !do_exit; i++) {
 			if(buffer[i] == '____') {
-				DEBUGP("____");
+				DEBUGP("%s","____");
+				if(print_timings) printf("\n");
 			} else if(buffer[i] == '////') {
-				DEBUGP("////");
+				DEBUGP("%s","////");
+				if(print_timings) printf("\n");
 				fprintf(stderr, "Warning: Possible buffer overrun detected on the PICC\n");
 			} else {
 				if(buffer[i] & ~0xffff) {
