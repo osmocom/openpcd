@@ -47,6 +47,7 @@
  */
 
 #define BUFSIZE 1024
+#define WAIT_TICKS (20*portTICK_RATE_MS)
 typedef struct {
 	u_int32_t count;
 	u_int32_t data[BUFSIZE];
@@ -63,11 +64,11 @@ void flush_buffer(fiq_buffer_t *buffer)
 {
 	/* Write all data from the given buffer out, then zero the count */
 	if(buffer->count > 0) {
-		vUSBSendBuffer((unsigned char*)(&(buffer->data[0])), 0, MIN(buffer->count,BUFSIZE)*4);
+		vUSBSendBuffer_blocking((unsigned char*)(&(buffer->data[0])), 0, MIN(buffer->count,BUFSIZE)*4, WAIT_TICKS);
 		if(buffer->count >= BUFSIZE)
-			vUSBSendBuffer((unsigned char*)"////", 0, 4);
+			vUSBSendBuffer_blocking((unsigned char*)"////", 0, 4, WAIT_TICKS);
 		else
-			vUSBSendBuffer((unsigned char*)"____", 0, 4);
+			vUSBSendBuffer_blocking((unsigned char*)"____", 0, 4, WAIT_TICKS);
 		buffer->count = 0;
 	}
 }
@@ -124,7 +125,7 @@ void tc_sniffer (void *pvParameters)
 				tc_sniffer_next_buffer_for_fiq = 0;
 				memset(fiq_buffers, 0, sizeof(fiq_buffers));
 				current = 0;
-				vUSBSendBuffer((unsigned char *)"----", 0, 4);
+				vUSBSendBuffer_blocking((unsigned char *)"----", 0, 4, WAIT_TICKS);
 				usb_print_set_force_silence(0);
 			} else vTaskDelay(2* portTICK_RATE_MS);
 		} else {
@@ -133,7 +134,7 @@ void tc_sniffer (void *pvParameters)
 			if(request_change == REQUEST_START) {
 				// Prevent usb_print code from barging in
 				usb_print_set_force_silence(1);
-				vUSBSendBuffer((unsigned char *)"----", 0, 4);
+				vUSBSendBuffer_blocking((unsigned char *)"----", 0, 4, WAIT_TICKS);
 				currently_sniffing = 1;
 				request_change = NONE;
 			} else vTaskDelay(100 * portTICK_RATE_MS);

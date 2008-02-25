@@ -271,7 +271,7 @@ vUSBSendByte (portCHAR cByte)
 
 #define MIN(a,b) ((a)>(b)?(b):(a))
 void
-vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length)
+vUSBSendBuffer_blocking (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length, portTickType xTicksToWait)
 {
 	unsigned char chunk[CHUNK_SIZE];
 	while(length > 0) {
@@ -279,11 +279,18 @@ vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE lengt
 		chunk[0] = next_size;
 		memcpy(chunk+1, buffer+offset, next_size);
 		/* Queue the bytes to be sent.  The USB task will send it. */
-		xQueueSend (xTxCDC, &chunk, usbNO_BLOCK);
+		xQueueSend (xTxCDC, &chunk, xTicksToWait);
 		length -= next_size;
 		offset += next_size;
 	}
 }
+
+void
+vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length)
+{
+	vUSBSendBuffer_blocking(buffer, offset, length, usbNO_BLOCK);
+}
+
 
 /*------------------------------------------------------------*/
 
