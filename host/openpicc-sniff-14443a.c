@@ -44,15 +44,16 @@
 #endif
 
 
-int print_timings = 0, max_samples = -1, print_bits = 0;
+int print_timings = 0, max_samples = -1, print_bits = 0, read_file = 0;
 const struct option options[] = {
 		{"help",          no_argument, NULL, 'h'},
 		{"print-timings", no_argument, &print_timings, 1},
 		{"print-bits",    no_argument, &print_bits, 1},
 		{"max-samples",   required_argument, NULL, 'm'},
+		{"read-file",     no_argument, &read_file, 1},
 		{NULL, 0, 0, 0},
 };
-const char *shortopts = "h?tbm:";
+const char *shortopts = "h?tbm:r";
 
 #define MAX_FRAME_SIZE 1024
 typedef enum { SRC_PCD, SRC_PICC } framesource;
@@ -244,6 +245,13 @@ void Miller_End_Frame()
 enum symbol {NO_SYM=0, sym_x, sym_y, sym_z};
 enum bit { BIT_ERROR, BIT_SOF, BIT_0, BIT_1, BIT_EOF };
 enum bit_length { out_of_range=0, len_3=1, len_5=2, len_7=3, len_9_or_greater=4 };
+char *bit_length_descriptions[] = {
+		[out_of_range] = "OOR",
+		[len_3] = "3/4",
+		[len_5] = "5/4",
+		[len_7] = "7/4",
+		[len_9_or_greater] = ">=9/4",
+};
 #define NIENTE {NO_SYM, NO_SYM}
 
 struct decoder_table_entry { enum symbol first, second; };
@@ -369,14 +377,17 @@ void Miller_Edge(unsigned int delta)
 	
 	const struct decoder_table_entry *entry;
 	entry = &decoder_table[old_state][length];
-	if(entry->first!=NO_SYM) {
-		Miller_Symbol(entry->first);
-		old_state = entry->first;
+	DEBUGP(" %c{%i}[%s]", 'X'-sym_x+old_state, delta, bit_length_descriptions[length]);
+	if(entry->first != NO_SYM) {
+		DEBUGP("%c ", 'X'-sym_x+entry->first);
+		Miller_Symbol(old_state = entry->first);
+	} else {
+		DEBUGP("! ");
 	}
 	
 	if(entry->second != NO_SYM) {
-		Miller_Symbol(entry->second);
-		old_state = entry->second;
+		DEBUGP("%c ", 'X'-sym_x+entry->second);
+		Miller_Symbol(old_state = entry->second);
 	}
 }
 
@@ -430,69 +441,30 @@ void exit_handler(int signum)
 	}
 }
 
-void print_help(const char* message)
+void process_data(u_int32_t sample)
 {
-	if(message != NULL) {
-		fprintf(stderr, "Error: %s\n", message);
+	if(print_timings) {
+		printf(" %i", sample);
+	} else {
+		Miller_Edge(sample);
 	}
-	
-	fprintf(stderr, "Usage: openpicc-sniff-14443a [OPTIONS] devicenode\n"
-			        "   or  openpicc-sniff-14443a --help|-h|-?  to print this help\n"
-					"\n"
-					"Options:\n"
-					" -t, --print-timings\tPrint raw timing measurements (in carrier cycles)\n"
-					"                    \tinstead of decoded frames\n"
-					" -b, --print-bits   \tPrint raw bit stream (in transmission order) and\n"
-					"                    \tnot the decoded frames\n"
-					" -m, --max-samples n\tStop sampling after acquiring n samples\n"
-			);
+
 }
 
-int main(int argc, char *argv[])
+void receive_openpicc(char *devicenode)
 {
-	int i, samples=0;
+	int i, len, samples=0;
 	char d;
-	u_int32_t buffer[1];
-
-	int option;
+	u_int32_t buffer[1024];
 	
-	Miller_End_Frame();
-	
-	while( (option=getopt_long(argc, argv, shortopts, options, NULL)) != 1) {
-		if(option==-1) break;
-		switch(option) {
-		case '?': /* Fall-Through */
-		case 'h':
-			print_help(NULL);
-			exit(0);
-			break;
-		case 't':
-			print_timings = 1;
-			break;
-		case 'b':
-			print_bits = 1;
-			break;
-		case 'm':
-			max_samples = atoi(optarg);
-			break;
-		}
-	}
-	
-	if(optind == argc) {
-		print_help("No devicenode specified");
-		exit(1);
-	} else if(optind+1 < argc) {
-		print_help("Extraneous arguments");
-		exit(1);
-	}
-
-	if((f=open(argv[optind], O_RDWR))==-1) {
+	if((f=open(devicenode, O_RDWR))==-1) {
 		perror("Can't open devicenode");
 		exit(1);
 	}
 
 	un_braindead_ify_device(f);
 
+	write(f, "\n", 1);
 	if(write(f, "r", 1) == 0) {
 		Error("Can't write command to start reception mode");
 	}
@@ -508,13 +480,14 @@ int main(int argc, char *argv[])
 	}
 
 	int do_exit=0;
-	while( (d=read(f, buffer, sizeof(buffer))) == 4 && !do_exit) {
-		d = d/sizeof(buffer[0]);
-		for(i=0; i<d && !do_exit; i++) {
+	while( (len=read(f, buffer, sizeof(buffer))) > 0 && !do_exit) {
+		if( len % sizeof(buffer[0]) != 0) Error("Wahh");
+		len = len/sizeof(buffer[0]);
+		for(i=0; i<len && !do_exit; i++) {
 			if(buffer[i] == '____') {
-				//printf("\n");
+				DEBUGP("____");
 			} else if(buffer[i] == '////') {
-				printf("\n");
+				DEBUGP("////");
 				fprintf(stderr, "Warning: Possible buffer overrun detected on the PICC\n");
 			} else {
 				if(buffer[i] & ~0xffff) {
@@ -538,11 +511,7 @@ int main(int argc, char *argv[])
 						do_exit=1;
 					}
 					if(!do_exit) {
-						if(print_timings) {
-							printf(" %i", buffer[i]);
-						} else {
-							Miller_Edge(buffer[i]);
-						}
+						process_data(buffer[i]);
 					}
 				}
 			}
@@ -551,6 +520,95 @@ int main(int argc, char *argv[])
 
 	cleanup(f);
 	printf("\n\n");
+}
+
+void receive_file(FILE *stream)
+{
+	int sample;
+	
+	while(!feof(stream)) {
+		if(fscanf(stream, "%i", &sample) != 1) {
+			fgetc(stream);
+		} else 
+			process_data(sample);
+	}
+}
+
+void print_help(const char* message)
+{
+	if(message != NULL) {
+		fprintf(stderr, "Error: %s\n", message);
+	}
+	
+	fprintf(stderr, "Usage: openpicc-sniff-14443a [OPTIONS] devicenode\n"
+					"   or  openpicc-sniff-14443a -r|--read-file [filename]\n"
+			        "   or  openpicc-sniff-14443a --help|-h|-?  to print this help\n"
+					"\n"
+					"Options:\n"
+					" -t, --print-timings\tPrint raw timing measurements (in carrier cycles)\n"
+					"                    \tinstead of decoded frames\n"
+					" -b, --print-bits   \tPrint raw bit stream (in transmission order) and\n"
+					"                    \tnot the decoded frames\n"
+					" -m, --max-samples n\tStop sampling after acquiring n samples\n"
+					" -r, --read-file    \tDo not connect to an OpenPICC, instead read from\n"
+					"                    \tfile or stdin. The input are numeric samples\n"
+					"                    \tseparated by non-numeric characters, like the\n"
+					"                    \toutput of --print-timings.\n"
+			);
+}
+
+int main(int argc, char *argv[])
+{
+	int option;
+	
+	Miller_End_Frame();
+	
+	while( (option=getopt_long(argc, argv, shortopts, options, NULL)) != 1) {
+		if(option==-1) break;
+		switch(option) {
+		case '?': /* Fall-Through */
+		case 'h':
+			print_help(NULL);
+			exit(0);
+			break;
+		case 't':
+			print_timings = 1;
+			break;
+		case 'b':
+			print_bits = 1;
+			break;
+		case 'm':
+			max_samples = atoi(optarg);
+			break;
+		case 'r':
+			read_file = 1;
+			break;
+		}
+	}
+	
+	if(optind == argc && !read_file) {
+		print_help("No devicenode specified");
+		exit(1);
+	} else if(optind+1 < argc) {
+		print_help("Extraneous arguments");
+		exit(1);
+	}
+
+	if(read_file) {
+		if(optind+1 == argc) {
+			FILE *stream = fopen(argv[optind], "r");
+			if(stream == NULL) {
+				perror("Couldn't open file for reading");
+			} else {
+				receive_file(stream);
+				fclose(stream);
+			}
+		} else {
+			receive_file(stdin);
+		}
+	} else {
+		receive_openpicc(argv[optind]);
+	}
 
 	return 0;
 }
