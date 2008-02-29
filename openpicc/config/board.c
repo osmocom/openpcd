@@ -23,17 +23,27 @@
 const struct openpicc_hardware OPENPICC_HARDWARE[] = {
 		[OPENPICC_v0_4]		   = {OPENPICC_v0_4, 
 				"OpenPICC v0.4", // release name
-				{0, 0,},       // features: data_gating, clock_gating
+				{0, 0, 0,},       // features: data_gating, clock_gating, clock_switching
 				AT91C_PIO_PA4, // PLL_LOCK
 				-1,            // CLOCK_GATE
 				-1,            // DATA_GATE
+				-1,            // CLOCK_SWITCH
 			},
 		[OPENPICC_v0_4_p1]	   = {OPENPICC_v0_4_p1, 
 				"OpenPICC v0.4 patchlevel 1",
-				{1, 1,},
+				{1, 1, 0,},
 				AT91C_PIO_PA5,
 				AT91C_PIO_PA4,
 				AT91C_PIO_PA31,
+				-1,
+			},
+		[OPENPICC_v0_4_p2]	   = {OPENPICC_v0_4_p2, 
+				"OpenPICC v0.4 patchlevel 2",
+				{1, 1, 1,},
+				AT91C_PIO_PA5,
+				AT91C_PIO_PA4,
+				AT91C_PIO_PA31,
+				AT91C_PIO_PA30,
 			},
 };
 

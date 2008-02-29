@@ -59,6 +59,10 @@ enum openpicc_release {
 	 				   * + PLL_LOCK relocated from PA4 to PA5
 	 				   * + Copy of FRAME routed to PA4 
 	 				   * + Connection between R18 and 3V3 removed, instead R18 is now connected to PA31*/
+	OPENPICC_v0_4_p2, /* Enhancement of v0.1p1, Add:
+					   * + CARRIER can be switched from PLL output to original carrier
+					   *   using PA30
+					   */
 };
 struct openpicc_hardware {
 	enum openpicc_release release;
@@ -66,12 +70,14 @@ struct openpicc_hardware {
 	struct {
 		int data_gating:1;
 		int clock_gating:1;
+		int clock_switching:1;
 	} features;
 	
 	int PLL_LOCK;
 	
 	int CLOCK_GATE;
 	int DATA_GATE;
+	int CLOCK_SWITCH;
 };
 
 extern const struct openpicc_hardware OPENPICC_HARDWARE[];
@@ -121,7 +127,7 @@ extern const struct openpicc_hardware *OPENPICC;
 #define TASK_BEACON_PRIORITY	( tskIDLE_PRIORITY )
 #define TASK_BEACON_STACK	( 512 )
 
-#define TASK_CMD_PRIORITY	( tskIDLE_PRIORITY + 1 )
+#define TASK_CMD_PRIORITY	( tskIDLE_PRIORITY + 2 )
 #define TASK_CMD_STACK		( 512 )
 
 #define TASK_USB_PRIORITY	( tskIDLE_PRIORITY + 2 )
