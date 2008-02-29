@@ -1,0 +1,53 @@
+#ifndef SSC_H_
+#define SSC_H_
+
+#include "board.h"
+#include "ssc_buffer.h"
+
+typedef enum { 
+	METRIC_RX_OVERFLOWS,      // No free buffer during Rx reload
+	METRIC_FREE_RX_BUFFERS,   // Free Rx buffers, calculated on-the-fly
+	METRIC_MANAGEMENT_ERRORS, // One of the diverse types of management errors
+	METRIC_MANAGEMENT_ERRORS_1, // Internal buffer management error type 1
+	METRIC_MANAGEMENT_ERRORS_2, // Internal buffer management error type 2
+	METRIC_MANAGEMENT_ERRORS_3, // Internal buffer management error type 3
+	_MAX_METRICS,
+} ssc_metric;
+
+extern int ssc_get_metric(ssc_metric metric, char **description, int *value);
+
+typedef enum {
+	CALLBACK_RX_STARTED,        // *data is ssh_handle_t *sh
+	CALLBACK_RX_STOPPED,        // *data is ssh_handle_t *sh
+	CALLBACK_RX_FRAME_BEGIN,    // *data is int *end_asserted
+								//  may set *end_asserted = 1 to force tell the IRQ handler  
+								//  that you have detected the end of reception
+	CALLBACK_RX_FRAME_ENDED,    // *data is ssc_dma_rx_buffer *buffer
+	CALLBACK_SETUP,             // *data is ssh_handle_t *sh
+	CALLBACK_TEARDOWN,          // *data is ssh_handle_t *sh
+} ssc_callback_reason;
+typedef void (*ssc_callback_t)(ssc_callback_reason reason, void *data);
+
+enum ssc_clock_source { 
+	CLOCK_SELECT_PLL,
+	CLOCK_SELECT_CARRIER,
+	_MAX_CLOCK_SOURCES,
+};
+struct _ssc_handle;
+
+typedef struct _ssc_handle ssc_handle_t;
+
+extern void ssc_select_clock(enum ssc_clock_source clock);
+
+extern void ssc_frame_started(void);
+
+/* Rx/Tx initialization separate, since Tx disables PWM output ! */
+extern ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode , ssc_callback_t callback);
+
+extern int ssc_recv(ssc_handle_t* sh, ssc_dma_rx_buffer_t* *buffer, unsigned int timeout);
+
+extern int ssc_close(ssc_handle_t* sh);
+
+extern void ssc_rx_stop_frame_ended(void);
+
+#endif /*SSC_H_*/

@@ -30,6 +30,7 @@
 
 #include <FreeRTOS.h>
 #include <AT91SAM7.h>
+#include <lib_AT91SAM7.h>
 #include <USB-CDC.h>
 #include <task.h>
 
@@ -50,14 +51,89 @@
 #include "iso14443_sniffer.h"
 #include "decoder.h"
 
+static inline int detect_board(void)
+{
+	/* OpenPICC board detection logic.
+	 * Interesting board differences: PA31 is open on OPENPICC_v0_4 and connected
+	 * to PA18 on OPENPICC_v0_4_p1. PA18 is connected to U7 on both and might read
+	 * differently depending on the state of U7 (primarily depending on U5 and the
+	 * receive circuitry).
+	 * Strategy: Enable Pullups, read PA31 and PA18, if both read low then U7 is
+	 * switched through and this is an v0.4p1. If PA18 reads low and PA31 reads high
+	 * then U7 is switched through and this is an v0.4. If both read high, then U7 is
+	 * not switched through and it might be either board. In this case drive PA31 down
+	 * and see whether PA18 follows down, then it's a v0.4p1 otherwise a v0.4.
+	 */
+	int result = -1;
+	
+	AT91PS_PIO pio = AT91C_BASE_PIOA;
+	u_int32_t old_OSR = pio->PIO_OSR, 
+		old_ODSR = pio->PIO_ODSR,
+		old_PUSR = pio->PIO_PPUSR,
+		old_PSR = pio->PIO_PSR;
+	
+	pio->PIO_ODR   = AT91C_PIO_PA18 | AT91C_PIO_PA31;
+	pio->PIO_PER   = AT91C_PIO_PA18 | AT91C_PIO_PA31;
+	pio->PIO_PPUER = AT91C_PIO_PA18 | AT91C_PIO_PA31;
+	
+	unsigned int pa18 = AT91F_PIO_IsInputSet(pio, AT91C_PIO_PA18),
+		pa31 = AT91F_PIO_IsInputSet(pio, AT91C_PIO_PA31);
+	if(!pa18 && !pa31) {
+	    //vLedInit();
+		//vLedHaltBlinking(1);
+		result = OPENPICC_v0_4_p2;
+	} else if(!pa18 && pa31) {
+	    vLedInit();
+		vLedHaltBlinking(2);
+		// Needs to be tested, should be v0.4
+	} else if(pa18 && pa31) {
+		// Can be either board
+		pio->PIO_OER = AT91C_PIO_PA31;
+		pio->PIO_CODR = AT91C_PIO_PA31;
+		pa18 = AT91F_PIO_IsInputSet(pio, AT91C_PIO_PA18);
+		if(!pa18) {
+			result = OPENPICC_v0_4_p2;
+		} else {
+		    vLedInit();
+			vLedHaltBlinking(3);
+			// Needs to be tested, should be v0.4
+		}
+		
+		// Restore state
+		if( old_OSR & AT91C_PIO_PA31 ) {
+			pio->PIO_OER = AT91C_PIO_PA31;
+			if(old_ODSR & AT91C_PIO_PA31) {
+				pio->PIO_SODR = AT91C_PIO_PA31;
+			} else {
+				pio->PIO_CODR = AT91C_PIO_PA31;
+			}
+		} else {
+			pio->PIO_ODR = AT91C_PIO_PA31;
+		}
+	}
+	
+	// Restore state
+	if(old_PSR & AT91C_PIO_PA18) pio->PIO_PER = AT91C_PIO_PA18; else pio->PIO_PDR = AT91C_PIO_PA18;
+	if(old_PSR & AT91C_PIO_PA31) pio->PIO_PER = AT91C_PIO_PA31; else pio->PIO_PDR = AT91C_PIO_PA31;
+	
+	if(old_PUSR & AT91C_PIO_PA18) pio->PIO_PPUDR = AT91C_PIO_PA18; else pio->PIO_PPUER = AT91C_PIO_PA18;
+	if(old_PUSR & AT91C_PIO_PA31) pio->PIO_PPUDR = AT91C_PIO_PA31; else pio->PIO_PPUER = AT91C_PIO_PA31;
+	
+	return result;
+}
+
 /**********************************************************************/
 static inline void prvSetupHardware (void)
 {
 	/* The very, very first thing we do is setup the global OPENPICC variable to point to
 	 * the correct hardware information.
-	 * FIXME: Detect dynamically in the future
 	 */
-	OPENPICC = &OPENPICC_HARDWARE[OPENPICC_v0_4_p1];
+	int release = detect_board();
+	if(release < 0) {
+		vLedInit();
+		vLedHaltBlinking(0);
+	}
+	OPENPICC = &OPENPICC_HARDWARE[release];
 	
 	
     /*	When using the JTAG debugger the hardware is not always initialised to
@@ -89,67 +165,7 @@ void vApplicationIdleHook(void)
     	//vLedSetGreen(0);
     	disabled_green = 1;
     }
-    usb_print_flush();
 }
-
-#if 0
-// Bitrotten
-void main_help_print_buffer(ssc_dma_rx_buffer_t *buffer, int *pktcount)
-{
-	ISO14443A_SHORT_TYPE *tmp = (ISO14443A_SHORT_TYPE*)buffer->data;
-	int i, dumped = 0;
-	unsigned int j;
-	for(i = buffer->len / (sizeof(*tmp)*8); i >= 0 ; i--) {
-		if( *tmp != 0x00000000 ) {
-			if(dumped == 0) {
-				DumpUIntToUSB(buffer->len);
-				DumpStringToUSB(", ");
-				DumpUIntToUSB((*pktcount)++);
-				DumpStringToUSB(": ");
-			} else {
-				DumpStringToUSB(" ");
-			}
-			dumped = 1;
-			DumpUIntToUSB(buffer->len / (sizeof(*tmp)*8) - i);
-			DumpStringToUSB(": ");
-			for(j=0; j<sizeof(*tmp)*8; j++) {
-				usb_print_char_f( (((*tmp) >> j) & 0x1) ? '1' : '_' , 0);
-			}
-			usb_print_flush();
-			//DumpBufferToUSB((char*)(tmp), sizeof(*tmp));
-		}
-		tmp++;
-	}
-	if(dumped) DumpStringToUSB("\n\r");
-}
-
-void vMainTestSSCRXConsumer (void *pvParameters)
-{
-	static int pktcount=0;
-	(void)pvParameters;
-	while(1) {
-		ssc_dma_rx_buffer_t* buffer;
-		if(xQueueReceive(ssc_rx_queue, &buffer, portMAX_DELAY)) {
-			portENTER_CRITICAL();
-			buffer->state = PROCESSING;
-			portEXIT_CRITICAL();
-			/*vLedBlinkGreen();
-			for(i=0; i<buffer->len*8; i++) {
-				vLedSetGreen( buffer->data[i/8] & (1<<(i%8)) );
-			}
-			vLedBlinkGreen();*/
-			//i = usb_print_set_default_flush(0);
-			
-			main_help_print_buffer(buffer, &pktcount);
-			
-			//usb_print_set_default_flush(i);
-			portENTER_CRITICAL();
-			buffer->state = FREE;
-			portEXIT_CRITICAL();
-		}
-	}
-}
-#endif
 
 /* This task pings the watchdog even when the idle task is not running
  * It should be started with a very high priority and will delay most of the time */
@@ -161,6 +177,15 @@ void vMainWatchdogPinger (void *pvParameters)
 		/* Restart watchdog, has been enabled in Cstartup_SAM7.c */
     		AT91F_WDTRestart(AT91C_BASE_WDTC);
     		vTaskDelay(500*portTICK_RATE_MS);
+	}
+}
+
+void usb_print_flusher (void *pvParameters)
+{
+	(void)pvParameters;
+	while(1) {
+		usb_print_flush();
+		vTaskDelay(100*portTICK_RATE_MS);
 	}
 }
 
@@ -178,8 +203,8 @@ int main (void)
     da_init();
     adc_init();
     
-    /*xTaskCreate (vMainTestSSCRXConsumer, (signed portCHAR *) "SSC_CONSUMER", TASK_USB_STACK,
-	NULL, TASK_USB_PRIORITY, NULL);*/
+    xTaskCreate (usb_print_flusher, (signed portCHAR *) "PRINT-FLUSH", TASK_USB_STACK,
+	NULL, TASK_USB_PRIORITY, NULL);
     /*xTaskCreate (iso14443_layer3a_state_machine, (signed portCHAR *) "ISO14443A-3", TASK_ISO_STACK,
 	NULL, TASK_ISO_PRIORITY, NULL);*/
     xTaskCreate (iso14443_sniffer, (signed portCHAR *) "ISO14443-SNIFF", TASK_ISO_STACK,

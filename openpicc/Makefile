@@ -84,13 +84,12 @@ ARM_SRC= \
   application/adc.c \
   application/pll.c \
   application/pio_irq.c \
-  application/ssc_picc.c \
+  application/ssc.c \
   application/tc_cdiv_sync.c \
   application/tc_fdt.c \
   application/tc_cdiv.c \
   application/usb_print.c \
   application/iso14443_layer2a.c \
-  application/iso14443_layer3a.c \
   application/iso14443_sniffer.c \
   application/iso14443a_manchester.c \
   application/iso14443a_miller.c \
@@ -108,6 +107,7 @@ ARM_SRC= \
   os/core/MemMang/heap_2.c \
   os/usb/USB-CDC.c \
   os/usb/USBIsr.c
+#  application/iso14443_layer3a.c
 
 #
 # Define all object files.

@@ -24,7 +24,7 @@
 
 #include "iso14443_layer3a.h"
 #include "usb_print.h"
-#include "ssc_picc.h"
+#include "ssc_buffer.h"
 #include "cmd.h"
 
 #if 0

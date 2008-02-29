@@ -40,7 +40,7 @@
 #include "tc_cdiv.h"
 #include "tc_fdt.h"
 #include "usb_print.h"
-#include "ssc_picc.h"
+#include "ssc.h"
 #include "cmd.h"
 
 static AT91PS_TC tcfdt = AT91C_BASE_TC2;
@@ -59,12 +59,19 @@ int tc_fdt_get_next_slot(int reference_time, int slotlen)
 }
 
 
-/* 'count' number of carrier cycles after the last modulation pause, 
- * we deem the frame to have ended */
-void tc_frame_end_set(u_int16_t count)
-{
-	tcfdt->TC_RB = count;
-}
+static const struct { char* name; u_int32_t flag;} flags[] = {
+		{ "MTIOB", AT91C_TC_MTIOB },
+		{ "MTIOA", AT91C_TC_MTIOA },
+		{ "CLKSTA", AT91C_TC_CLKSTA },
+		{ "ETRGS", AT91C_TC_ETRGS },
+		{ "LDRBS", AT91C_TC_LDRBS },
+		{ "LDRAS", AT91C_TC_LDRAS },
+		{ "CPCS", AT91C_TC_CPCS },
+		{ "CPBS", AT91C_TC_CPBS },
+		{ "CPAS", AT91C_TC_CPAS },
+		{ "LOVRS", AT91C_TC_LOVRS },
+		{ "COVFS", AT91C_TC_COVFS },
+};
 
 static void __ramfunc tc_fdt_irq(void) __attribute__ ((naked));
 static void __ramfunc tc_fdt_irq(void)
@@ -74,22 +81,18 @@ static void __ramfunc tc_fdt_irq(void)
 	u_int32_t sr = tcfdt->TC_SR;
 	DEBUGP("tc_fdt_irq: TC2_SR=0x%08x TC2_CV=0x%08x ", 
 		sr, tcfdt->TC_CV);
-
+	
 	if (sr & AT91C_TC_ETRGS) {
 		DEBUGP("Ext_trigger ");
 	}
 	if (sr & AT91C_TC_CPAS) {
 		DEBUGP("FDT_expired ");
 	}
-	if (sr & AT91C_TC_CPBS) {
-	usb_print_string_f("tc_cpbs ", 0);
-		DEBUGP("Frame_end ");
-		ssc_rx_stop_frame_ended();
-	}
 	if (sr & AT91C_TC_CPCS) {
 		DEBUGP("Compare_C ");
 	}
 	DEBUGPCR("");
+	AT91F_AIC_ClearIt(AT91C_ID_TC2);
 	AT91F_AIC_AcknowledgeIt();
 	//vLedSetGreen(0);
 	portRESTORE_CONTEXT();
@@ -113,9 +116,6 @@ void tc_fdt_init(void)
 	/* Enable Clock for TC2 */
 	tcfdt->TC_CCR = AT91C_TC_CLKEN;
 
-	tcfdt->TC_RC = 0xffff;
-	tc_frame_end_set(128*2);
-
 	/* Clock XC1, Wave Mode, No automatic reset on RC comp
 	 * TIOA2 in RA comp = set, TIOA2 on RC comp = clear,
 	 * TIOA2 on EEVT = clear, TIOA2 on SWTRG = clear,
@@ -128,14 +128,17 @@ void tc_fdt_init(void)
 		      AT91C_TC_EEVT_TIOB | AT91C_TC_ETRGEDG_FALLING |
 		      AT91C_TC_ENETRG | AT91C_TC_CPCSTOP ;
 
+	tcfdt->TC_RC = 0xffff;
+
 	/* Reset to start timers */
 	tcb->TCB_BCR = 1;
 
 	AT91F_AIC_ConfigureIt(AT91C_ID_TC2,
 			      OPENPCD_IRQ_PRIO_TC_FDT,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&tc_fdt_irq);
+	tcfdt->TC_IER = AT91C_TC_CPAS | AT91C_TC_CPCS | 
+			AT91C_TC_ETRGS;
+	AT91F_AIC_ClearIt(AT91C_ID_TC2);
 	AT91F_AIC_EnableIt(AT91C_ID_TC2);
 
-	tcfdt->TC_IER = AT91C_TC_CPAS | AT91C_TC_CPBS | AT91C_TC_CPCS | 
-			AT91C_TC_ETRGS;
 }

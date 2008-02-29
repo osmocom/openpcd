@@ -38,5 +38,6 @@ typedef int s_int32_t;
 
 #define DA_BASELINE 200
 
+#define DIV_ROUND_UP(a,b) ( (a+(b-1)) / b)
 
 #endif/*__OPENPICC_H__*/

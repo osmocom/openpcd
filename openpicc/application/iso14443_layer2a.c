@@ -38,15 +38,20 @@
 
 #include "openpicc.h"
 #include "iso14443_layer2a.h"
-#include "ssc_picc.h"
+#include "ssc.h"
 #include "pll.h"
 #include "tc_fdt.h"
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "load_modulation.h"
+#include "pio_irq.h"
+
+#include "usb_print.h"
+
+#define PRINT_DEBUG 0
 
 static u_int8_t fast_receive;
-static volatile u_int8_t receiving = 0;
+static ssc_handle_t *ssc;
 
 #ifdef FOUR_TIMES_OVERSAMPLING
 #define RX_DIVIDER 32
@@ -56,28 +61,11 @@ static volatile u_int8_t receiving = 0;
 
 int iso14443_receive(iso14443_receive_callback_t callback, ssc_dma_rx_buffer_t **buffer, unsigned int timeout)
 {
-	int was_receiving = receiving;
-	(void)callback;
+	(void)callback; (void)timeout;
 	ssc_dma_rx_buffer_t* _buffer = NULL;
 	int len;
 	
-	
-	if(!was_receiving) {
-		iso14443_l2a_rx_start();
-	} else {
-		/*
-		 * handled by _iso14443_ssc_irq_ext below
-		tc_fdt_set(0xff00);
-		tc_cdiv_set_divider(RX_DIVIDER);
-		tc_cdiv_sync_reset();
-		*/
-	}
-	
-	
-	if(xQueueReceive(ssc_rx_queue, &_buffer, timeout)) {
-		if(!was_receiving) {
-			iso14443_l2a_rx_stop();
-		}
+	if(ssc_recv(ssc, &_buffer, timeout) == 0) {
 		
 		if(_buffer == NULL) {
 			/* Can this happen? */
@@ -100,9 +88,7 @@ int iso14443_receive(iso14443_receive_callback_t callback, ssc_dma_rx_buffer_t *
 		return len;
 	}
 	
-	if(!was_receiving)
-		iso14443_l2a_rx_stop();
-	
+	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME)) tc_cdiv_sync_reset();
 	return -ETIMEDOUT;
 }
 
@@ -111,23 +97,6 @@ int iso14443_wait_for_carrier(unsigned int timeout)
 	(void)timeout;
 	return 0;
 }
-
-int iso14443_l2a_rx_start(void)
-{
-	receiving = 1;
-	tc_fdt_set(0xff00);
-	tc_cdiv_set_divider(RX_DIVIDER);
-	ssc_rx_start();
-	return 0;
-}
-
-int iso14443_l2a_rx_stop(void)
-{
-	ssc_rx_stop();
-	receiving = 0;
-	return 0;
-}
-
 
 u_int8_t iso14443_set_fast_receive(u_int8_t enable_fast_receive)
 {
@@ -141,14 +110,33 @@ u_int8_t iso14443_get_fast_receive(void)
 	return fast_receive;
 }
 
-void _iso14443_ssc_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode, u_int8_t* samples)
+static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 {
-	(void) ssc_mode; (void) samples;
-	if( (ssc_sr & AT91C_SSC_CP1) && receiving) {
+	(void) data;
+	if(reason == CALLBACK_RX_FRAME_BEGIN) {
+		/* Busy loop for the frame end */
+		int *end_asserted = data, i=0;
+		for(i=0; i<96000; i++) 
+			if(*AT91C_TC2_CV > 2*128) { // FIXME magic number
+				*end_asserted = 1;
+				if(PRINT_DEBUG) usb_print_string_f("^", 0); // DEBUG OUTPUT
+				break;
+			}
+		return;
+	}
+	if( reason == CALLBACK_RX_FRAME_ENDED || reason == CALLBACK_RX_STARTED ) {
 		tc_fdt_set(0xff00);
 		tc_cdiv_set_divider(RX_DIVIDER);
 		tc_cdiv_sync_reset();
 	}
+}
+
+static void iso14443_rx_FRAME_cb(u_int32_t pio)
+{
+	(void)pio;
+	if(PRINT_DEBUG) usb_print_string_f("°", 0);  // DEBUG OUTPUT
+	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME))
+		ssc_frame_started();
 }
 
 int iso14443_layer2a_init(u_int8_t enable_fast_receive)
@@ -157,16 +145,22 @@ int iso14443_layer2a_init(u_int8_t enable_fast_receive)
     
 	tc_cdiv_init();
 	tc_fdt_init();
-	//ssc_set_irq_extension((ssc_irq_ext_t)iso14443_layer3a_irq_ext);
-	ssc_rx_init();
-	ssc_tx_init();
 	
 	load_mod_init();
-	load_mod_level(3);
-	
-	ssc_rx_mode_set(SSC_MODE_14443A);
-	ssc_set_irq_extension(_iso14443_ssc_irq_ext);
 	
 	iso14443_set_fast_receive(enable_fast_receive);
+	pio_irq_init_once();
+	
+	if(pio_irq_register(OPENPICC_PIO_FRAME, &iso14443_rx_FRAME_cb) >= 0) {
+		if(PRINT_DEBUG) usb_print_string("FRAME irq registered\n\r"); // DEBUG OUTPUT
+	}
+	
+	ssc = ssc_open(1, 0, SSC_MODE_14443A, iso14443_ssc_callback);
+	if(ssc == NULL)
+		return -EIO;
+	
+	// FIXME should be 3 for production, when tx code is implemented
+	load_mod_level(0);
+	
 	return 0;
 }

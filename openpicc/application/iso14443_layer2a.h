@@ -1,7 +1,7 @@
 #ifndef ISO14443_LAYER2A_H_
 #define ISO14443_LAYER2A_H_
 
-#include "ssc_picc.h"
+#include "ssc_buffer.h"
 
 /* Callback type for iso14443_receive().
  * Parameter buffer is being passed a pointer to an SSC Rx buffer structure that this receive happened
@@ -54,9 +54,6 @@ extern int iso14443_transmit(ssc_dma_tx_buffer_t *buffer, unsigned int fdt, u_in
 
 extern int iso14443_tx_abort(void);
 extern int iso14443_tx_busy(void);
-
-extern int iso14443_l2a_rx_start(void);
-extern int iso14443_l2a_rx_stop(void);
 
 /*
  * Wait for the presence of a reader to be detected.

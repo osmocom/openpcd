@@ -28,17 +28,21 @@
 #include <errno.h>
 
 #include "openpicc.h"
+#include "ssc_buffer.h"
+#include "iso14443.h"
 #include "iso14443_sniffer.h"
 #include "iso14443_layer2a.h"
 #include "iso14443a_miller.h"
 #include "usb_print.h"
 #include "cmd.h"
+#include "led.h"
 
 static iso14443_frame rx_frame;
 
 void iso14443_sniffer (void *pvParameters)
 {
 	(void)pvParameters;
+	(void)rx_frame;
 	int res;
 	
 	/* Delay until USB print etc. are ready */
@@ -57,11 +61,11 @@ void iso14443_sniffer (void *pvParameters)
 	}
 	usb_print_string("Carrier detected.\n\r");
 	
-	iso14443_l2a_rx_start();
 	while(true) {
 		ssc_dma_rx_buffer_t *buffer = 0;
 		res = iso14443_receive(NULL, &buffer, 20000 * portTICK_RATE_MS);
 		if(res >= 0) {
+#if 1
 			DumpStringToUSB("\n\r");
 			DumpTimeToUSB(xTaskGetTickCount());
 			usb_print_string(": Frame received, consists of ");
@@ -86,6 +90,10 @@ void iso14443_sniffer (void *pvParameters)
 			usb_print_string(" bits:  ");
 			DumpBufferToUSB((char*)rx_frame.data, rx_frame.numbytes + (rx_frame.numbits+7)/8 );
 			usb_print_string("\n\r");
+#else
+			DumpUIntToUSB(buffer->len_transfers);
+			DumpStringToUSB("\n\r");
+#endif
 			
 			portENTER_CRITICAL();
 			buffer->state = FREE;

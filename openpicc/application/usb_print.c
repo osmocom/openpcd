@@ -114,7 +114,7 @@ void usb_print_flush(void)
 	taskEXIT_CRITICAL();
 	 
 	while(newstart != oldstop) {
-		vUSBSendByte(ringbuffer[newstart]);
+		vUSBSendByte_blocking(ringbuffer[newstart], 5*portTICK_RATE_MS);
 		newstart = (newstart+1) % BUFLEN;
 	}
 	

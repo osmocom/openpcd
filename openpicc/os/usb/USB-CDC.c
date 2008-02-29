@@ -262,11 +262,17 @@ vUSBCDCTask (void *pvParameters)
 void
 vUSBSendByte (portCHAR cByte)
 {
+	vUSBSendByte_blocking(cByte, usbNO_BLOCK);
+}
+
+void
+vUSBSendByte_blocking (portCHAR cByte, portTickType xTicksToWait)
+{
 	char chunk[CHUNK_SIZE];
 	chunk[0] = 1;
 	chunk[1] = cByte;
   /* Queue the byte to be sent.  The USB task will send it. */
-  xQueueSend (xTxCDC, &chunk, usbNO_BLOCK);
+  xQueueSend (xTxCDC, &chunk, xTicksToWait);
 }
 
 #define MIN(a,b) ((a)>(b)?(b):(a))

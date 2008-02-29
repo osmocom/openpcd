@@ -18,7 +18,7 @@
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
-#include "ssc_picc.h"
+#include "ssc.h"
 #include "usb_print.h"
 #include "load_modulation.h"
 
@@ -45,7 +45,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?hq9fjkai";
+static const char *SHORT_COMMANDS = "!pc+-l?hq9fjka#i";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -132,16 +132,10 @@ int atoiEx(const char * nptr, char * * eptr)
 	return sign * curval;
 }
 
-static const struct {ssc_metric metric; char *description;} SSC_METRICS[] = {
-	{OVERFLOWS,     "overflows"},
-	{BUFFER_ERRORS, "internal buffer management errors"},
-	{FREE_BUFFERS,  "free rx buffers"},
-	{LATE_FRAMES,   "late frames"},
-};
-#define DYNAMIC_PIN_PLL_LOCK -1
-static struct { int pin; char * description; } PIO_PINS[] = {
-	{DYNAMIC_PIN_PLL_LOCK,  "pll lock   "},
-	{OPENPICC_PIO_FRAME,    "frame start"},
+#define DYNAMIC_PIN_PLL_LOCK 1
+static struct { int pin; int dynpin; char * description; } PIO_PINS[] = {
+	{0,DYNAMIC_PIN_PLL_LOCK,      "pll lock   "},
+	{OPENPICC_PIO_FRAME,0,        "frame start"},
 };
 void print_pio(void)
 {
@@ -153,7 +147,7 @@ void print_pio(void)
         	" *****************************************************\n\r"
         	" *\n\r");
 	for(i=0; i<sizeof(PIO_PINS)/sizeof(PIO_PINS[0]); i++) {
-			if(PIO_PINS[i].pin < 0) continue;
+			if(PIO_PINS[i].dynpin != 0) continue;
         	DumpStringToUSB(" * ");
         	DumpStringToUSB(PIO_PINS[i].description);
         	DumpStringToUSB(": ");
@@ -167,6 +161,7 @@ void print_pio(void)
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
 #define SPI_MAX_XFER_LEN 33
 
+static int clock_select=0;
 void startstop_field_meter(void);
 extern volatile unsigned portLONG ulCriticalNesting;
 void prvExecCommand(u_int32_t cmd, portCHAR *args) {
@@ -205,6 +200,14 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpUIntToUSB(j);
 		    DumpStringToUSB("\n\r");
 		    break;
+		case 'THRU': {
+				/*char buffer[64];
+				memset(buffer, 'A', sizeof(buffer));
+				usb_print_flush();
+				while(1) usb_print_buffer(buffer, 0, sizeof(buffer));*/
+				while(1) vUSBSendBuffer((unsigned char*)"AAAAAABCDEBBBBB", 0, 15);
+			}
+			break;
 		case 'Z':
 		    i=atoiEx(args, &args);
 		    if(i==0) {
@@ -221,7 +224,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 				break;
 			}
 		    i=atoiEx(args, &args);
-		    ssc_set_data_gate(i);
+		    //BROKEN new ssc code
+		    //ssc_set_data_gate(i);
 		    if(i==0) {
 		    	DumpStringToUSB("SSC_DATA disabled \n\r");
 		    } else {
@@ -252,15 +256,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    ms=xTaskGetTickCount();
 		    DumpTimeToUSB(ms);
 		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * The reader id is ");
-		    DumpUIntToUSB(env.e.reader_id);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * The mode is ");
-		    DumpUIntToUSB(env.e.mode);
-		    DumpStringToUSB("\n\r");
-		    DumpStringToUSB(" * The transmit interval is ");
-		    DumpUIntToUSB(env.e.speed);
-		    DumpStringToUSB("00ms\n\r");
 		    DumpStringToUSB(" * The comparator threshold is ");
 		    DumpUIntToUSB(da_get_value());
 		    DumpStringToUSB("\n\r");
@@ -281,18 +276,37 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpUIntToUSB(load_mod_level_set);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC performance metrics:\n\r");
-		    for(i=0; i<(int)(sizeof(SSC_METRICS)/sizeof(SSC_METRICS[0])); i++) {
-		    	DumpStringToUSB(" * \t");
-		    	DumpStringToUSB(SSC_METRICS[i].description);
-		    	DumpStringToUSB(": ");
-		    	DumpUIntToUSB(ssc_get_metric(SSC_METRICS[i].metric));
-		    	DumpStringToUSB("\n\r");
+		    for(i=0; i<_MAX_METRICS; i++) {
+		    	char *name; 
+		    	int value;
+		    	if(ssc_get_metric(i, &name, &value)) {
+		    		DumpStringToUSB(" * \t");
+		    		DumpStringToUSB(name);
+		    		DumpStringToUSB(": ");
+		    		DumpUIntToUSB(value);
+		    		DumpStringToUSB("\n\r");
+		    	}
 		    }
 		    DumpStringToUSB(" * SSC status: ");
 		    DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * TC0_CV value: ");
 		    DumpUIntToUSB(*AT91C_TC0_CV);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * TC2_CV value: ");
+		    DumpUIntToUSB(*AT91C_TC2_CV);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * TC2_IMR value: ");
+		    DumpUIntToUSB(*AT91C_TC2_IMR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * TC2_SR value: ");
+		    DumpUIntToUSB(*AT91C_TC2_SR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * TC2_RB value: ");
+		    DumpUIntToUSB(*AT91C_TC2_RB);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * TC2_RC value: ");
+		    DumpUIntToUSB(*AT91C_TC2_RC);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC_SR value: ");
 		    DumpUIntToUSB(*AT91C_SSC_SR);
@@ -311,6 +325,12 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC_TCR value: ");
 		    DumpUIntToUSB(*AT91C_SSC_TCR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_RPR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_RPR);
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC_RCR value: ");
+		    DumpUIntToUSB(*AT91C_SSC_RCR);
 		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(" * SSC_IMR value: ");
 		    DumpUIntToUSB(*AT91C_SSC_IMR);
@@ -346,6 +366,17 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case '!':
 		    tc_cdiv_sync_reset();
 		    break;
+		case '#':
+			if(!OPENPICC->features.clock_switching) {
+				DumpStringToUSB("* This hardware is not clock switching capable\n\r");
+				break;
+			}
+			clock_select = (clock_select+1) % _MAX_CLOCK_SOURCES;
+			ssc_select_clock(clock_select);
+			DumpStringToUSB("Active clock is now ");
+			DumpUIntToUSB(clock_select);
+			DumpStringToUSB("\n\r");
+			break;
 		case 'J':
 		    fdt_offset++;
 		    DumpStringToUSB("fdt_offset is now ");
@@ -375,7 +406,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    break;
 #endif
 		case 'Q':
-		    ssc_rx_start();
+		    //BROKEN new ssc code
+			//ssc_rx_start();
 		    while(0) {
 		    	DumpUIntToUSB(AT91C_BASE_SSC->SSC_SR);
 		    	DumpStringToUSB("\n\r");
@@ -402,11 +434,13 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(OPENPICC->release_name);
 		    DumpStringToUSB("\n\r *\n\r"
 			" * test - test critical sections\n\r"
+		    " * thru - test throughput\n\r"
 #if ( configUSE_TRACE_FACILITY == 1 )
 			" * t    - print task list and stack usage\n\r"
 #endif
 			" * c    - print configuration\n\r"
 			" * +,-  - decrease/increase comparator threshold\n\r"
+		    " * #    - switch clock\n\r"
 			" * l    - cycle LEDs\n\r"
 			" * p    - print PIO pins\n\r"
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
@@ -551,8 +585,9 @@ void startstop_field_meter(void) {
 portBASE_TYPE vCmdInit() {
 	unsigned int i;
 	for(i=0; i<sizeof(PIO_PINS)/sizeof(PIO_PINS[0]); i++) {
-		if(PIO_PINS[i].pin == DYNAMIC_PIN_PLL_LOCK) {
+		if(PIO_PINS[i].dynpin == DYNAMIC_PIN_PLL_LOCK) {
 			PIO_PINS[i].pin = OPENPICC->PLL_LOCK;
+			PIO_PINS[i].dynpin = 0;
 		}
 	}
 	
@@ -566,7 +601,6 @@ portBASE_TYPE vCmdInit() {
 		return 0;
 	}
 	xSemaphoreTake(xFieldMeterMutex, portMAX_DELAY);
-	
 	
 	if(xTaskCreate(vCmdCode, (signed portCHAR *)"CMD", TASK_CMD_STACK, NULL, 
 		TASK_CMD_PRIORITY, &xCmdTask) != pdPASS) {
