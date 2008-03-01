@@ -25,6 +25,9 @@
 
 #include "openpicc.h"
 
+extern void vLedSetBrightness(unsigned int led, int brightness);
+extern void vLedSet(int led, bool_t on);
+extern void vLedBlink(int led);
 extern void vLedSetRed(bool_t on);
 extern void vLedBlinkRed(void);
 extern void vLedSetGreen(bool_t on);
