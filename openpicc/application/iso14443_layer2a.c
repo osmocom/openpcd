@@ -199,7 +199,11 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 	
 	if( (reason == CALLBACK_RX_FRAME_ENDED && !tx_pending) || reason == CALLBACK_RX_STARTING 
 			|| reason == CALLBACK_TX_FRAME_ENDED ) {
-		ssc_select_clock(CLOCK_SELECT_PLL);
+		/* For regular SSC Rx we'd set the clock to
+		// ssc_select_clock(CLOCK_SELECT_PLL);
+		 * however, the SSC Rx code is going to go away (at least for 14443-A)
+		 * and switching clocks messes up the Tx timing, so we do a */
+		ssc_select_clock(CLOCK_SELECT_CARRIER);
 		ssc_set_gate(1);
 		tc_fdt_set(0xff00);
 		tc_cdiv_set_divider(RX_DIVIDER);

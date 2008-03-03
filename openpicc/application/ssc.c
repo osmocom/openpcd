@@ -192,7 +192,7 @@ static int __ramfunc _ssc_tx_irq(u_int32_t sr, portBASE_TYPE task_woken)
 {
 	ssc_handle_t *sh = &_ssc;
 	
-	if( sr & AT91C_SSC_ENDTX ) {
+	if( sr & AT91C_SSC_TXEMPTY ) {
 		/* Tx has ended */
 		AT91F_PDC_DisableTx(sh->pdc);
 		AT91F_SSC_DisableTx(sh->ssc);
@@ -656,16 +656,16 @@ int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
 	sh->ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
 			(((num_data_ssc-1) & 0x0f) << 8) | 
 			(((sync_len-1) & 0x0f) << 16);
-	sh->ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | (AT91C_SSC_CKI&0) | start_cond;
+	sh->ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | AT91C_SSC_CKI | start_cond;
 	
 	AT91F_PDC_SetTx(sh->pdc, buffer->data, num_data);
 	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);
 	buffer->state = PENDING;
 
-	sh->ssc->SSC_IER = AT91C_SSC_ENDTX;
+	sh->ssc->SSC_IER = AT91C_SSC_TXEMPTY;
 	/* Enable DMA */
+	sh->ssc->SSC_THR = 0;
 	AT91F_PDC_EnableTx(sh->pdc);
-	//AT91F_PDC_SetTx(sh->pdc, buffer->data, num_data);
 	
 	/* Disable Receiver, see comments in _ssc_rx_irq */
 	AT91F_SSC_DisableRx(sh->ssc);

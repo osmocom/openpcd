@@ -26,6 +26,7 @@
 #include <board.h>
 #include <task.h>
 #include <errno.h>
+#include <string.h>
 #include <stdlib.h>
 
 #include "openpicc.h"
@@ -36,6 +37,7 @@
 #include "iso14443a_manchester.h"
 #include "usb_print.h"
 #include "cmd.h"
+extern volatile int fdt_offset;
 #include "led.h"
 
 static const iso14443_frame ATQA_FRAME = {
@@ -46,6 +48,24 @@ static const iso14443_frame ATQA_FRAME = {
 	{4, 0},
 	{}
 };
+
+static const iso14443_frame LONG_FRAME = {
+	TYPE_A,
+	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE}},
+	40,
+	0, 0,
+		{	0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
+			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
+			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, },
+	{}
+};
+
+#define FRAME_SIZE(bytes) (2* (1+(9*bytes)+1) )
+#define SIZED_BUFFER(bytes) struct { int len; u_int8_t data[FRAME_SIZE(bytes)]; }
+
+static SIZED_BUFFER(2) ATQA_BUFFER;
+static SIZED_BUFFER(40) LONG_BUFFER;
 
 static ssc_dma_tx_buffer_t tx_buffer;
 
@@ -60,10 +80,11 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	
 	switch(buffer->len_transfers) {
 	case 3: case 4: /* REQA (7 bits) */
+	case 7: case 8: case 9:
 		tx_frame = &ATQA_FRAME;
 		fdt = 1172;
 		break;
-	case 6: case 7: /* ANTICOL (2 bytes) */
+	//case 6: case 7: /* ANTICOL (2 bytes) */
 	case 22: /* SELECT (9 bytes) */
 		
 		break;
@@ -74,15 +95,26 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	}
 	
 	/* Add some extra room to the fdt for testing */
-	fdt += 3*128;
+	//fdt += 3*128;
+	fdt += fdt_offset;
+	
 	
 	int ret = 0;
 	if(tx_frame != NULL) {
+		
 		tx_buffer.source = (void*)tx_frame;
-		tx_buffer.len = sizeof(tx_buffer.data);
-		ret = manchester_encode(tx_buffer.data,
-				tx_buffer.len,
-				tx_frame);
+		if(tx_frame == &ATQA_FRAME) {
+			memcpy(tx_buffer.data, ATQA_BUFFER.data, ATQA_BUFFER.len);
+			ret = tx_buffer.len = ATQA_BUFFER.len;
+		} else if(tx_frame == &LONG_FRAME) {
+			memcpy(tx_buffer.data, LONG_BUFFER.data, LONG_BUFFER.len);
+			ret = tx_buffer.len = LONG_BUFFER.len;
+		} else {
+			tx_buffer.len = sizeof(tx_buffer.data);
+			ret = manchester_encode(tx_buffer.data,
+					tx_buffer.len,
+					tx_frame);
+		}
 		if(ret >= 0) {
 			tx_buffer.state = FULL;
 			tx_buffer.len = ret;
@@ -127,6 +159,18 @@ void iso14443a_pretender (void *pvParameters)
 	for(i=0; i<=1000; i+=4) {
 		vLedSetBrightness(LED_GREEN, 1000-i);
 		vTaskDelay(1*portTICK_RATE_MS);
+	}
+	
+	ATQA_BUFFER.len = manchester_encode(ATQA_BUFFER.data, sizeof(ATQA_BUFFER.data), &ATQA_FRAME);
+	LONG_BUFFER.len = manchester_encode(LONG_BUFFER.data, sizeof(LONG_BUFFER.data), &LONG_FRAME);
+	if(ATQA_BUFFER.len < 0 || LONG_BUFFER.len < 0) {
+		usb_print_string("Buffer prefilling failed\n\r");
+		while(1) {
+			for(i=1000; i<=3000; i++) {
+				vLedSetBrightness(LED_GREEN, abs(1000-(i%2000)));
+				vTaskDelay(1*portTICK_RATE_MS);
+			}
+		}
 	}
 	
 	do {
@@ -206,7 +250,8 @@ void iso14443a_pretender (void *pvParameters)
 			current_detected = 0;
 			last_switched = xTaskGetTickCount();
 		}
-		
+
+#if 0
 		if(last_detected & (DETECTED_14443A_3 | DETECTED_14443A_4 | DETECTED_MIFARE)) {
 			if(last_detected & DETECTED_MIFARE) {
 				vLedSetGreen(0);
@@ -222,6 +267,6 @@ void iso14443a_pretender (void *pvParameters)
 			vLedSetGreen(0);
 			vLedSetRed(0);
 		}
-
+#endif
 	}
 }
