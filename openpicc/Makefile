@@ -90,7 +90,6 @@ ARM_SRC= \
   application/tc_cdiv.c \
   application/usb_print.c \
   application/iso14443_layer2a.c \
-  application/iso14443_sniffer.c \
   application/iso14443a_manchester.c \
   application/iso14443a_miller.c \
   application/load_modulation.c \
@@ -106,7 +105,9 @@ ARM_SRC= \
   os/core/ARM7_AT91SAM7S/portISR.c \
   os/core/MemMang/heap_2.c \
   os/usb/USB-CDC.c \
-  os/usb/USBIsr.c
+  os/usb/USBIsr.c \
+  application/iso14443a_pretender.c \
+#  application/iso14443_sniffer.c \
 #  application/iso14443_layer3a.c
 
 #

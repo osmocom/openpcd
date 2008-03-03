@@ -11,18 +11,21 @@ typedef enum {
 	METRIC_MANAGEMENT_ERRORS_1, // Internal buffer management error type 1
 	METRIC_MANAGEMENT_ERRORS_2, // Internal buffer management error type 2
 	METRIC_MANAGEMENT_ERRORS_3, // Internal buffer management error type 3
+	METRIC_LATE_TX_FRAMES,    // Frames that only reached the SSC when TF already was high
 	_MAX_METRICS,
 } ssc_metric;
 
 extern int ssc_get_metric(ssc_metric metric, char **description, int *value);
 
 typedef enum {
-	CALLBACK_RX_STARTED,        // *data is ssh_handle_t *sh
+	CALLBACK_RX_STARTING,       // *data is ssh_handle_t *sh
 	CALLBACK_RX_STOPPED,        // *data is ssh_handle_t *sh
 	CALLBACK_RX_FRAME_BEGIN,    // *data is int *end_asserted
 								//  may set *end_asserted = 1 to force tell the IRQ handler  
 								//  that you have detected the end of reception
 	CALLBACK_RX_FRAME_ENDED,    // *data is ssc_dma_rx_buffer *buffer
+	CALLBACK_TX_FRAME_BEGIN,
+	CALLBACK_TX_FRAME_ENDED,
 	CALLBACK_SETUP,             // *data is ssh_handle_t *sh
 	CALLBACK_TEARDOWN,          // *data is ssh_handle_t *sh
 } ssc_callback_reason;
@@ -38,6 +41,7 @@ struct _ssc_handle;
 typedef struct _ssc_handle ssc_handle_t;
 
 extern void ssc_select_clock(enum ssc_clock_source clock);
+extern void ssc_set_gate(int data_enabled);
 
 extern void ssc_frame_started(void);
 
@@ -45,6 +49,7 @@ extern void ssc_frame_started(void);
 extern ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode , ssc_callback_t callback);
 
 extern int ssc_recv(ssc_handle_t* sh, ssc_dma_rx_buffer_t* *buffer, unsigned int timeout);
+extern int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t* buffer);
 
 extern int ssc_close(ssc_handle_t* sh);
 

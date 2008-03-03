@@ -23,8 +23,8 @@ typedef void (*iso14443_receive_callback_t)(ssc_dma_rx_buffer_t *buffer, u_int8_
  * This call will block until a frame is received or an exception happens. Obviously it must not be run
  * from IRQ context.
  * 
- * Warning: When you get a buffer from the function then it's state is set to PROCESSING and you must 
- * FREE it yourself.
+ * Warning: When you get a buffer from the function then its state is set to PROCESSING and you must 
+ * FREE it yourself. However, you MUST NOT free a buffer from the callback.
  * 
  * Return values:
  * >= 0        Frame received, return value is buffer length (yes, 0 is a valid buffer length)

@@ -224,8 +224,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 				break;
 			}
 		    i=atoiEx(args, &args);
-		    //BROKEN new ssc code
-		    //ssc_set_data_gate(i);
+		    ssc_set_gate(i);
 		    if(i==0) {
 		    	DumpStringToUSB("SSC_DATA disabled \n\r");
 		    } else {

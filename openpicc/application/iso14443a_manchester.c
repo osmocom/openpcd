@@ -104,10 +104,10 @@ int manchester_encode(u_int8_t *sample_buf, u_int16_t sample_buf_len,
 	if(frame->parameters.a.format != STANDARD_FRAME) return -EINVAL; /* AC not implemented yet */
 	
 	/* One bit data is 16 bit is 2 byte modulation data */
-	enc_size = 2*2 /* SOF and EOF */
-		+ frame->numbytes * 8 * 2
-		+ ((frame->parameters.a.parity != NO_PARITY) ? 1 : 0)*8*2
-		+ 6;
+	enc_size = 1 /* SOF */ 
+		+ frame->numbytes * ((frame->parameters.a.parity != NO_PARITY) ? 9 : 8) /* bits per byte */
+		+ 1 /* EOF */;
+	enc_size = enc_size /* in bits */ * 2 /* bytes modulation data per bit raw data*/;
 
 	if (sample_buf_len < enc_size)
 		return -EINVAL;
@@ -115,9 +115,6 @@ int manchester_encode(u_int8_t *sample_buf, u_int16_t sample_buf_len,
 	memset(sample_buf, 0, enc_size);
 	
 	samples16 = (u_int16_t*)sample_buf;
-	(*samples16) = 5;
-	samples16+=2; // SSC workaround
-	//*(samples16++) = 0xb;
 
 	/* SOF */
 	*(samples16++) = MANCHESTER_SEQ_D;

@@ -50,6 +50,7 @@ struct _ssc_handle {
 	enum ssc_mode mode;
 	const struct openpicc_hardware *openpicc;
 	ssc_dma_rx_buffer_t* rx_buffer[2];
+	ssc_dma_tx_buffer_t* tx_buffer;
 	ssc_callback_t callback;
 	xQueueHandle rx_queue;
 	AT91PS_PDC pdc;
@@ -79,6 +80,7 @@ static struct {
 		[METRIC_MANAGEMENT_ERRORS_1] = {METRIC_MANAGEMENT_ERRORS_1, "Internal buffer management error type 1", 0},
 		[METRIC_MANAGEMENT_ERRORS_2] = {METRIC_MANAGEMENT_ERRORS_2, "Internal buffer management error type 2", 0},
 		[METRIC_MANAGEMENT_ERRORS_3] = {METRIC_MANAGEMENT_ERRORS_3, "Internal buffer management error type 3", 0},
+		[METRIC_LATE_TX_FRAMES]    = {METRIC_LATE_TX_FRAMES, "Late Tx frames", 0},
 };
 
 static ssc_dma_rx_buffer_t _rx_buffers[SSC_DMA_BUFFER_COUNT];
@@ -152,9 +154,22 @@ static int __ramfunc _ssc_rx_irq(u_int32_t orig_sr, int start_asserted, portBASE
 		}
 		
 		if(_reload_rx(sh)) {
+			/* Clear the receive holding register. Is this necessary? */
 			int dummy = sh->ssc->SSC_RHR; (void)dummy;
 			AT91F_PDC_EnableRx(sh->pdc);
-			AT91F_SSC_EnableRx(sh->ssc);
+			if(!sh->tx_running) {
+				/* Only start the receiver if no Tx has been started. Warning: Need
+				 * to make sure that the receiver is restarted again when the Tx is over.
+				 * Note that this is only necessary when not using Compare 0 to start
+				 * reception. When using Compare 0 the data gating mechanism will keep
+				 * CP0 from happening and thus keep the receiver stopped.
+				 *
+				 * Note also that we're not resetting rx_running to 0, because conceptionally
+				 * the Rx is still running,. So rx_running=1 and tx_running=1 means SSC_RX
+				 * stopped and SSC_RX should be started as soon as SSC_TX stops.
+				 */
+				AT91F_SSC_EnableRx(sh->ssc);
+			}
 		} else {
 			sh->ssc->SSC_IDR = SSC_RX_IRQ_MASK;
 			sh->rx_running = 0;
@@ -173,6 +188,34 @@ void ssc_frame_started(void)
 	_ssc_rx_irq(_ssc.ssc->SSC_SR, 1, pdFALSE);
 }
 
+static int __ramfunc _ssc_tx_irq(u_int32_t sr, portBASE_TYPE task_woken)
+{
+	ssc_handle_t *sh = &_ssc;
+	
+	if( sr & AT91C_SSC_ENDTX ) {
+		/* Tx has ended */
+		AT91F_PDC_DisableTx(sh->pdc);
+		AT91F_SSC_DisableTx(sh->ssc);
+		sh->ssc->SSC_IDR = SSC_TX_IRQ_MASK;
+		
+		if(sh->tx_buffer) {
+			sh->tx_buffer->state = FREE;
+			sh->tx_running = 0;
+		}
+		
+		if(sh->rx_running) {
+			/* Receiver has been suspended by the pending transmission. Restart it. */
+			AT91F_SSC_EnableRx(sh->ssc);
+		}
+		
+		if(sh->callback) 
+			sh->callback(CALLBACK_TX_FRAME_ENDED, sh->tx_buffer);
+		sh->tx_buffer = NULL;
+	}
+	
+	return task_woken;
+}
+
 static void __ramfunc ssc_irq(void) __attribute__ ((naked));
 static void __ramfunc ssc_irq(void)
 {
@@ -185,6 +228,10 @@ static void __ramfunc ssc_irq(void)
 		task_woken = _ssc_rx_irq(sr, 1, task_woken);
 	} else if(sr & SSC_RX_IRQ_MASK) {
 		task_woken = _ssc_rx_irq(sr, 0, task_woken);
+	}
+	
+	if(sr & SSC_TX_IRQ_MASK) {
+		task_woken = _ssc_tx_irq(sr, task_woken);
 	}
 	
 	AT91F_AIC_ClearIt(AT91C_ID_SSC);
@@ -301,6 +348,18 @@ void ssc_select_clock(enum ssc_clock_source clock)
 	}
 }
 
+void ssc_set_gate(int data_enabled) {
+	if(OPENPICC->features.data_gating) {
+		if(data_enabled) {
+			AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
+			usb_print_string_f("(", 0);
+		} else {
+			AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
+			usb_print_string_f(")", 0);
+		}
+	}
+}
+
 static void _ssc_start_rx(ssc_handle_t *sh)
 {
 	taskENTER_CRITICAL();
@@ -316,7 +375,7 @@ static void _ssc_start_rx(ssc_handle_t *sh)
 		 AT91C_SSC_CP1 | AT91C_SSC_ENDRX;
 	sh->rx_running = 1;
 	if(sh->callback != NULL)
-		sh->callback(CALLBACK_RX_STARTED, sh);
+		sh->callback(CALLBACK_RX_STARTING, sh);
 
 	// Actually enable reception
 	int dummy = sh->ssc->SSC_RHR; (void)dummy;
@@ -412,11 +471,6 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 			goto out_fail_queue;
 	}
 	
-	sh->ssc = AT91C_BASE_SSC;
-	sh->pdc = (AT91PS_PDC) &(sh->ssc->SSC_RPR);
-
-	AT91F_SSC_CfgPMC();
-
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, 
 			    OPENPICC_SSC_DATA | OPENPICC_SSC_CLOCK |
 			    OPENPICC_PIO_FRAME,
@@ -424,11 +478,6 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 	
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
-	
-	if(OPENPICC->features.data_gating) {
-		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
-	}
 	
 	if(OPENPICC->features.clock_switching) {
 		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->CLOCK_SWITCH);
@@ -441,6 +490,10 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 	/* don't divide clock inside SSC, we do that in tc_cdiv */
 	sh->ssc->SSC_CMR = 0;
 
+	unsigned int i;
+	for(i=0; i<sizeof(_rx_buffers)/sizeof(_rx_buffers[0]); i++)
+		memset(&_rx_buffers[i], 0, sizeof(_rx_buffers[i]));
+	
 	sh->rx_buffer[0] = sh->rx_buffer[1] = NULL;
 	
 	/* Will be set to a real value some time later 
@@ -451,6 +504,29 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 	
 out_fail_queue:
 	return 0;
+}
+
+static inline int _init_ssc_tx(ssc_handle_t *sh)
+{
+	/* IMPORTANT: Disable PA23 (PWM0) output, since it is connected to 
+	 * PA17 !! */
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_MOD_PWM);
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, OPENPICC_MOD_SSC | 
+			    OPENPICC_SSC_CLOCK | OPENPICC_SSC_TF, 0);
+	
+	if(OPENPICC->features.clock_switching) {
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->CLOCK_SWITCH);
+		/* Users: remember to ssc_select_clock(CLOCK_SELECT_CARRIER) as
+		 * early as possible, e.g. right after receive end */
+	}
+
+	/* Disable all interrupts */
+	sh->ssc->SSC_IDR = SSC_TX_IRQ_MASK;
+
+	/* don't divide clock inside SSC, we do that in tc_cdiv */
+	sh->ssc->SSC_CMR = 0;
+
+	return 1;
 }
 
 static int _ssc_register_callback(ssc_handle_t *sh, ssc_callback_t _callback)
@@ -478,7 +554,6 @@ static int _ssc_unregister_callback(ssc_handle_t *sh, ssc_callback_t _callback)
 ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode, ssc_callback_t callback)
 {
 	ssc_handle_t *sh = &_ssc;
-	unsigned int i;
 	
 	if(sh->rx_enabled || sh->tx_enabled || sh->rx_running) {
 		if( ssc_close(sh) != 0) {
@@ -486,13 +561,25 @@ ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode, s
 		}
 	}
 	
-	for(i=0; i<sizeof(_rx_buffers)/sizeof(_rx_buffers[0]); i++)
-		memset(&_rx_buffers[i], 0, sizeof(_rx_buffers[i]));
+	if(init_rx || init_tx) {
+		sh->ssc = AT91C_BASE_SSC;
+		sh->pdc = (AT91PS_PDC) &(sh->ssc->SSC_RPR);
+
+		AT91F_SSC_CfgPMC();
+
+		if(OPENPICC->features.data_gating) {
+			AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
+			ssc_set_gate(1);
+		}
+	}
 	
+
 	if(init_tx) {
-		// FIXME Implement
-		sh->tx_enabled = 0;
-		return NULL;
+		sh->tx_enabled = _init_ssc_tx(sh);
+		if(!sh->tx_enabled) {
+			ssc_close(sh);
+			return NULL;
+		}
 	}
 	
 	if(init_rx) {
@@ -542,6 +629,55 @@ int ssc_recv(ssc_handle_t* sh, ssc_dma_rx_buffer_t* *buffer,unsigned int timeout
 	}
 	
 	return -ETIMEDOUT;
+}
+
+/* Must be called with IRQs disabled. E.g. from IRQ context or within a critical section. */
+int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
+{
+	if(sh == NULL) return -EINVAL;
+	if(!sh->tx_enabled) return -EINVAL;
+	if(sh->tx_running) return -EBUSY;
+	
+	sh->tx_buffer = buffer;
+	sh->tx_running = 1;
+	
+	/* disable Tx */
+	sh->ssc->SSC_IDR = SSC_TX_IRQ_MASK;
+	AT91F_PDC_DisableTx(sh->pdc);
+	AT91F_SSC_DisableTx(sh->ssc);
+
+	int start_cond = AT91C_SSC_START_HIGH_RF;
+	
+	int sync_len = 1;
+	int data_len = 32;
+	int num_data = buffer->len/(data_len/8); /* FIXME This is broken for more than 64 bytes, or is it? */
+	int num_data_ssc = num_data > 16 ? 16 : num_data;
+	
+	sh->ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
+			(((num_data_ssc-1) & 0x0f) << 8) | 
+			(((sync_len-1) & 0x0f) << 16);
+	sh->ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | (AT91C_SSC_CKI&0) | start_cond;
+	
+	AT91F_PDC_SetTx(sh->pdc, buffer->data, num_data);
+	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);
+	buffer->state = PENDING;
+
+	sh->ssc->SSC_IER = AT91C_SSC_ENDTX;
+	/* Enable DMA */
+	AT91F_PDC_EnableTx(sh->pdc);
+	//AT91F_PDC_SetTx(sh->pdc, buffer->data, num_data);
+	
+	/* Disable Receiver, see comments in _ssc_rx_irq */
+	AT91F_SSC_DisableRx(sh->ssc);
+	/* Start Transmission */
+	AT91F_SSC_EnableTx(sh->ssc);
+	vLedSetGreen(1);
+	
+	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) {
+		ssc_metrics[METRIC_LATE_TX_FRAMES].value++;
+	}
+	
+	return 0;
 }
 
 int ssc_close(ssc_handle_t* sh)
