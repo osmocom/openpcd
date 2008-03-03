@@ -49,25 +49,38 @@ static const iso14443_frame ATQA_FRAME = {
 	{}
 };
 
-static const iso14443_frame LONG_FRAME = {
+static const iso14443_frame UID_FRAME = {
 	TYPE_A,
 	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE}},
-	40,
+	5,
 	0, 0,
-		{	0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
-			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
-			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, },
+	{0xF4, 0xAC, 0xF9, 0xD7, 0x76},
 	{}
 };
+
+static const iso14443_frame ATS_FRAME = {
+	TYPE_A,
+	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE}},
+	3,
+	0, 0,
+	{0x08, 0xB6, 0xDD},
+	{}
+};
+
+static const iso14443_frame NONCE_FRAME = {
+	TYPE_A,
+	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE}},
+	4,
+	0, 0,
+	{0xFF, 0xCF, 0x80, 0xE3},
+	{}
+};
+
 
 #define FRAME_SIZE(bytes) (2* (1+(9*bytes)+1) )
 #define SIZED_BUFFER(bytes) struct { int len; u_int8_t data[FRAME_SIZE(bytes)]; }
 
-static SIZED_BUFFER(2) ATQA_BUFFER;
-static SIZED_BUFFER(40) LONG_BUFFER;
-
-static ssc_dma_tx_buffer_t tx_buffer;
+static ssc_dma_tx_buffer_t ATQA_BUFFER, UID_BUFFER, ATS_BUFFER, NONCE_BUFFER;
 
 static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 {
@@ -75,18 +88,22 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	unsigned int buffy=0;
 	u_int32_t cv = *AT91C_TC2_CV;
 	
-	const iso14443_frame *tx_frame = NULL;
+	ssc_dma_tx_buffer_t *tx_buffer=NULL;
 	int fdt = 0;
 	
 	switch(buffer->len_transfers) {
 	case 3: case 4: /* REQA (7 bits) */
-	case 7: case 8: case 9:
-		tx_frame = &ATQA_FRAME;
+	//case 7: case 8: case 9:
+		tx_buffer = &ATQA_BUFFER;
 		fdt = 1172;
 		break;
-	//case 6: case 7: /* ANTICOL (2 bytes) */
-	case 22: /* SELECT (9 bytes) */
-		
+	case 6: case 7: /* ANTICOL (2 bytes) */
+	case 8: case 9:
+		tx_buffer = &UID_BUFFER;
+		fdt = 1172;
+	case 21: case 22: /* SELECT (9 bytes) */
+		tx_buffer = &ATS_BUFFER;
+		fdt = 1172;
 		break;
 	case 577:
 		usb_print_string_f("f", 0); 
@@ -99,31 +116,11 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	fdt += fdt_offset;
 	
 	
-	int ret = 0;
-	if(tx_frame != NULL) {
-		
-		tx_buffer.source = (void*)tx_frame;
-		if(tx_frame == &ATQA_FRAME) {
-			memcpy(tx_buffer.data, ATQA_BUFFER.data, ATQA_BUFFER.len);
-			ret = tx_buffer.len = ATQA_BUFFER.len;
-		} else if(tx_frame == &LONG_FRAME) {
-			memcpy(tx_buffer.data, LONG_BUFFER.data, LONG_BUFFER.len);
-			ret = tx_buffer.len = LONG_BUFFER.len;
-		} else {
-			tx_buffer.len = sizeof(tx_buffer.data);
-			ret = manchester_encode(tx_buffer.data,
-					tx_buffer.len,
-					tx_frame);
+	if(tx_buffer != NULL) {
+		tx_buffer->state = FULL;
+		if(	iso14443_transmit(tx_buffer, fdt, 1, 0) < 0) {
+			usb_print_string_f("Tx failed ", 0);
 		}
-		if(ret >= 0) {
-			tx_buffer.state = FULL;
-			tx_buffer.len = ret;
-			if(	iso14443_transmit(&tx_buffer, fdt, 1, 0) < 0) {
-				tx_buffer.state = FREE;
-				usb_print_string_f("Tx failed ", 0);
-			}
-		} else tx_buffer.state = FREE;
-
 	}
 	
 	u_int32_t cv2 = *AT91C_TC2_CV;
@@ -131,10 +128,6 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	DumpUIntToUSB(cv);
 	DumpStringToUSB(":");
 	DumpUIntToUSB(cv2);
-	if(ret<0) {
-		DumpStringToUSB("!");
-		DumpUIntToUSB(-ret);
-	}
 	if(buffy!=0) {
 		DumpStringToUSB("§");
 		DumpUIntToUSB(buffy);
@@ -161,9 +154,17 @@ void iso14443a_pretender (void *pvParameters)
 		vTaskDelay(1*portTICK_RATE_MS);
 	}
 	
-	ATQA_BUFFER.len = manchester_encode(ATQA_BUFFER.data, sizeof(ATQA_BUFFER.data), &ATQA_FRAME);
-	LONG_BUFFER.len = manchester_encode(LONG_BUFFER.data, sizeof(LONG_BUFFER.data), &LONG_FRAME);
-	if(ATQA_BUFFER.len < 0 || LONG_BUFFER.len < 0) {
+	int ret;
+#define PREFILL_BUFFER(dst, src) ret = manchester_encode(dst.data,  sizeof(dst.data),  &src); \
+	if(ret < 0) goto prefill_failed; else dst.len = ret;
+	
+	PREFILL_BUFFER(ATQA_BUFFER,  ATQA_FRAME);
+	PREFILL_BUFFER(UID_BUFFER,   UID_FRAME);
+	PREFILL_BUFFER(ATS_BUFFER,   ATS_FRAME);
+	PREFILL_BUFFER(NONCE_BUFFER, NONCE_FRAME);
+	
+	if(0) {
+prefill_failed:
 		usb_print_string("Buffer prefilling failed\n\r");
 		while(1) {
 			for(i=1000; i<=3000; i++) {
