@@ -94,6 +94,7 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	switch(buffer->len_transfers) {
 	case 3: case 4: /* REQA (7 bits) */
 	//case 7: case 8: case 9:
+	case 11:
 		tx_buffer = &ATQA_BUFFER;
 		fdt = 1172;
 		break;

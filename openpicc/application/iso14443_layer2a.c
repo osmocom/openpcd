@@ -48,6 +48,7 @@
 #include "pio_irq.h"
 
 #include "usb_print.h"
+#include "cmd.h"
 
 #define PRINT_DEBUG 0
 
@@ -208,6 +209,11 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 		tc_fdt_set(0xff00);
 		tc_cdiv_set_divider(RX_DIVIDER);
 		tc_cdiv_sync_reset();
+#if 1
+		int old=usb_print_set_default_flush(0);
+		DumpStringToUSB("["); DumpUIntToUSB(reason); DumpStringToUSB("]");
+		usb_print_set_default_flush(old);
+#endif
 	}
 	
 }
