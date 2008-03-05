@@ -84,6 +84,7 @@ sent unless the port is connected. */
 void vUSBSendByte (portCHAR cByte);
 void vUSBSendByte_blocking (portCHAR cByte, portTickType xTicksToWait);
 void vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length);
+void vUSBSendBuffer_blocking (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length, portTickType xTicksToWait);
 portLONG vUSBRecvByte (portCHAR *cByte,portLONG size, portTickType xTicksToWait);
 
 #endif

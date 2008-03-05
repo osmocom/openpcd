@@ -21,6 +21,7 @@
 #include "ssc.h"
 #include "usb_print.h"
 #include "load_modulation.h"
+#include "tc_sniffer.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -45,7 +46,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "!pc+-l?hq9fjka#i";
+static const char *SHORT_COMMANDS = "!prc+-l?hq9fjka#i";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -241,6 +242,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case 'P':
 		    print_pio();
 		    break;
+		case 'R':
+			start_stop_sniffing();
+			break;
 		case 'C':
 		    DumpStringToUSB(
 			" *****************************************************\n\r"
@@ -442,6 +446,7 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    " * #    - switch clock\n\r"
 			" * l    - cycle LEDs\n\r"
 			" * p    - print PIO pins\n\r"
+		    " * r    - start/stop receiving\n\r"
 			" * z 0/1- enable or disable tc_cdiv_sync\n\r"
 			" * i    - inhibit/uninhibit PLL\n\r"
 			" * !    - reset tc_cdiv_sync\n\r"

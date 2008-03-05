@@ -43,9 +43,6 @@
 
 #define PRINT_DEBUG 0
 
-// BROKEN Old FIQ code
-int ssc_tx_pending=0, ssc_tx_fiq_fdt_cdiv=0, ssc_tx_fiq_fdt_ssc=0;
-
 struct _ssc_handle {
 	enum ssc_mode mode;
 	const struct openpicc_hardware *openpicc;

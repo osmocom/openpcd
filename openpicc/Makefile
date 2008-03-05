@@ -96,6 +96,7 @@ ARM_SRC= \
   application/decoder_miller.c \
   application/decoder_nrzl.c \
   application/decoder.c \
+  application/tc_sniffer.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

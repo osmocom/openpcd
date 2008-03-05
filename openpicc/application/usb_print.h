@@ -10,6 +10,7 @@ extern int usb_print_char_f(const char c, int flush);
 extern void usb_print_flush(void);
 extern int usb_print_get_default_flush(void);
 extern int usb_print_set_default_flush(int flush);
+extern int usb_print_set_force_silence(int silence);
 extern void usb_print_init(void);
 
 #endif /*USB_PRINT_H_*/

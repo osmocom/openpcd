@@ -4,9 +4,7 @@
 	.extern exit
 	.extern AT91F_LowLevelInit
 	.extern pio_irq_isr_value
-	.extern ssc_tx_pending
-	.extern ssc_tx_fiq_fdt_cdiv
-	.extern ssc_tx_fiq_fdt_ssc
+	.extern tc_sniffer_next_buffer_for_fiq
 
 	.text
 	.code 32
@@ -47,15 +45,14 @@
 .equ AT91C_BASE_MC,   (0xFFFFFF00)
 .equ AT91C_BASE_PIOA, 0xFFFFF400
 .equ AT91C_BASE_TC0,  0xFFFA0000
+.equ AT91C_BASE_TC2,  0xFFFA0080
 .equ AT91C_BASE_SSC,  0xFFFD4000
 .equ SSC_CR,          0x0
 .equ SSC_RCMR,        0x10
 .equ SSC_CR_TXEN,     0x100
 .equ AT91C_TC_SWTRG,  ((1 << 2)|1)
 .equ AT91C_TC_CLKEN,  (1 << 0)
-.equ PIO_DATA,        (1 << 27)
-.equ PIO_FRAME,       (1 << 20)
-.equ PIO_SSC_TF,      (1 << 15)
+.equ PIO_DATA,        (1 << 18)
 .equ PIOA_SODR,       0x30
 .equ PIOA_CODR,       0x34
 .equ PIOA_PDSR,       0x3c
@@ -70,6 +67,8 @@
 .equ AIC_ISCR,        (0x12C)
 .equ PIO_SECONDARY_IRQ, 31
 .equ PIO_SECONDARY_IRQ_BIT, (1 << PIO_SECONDARY_IRQ)
+
+.equ BUFSIZE, 1024
 
 start:
 _start:
@@ -90,7 +89,6 @@ _mainCRTStartup:
     ldr     r10, =AT91C_BASE_PIOA
     ldr     r12, =AT91C_BASE_TC0
     ldr     r8, =AT91C_BASE_AIC
-    mov     r9, #AT91C_TC_SWTRG
     /*ldr     r9, =AT91C_BASE_SSC*/
     mov   sp, r0
     sub   r0, r0, #FIQ_STACK_SIZE
@@ -196,7 +194,7 @@ endless_loop:
 my_fiq_handler:
                 /* code that uses pre-initialized FIQ reg */
                 /* r8   tmp
-                   r9   AT91C_TC_SWTRG
+                   r9   tmp
                    r10  AT91C_BASE_PIOA
                    r11  tmp
                    r12  AT91C_BASE_TC0
@@ -215,111 +213,47 @@ my_fiq_handler:
                 str   r8, [r11]
                 
                 tst     r8, #PIO_DATA           /* check for PIO_DATA change */
-                ldrne   r11, [r10, #PIOA_PDSR]
-                tstne   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
-                /*strne   r9, [r12, #TC_CCR]      /* software trigger */
-
-                movne   r11, #PIO_DATA
-                strne   r11, [r10, #PIOA_IDR]   /* disable further PIO_DATA FIQ */
-                beq .no_pio_data
-/* .loop_high:
-				ldr     r11, [r10, #PIOA_PDSR]
-				tst     r11, #PIO_DATA
-				bne     .loop_high
-                str   r9, [r12, #TC_CCR]      /* software trigger */
-
-.no_pio_data:
-                tst     r8, #PIO_SSC_TF         /* check for SSC Transmit Frame signal */
-                ldrne   r11, [r10, #PIOA_PDSR]
-                tstne   r11, #PIO_SSC_TF        /* check for SSC_TF == 1 */
+                beq     .no_buffer
                 
-                movne   r11, #PIO_SSC_TF
-                strne   r11, [r10, #PIOA_IDR]   /* disable further SSC_TF FIQ */
+                ldr   r11, [r10, #PIOA_PDSR]
+                tst   r11, #PIO_DATA          /* check for PIO_DATA == 1 */
+                beq   .no_buffer
+
+/*                mov     r11, #PIO_LED2
+                str     r11, [r10, #PIOA_CODR] /* enable LED */
+
+                /* Load the TC2.CV into r9 */
+                ldr r9, [r12, #TC2_CV]
                 
-                ldrne   r11, =ssc_tx_pending
-                ldrne   r8, [r11]
-                tstne   r8, #0x01              /* Check whether a TX is pending */
-                beq     .no_ssc
-                b .no_ssc
+                ldr r11, =tc_sniffer_next_buffer_for_fiq
+                ldr r11, [r11]
+                /* r11 now contains the value of tc_sniffer_next_buffer_for_fiq, e.q. the address
+                 * of the next buffer */
                 
-                mov   r8, #PIO_LED1
-                str   r8, [r10, #PIOA_SODR] /* disable LED */
+                /* Jump to .no_buffer if the pointer is 0, indicating that no buffer is set */
+                cmp r11, #0
+                beq .no_buffer 
                 
-                mov   r8, #0x00
-                str   r8, [r11]                /* Set ssc_tx_pending to 0 */
+		/* Increment the value at the location the pointer points to */
+		ldr r8, [r11]
+		add r8, r8, #1
+		str r8, [r11]
+		
+		/* At this point:
+		   r8  = count
+		   r9  = TC2.CV
+		   r11 = pointer to buffer
+		 */
+		
+		cmp r8, #BUFSIZE
+		bge .no_buffer
+		
+		str r9, [r11, r8, LSL #2]
+		
+.no_buffer:
+/*                mov     r11, #PIO_LED2
+                str     r11, [r10, #PIOA_SODR] /* disable LED */
                 
-                ldr   r11, =ssc_tx_fiq_fdt_cdiv
-                ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_cdiv */
-
-/* Problem: LDR from the timer and loop still take too long and cause us to miss the exact time.
- * (One load-from-timer,compare,jump-back-if-less cycle are 7 CPU cycles, which are 2 carrier cycles.)
- * Strategy: Spin on TC2 till 3 or 4 carrier cycles before the actual time. Then go into an unrolled
- * 'loop' for the remaining time. (load-from-timer,compare,jump-forward-if-greater-or-equal are 5 CPU 
- * cycles if the condition is not reached.)
- * 
- * At 47.923200 MHz 7 processor cycles are 2 carrier cycles of the 13.56MHz carrier
- */
- .equ SUB_TIME, 4 /* subtract 4 carrier cycles == 14 processor cycles */
- 
- 				mov r8, #SUB_TIME
- 				sub r11, r11, r8              /* r11 == fdt_cdiv-SUB_TIME */
-
-.wait_for_fdt_cdiv:
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				blt   .wait_for_fdt_cdiv       /* spin while TC2.CV is less fdt_cdiv-SUB_TIME */
-				
-				mov r8, #SUB_TIME
-				add r11, r11, r8               /* r11 == fdt_cdiv */
-
-/* Seven copies of the loop contents, covering for 35 CPU cycles, or 10 carrier cycles */
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             /* jump forward if TC2.CV is greater than or equal fdt_cdiv */
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bge   .fdt_expired             
-
-.fdt_expired:				
-				str   r9, [r12, #TC_CCR]       /* SWTRG on TC0 */
-				
-                ldr   r11, =ssc_tx_fiq_fdt_ssc
-                ldr   r11, [r11]               /* r11 == ssc_tx_fiq_fdt_ssc */
-
-.wait_for_fdt_ssc:
-				ldr   r8, [r12, #TC2_CV]
-				cmp   r8, r11
-				bmi   .wait_for_fdt_ssc        /* spin while TC2.CV is less fdt_ssc */
-                
-                mov   r11, #PIO_LED1
-                str   r11, [r10, #PIOA_CODR] /* enable LED */
-                
-                ldr   r11, =AT91C_BASE_SSC
-                mov   r8, #SSC_CR_TXEN
-                str   r8, [r11, #SSC_CR]       /* Write TXEN to SSC_CR, enables tx */ 
-
-.no_ssc:               
                 /* Trigger PIO_SECONDARY_IRQ */
                 mov r11, #PIO_SECONDARY_IRQ_BIT
                 ldr r8, =AT91C_BASE_AIC
