@@ -1,4 +1,4 @@
-/* ISO14443A Manchester encoder for OpenPICC
+/* ISO14443A Miller decoder for OpenPICC
  * (C) 2007 by Henryk Plötz <henryk@ploetzli.ch>
  *
  *  This program is free software; you can redistribute it and/or modify

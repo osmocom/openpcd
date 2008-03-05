@@ -85,6 +85,7 @@ typedef struct {
   		       NO_PARITY, /* Don't send any parity */
   		} parity;
   		enum { ISO14443A_LAST_BIT_0 = 0, ISO14443A_LAST_BIT_1 = 1, ISO14443A_LAST_BIT_NONE } last_bit;
+  		enum { CRC_UNCALCULATED = 2, CRC_OK = 1, CRC_ERROR = 0} crc;
   	} a;
   } parameters;
   u_int32_t numbytes;

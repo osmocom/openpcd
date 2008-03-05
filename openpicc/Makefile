@@ -92,7 +92,9 @@ ARM_SRC= \
   application/iso14443_layer2a.c \
   application/iso14443a_manchester.c \
   application/iso14443a_miller.c \
+  application/iso14443a_diffmiller.c \
   application/load_modulation.c \
+  application/clock_switch.c \
   application/decoder_miller.c \
   application/decoder_nrzl.c \
   application/decoder.c \

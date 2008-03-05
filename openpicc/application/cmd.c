@@ -19,6 +19,7 @@
 #include "tc_cdiv_sync.h"
 #include "pio_irq.h"
 #include "ssc.h"
+#include "clock_switch.h"
 #include "usb_print.h"
 #include "load_modulation.h"
 #include "tc_sniffer.h"
@@ -374,8 +375,8 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 				DumpStringToUSB("* This hardware is not clock switching capable\n\r");
 				break;
 			}
-			clock_select = (clock_select+1) % _MAX_CLOCK_SOURCES;
-			ssc_select_clock(clock_select);
+			clock_select = (clock_select+1) % 2;
+			clock_switch(clock_select);
 			DumpStringToUSB("Active clock is now ");
 			DumpUIntToUSB(clock_select);
 			DumpStringToUSB("\n\r");

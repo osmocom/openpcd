@@ -45,6 +45,7 @@
 #include "tc_cdiv.h"
 #include "tc_cdiv_sync.h"
 #include "load_modulation.h"
+#include "clock_switch.h"
 #include "pio_irq.h"
 
 #include "usb_print.h"
@@ -129,7 +130,7 @@ int iso14443_transmit(ssc_dma_tx_buffer_t *buffer, unsigned int fdt, u_int8_t as
 	tx_pending = 1;
 	
 	/* Immediately set up FDT and clock */
-	ssc_select_clock(CLOCK_SELECT_CARRIER);
+	clock_switch(CLOCK_SELECT_CARRIER);
 	ssc_set_gate(0);
 	tc_fdt_set(fdt);
 	tc_cdiv_set_divider(8); // FIXME Magic hardcoded number
@@ -191,7 +192,7 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 	}
 	
 	if( reason == CALLBACK_RX_FRAME_ENDED && fast_receive ) {
-		ssc_select_clock(CLOCK_SELECT_CARRIER); /* A Tx might be coming up */
+		clock_switch(CLOCK_SELECT_CARRIER); /* A Tx might be coming up */
 		
 		ssc_dma_rx_buffer_t *buffer = data;
 		if(callback != NULL)
@@ -201,10 +202,10 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 	if( (reason == CALLBACK_RX_FRAME_ENDED && !tx_pending) || reason == CALLBACK_RX_STARTING 
 			|| reason == CALLBACK_TX_FRAME_ENDED ) {
 		/* For regular SSC Rx we'd set the clock to
-		// ssc_select_clock(CLOCK_SELECT_PLL);
+		// clock_switch(CLOCK_SELECT_PLL);
 		 * however, the SSC Rx code is going to go away (at least for 14443-A)
 		 * and switching clocks messes up the Tx timing, so we do a */
-		ssc_select_clock(CLOCK_SELECT_CARRIER);
+		clock_switch(CLOCK_SELECT_CARRIER);
 		ssc_set_gate(1);
 		tc_fdt_set(0xff00);
 		tc_cdiv_set_divider(RX_DIVIDER);
@@ -233,6 +234,7 @@ int iso14443_layer2a_init(u_int8_t enable_fast_receive)
 	tc_cdiv_init();
 	tc_fdt_init();
 	
+	clock_switch_init();
 	load_mod_init();
 	
 	iso14443_set_fast_receive(enable_fast_receive);

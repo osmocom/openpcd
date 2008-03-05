@@ -31,16 +31,10 @@ typedef enum {
 } ssc_callback_reason;
 typedef void (*ssc_callback_t)(ssc_callback_reason reason, void *data);
 
-enum ssc_clock_source { 
-	CLOCK_SELECT_PLL,
-	CLOCK_SELECT_CARRIER,
-	_MAX_CLOCK_SOURCES,
-};
 struct _ssc_handle;
 
 typedef struct _ssc_handle ssc_handle_t;
 
-extern void ssc_select_clock(enum ssc_clock_source clock);
 extern void ssc_set_gate(int data_enabled);
 
 extern void ssc_frame_started(void);

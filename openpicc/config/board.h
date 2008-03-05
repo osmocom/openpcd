@@ -64,6 +64,11 @@ enum openpicc_release {
 					   *   using PA30
 					   */
 };
+enum clock_source { 
+	CLOCK_SELECT_PLL,
+	CLOCK_SELECT_CARRIER,
+};
+
 struct openpicc_hardware {
 	enum openpicc_release release;
 	char *release_name;
@@ -72,6 +77,7 @@ struct openpicc_hardware {
 		int clock_gating:1;
 		int clock_switching:1;
 	} features;
+	enum clock_source default_clock;
 	
 	int PLL_LOCK;
 	

@@ -41,10 +41,17 @@
 #include "usb_print.h"
 #include "cmd.h"
 #include "pio_irq.h"
+#include "led.h"
+#include "clock_switch.h"
+
+#include "iso14443a_diffmiller.h"
 
 /* Problem: We want to receive data from the FIQ without locking (the FIQ must not be blocked ever)
  * Strategy: Double buffering.
  */
+
+struct diffmiller_state *decoder;
+iso14443_frame rx_frame;
 
 #define BUFSIZE 1024
 #define WAIT_TICKS (20*portTICK_RATE_MS)
@@ -57,18 +64,63 @@ fiq_buffer_t fiq_buffers[2];
 fiq_buffer_t *tc_sniffer_next_buffer_for_fiq = 0;
 
 portBASE_TYPE currently_sniffing = 0;
-enum { NONE, REQUEST_START, REQUEST_STOP } request_change = NONE;
+enum { NONE, REQUEST_START, REQUEST_STOP } request_change = REQUEST_START;
+
+//#define PRINT_TIMES
+//#define USE_BINARY_PROTOCOL
 
 #define MIN(a, b) ((a)>(b)?(b):(a))
+static int overruns = 0; 
 void flush_buffer(fiq_buffer_t *buffer)
 {
 	/* Write all data from the given buffer out, then zero the count */
 	if(buffer->count > 0) {
+		if(buffer->count >= BUFSIZE) {
+			DumpStringToUSB("Warning: Possible buffer overrun detected\n\r");
+			overruns++;
+		}
+		buffer->count = MIN(buffer->count, BUFSIZE);
+#ifdef USE_BINARY_PROTOCOL
 		vUSBSendBuffer_blocking((unsigned char*)(&(buffer->data[0])), 0, MIN(buffer->count,BUFSIZE)*4, WAIT_TICKS);
 		if(buffer->count >= BUFSIZE)
 			vUSBSendBuffer_blocking((unsigned char*)"////", 0, 4, WAIT_TICKS);
 		else
 			vUSBSendBuffer_blocking((unsigned char*)"____", 0, 4, WAIT_TICKS);
+#elif defined(PRINT_TIMES)
+		unsigned int i=0;
+		for(i=0; i<buffer->count; i++) {
+			DumpUIntToUSB(buffer->data[i]);
+			DumpStringToUSB(" ");
+		}
+		DumpStringToUSB("\n\r");
+#else
+		unsigned int offset = 0;
+		while(offset < buffer->count) {
+			int ret = iso14443a_decode_diffmiller(decoder, &rx_frame, buffer->data, &offset, buffer->count);
+			DumpStringToUSB("\n\r");
+			if(ret < 0) {
+				DumpStringToUSB("-");
+				DumpUIntToUSB(-ret);
+			} else {
+				DumpUIntToUSB(ret);
+			}
+			DumpStringToUSB(" ");
+			DumpUIntToUSB(offset); DumpStringToUSB(" "); DumpUIntToUSB(buffer->count); DumpStringToUSB(" "); DumpUIntToUSB(overruns);
+			DumpStringToUSB("\n\r");
+			if(ret >= 0) {
+				DumpStringToUSB("Frame finished, ");
+				DumpUIntToUSB(rx_frame.numbytes);
+				DumpStringToUSB(" bytes, ");
+				DumpUIntToUSB(rx_frame.numbits);
+				DumpStringToUSB(" bits\n\r");
+				switch(rx_frame.parameters.a.crc) {
+				case CRC_OK: DumpStringToUSB("CRC OK\n\r"); break;
+				case CRC_ERROR: DumpStringToUSB("CRC ERROR\n\r"); break;
+				case CRC_UNCALCULATED: DumpStringToUSB("CRC UNCALCULATED\n\r"); break;
+				}
+			}
+		}
+#endif
 		buffer->count = 0;
 	}
 }
@@ -93,6 +145,8 @@ void tc_sniffer (void *pvParameters)
 	load_mod_init();
 	load_mod_level(0);
 	
+	clock_switch_init();
+	
 	pll_init();
 	pll_inhibit(0);
 	
@@ -102,6 +156,22 @@ void tc_sniffer (void *pvParameters)
 	
 	/* Wait for the USB and CMD threads to start up */
 	vTaskDelay(1000 * portTICK_RATE_MS);
+	
+	if(OPENPICC->features.clock_switching) {
+		clock_switch(CLOCK_SELECT_CARRIER);
+		decoder = iso14443a_init_diffmiller(0);
+	} else {
+		switch(OPENPICC->default_clock) {
+		case CLOCK_SELECT_CARRIER:
+			decoder = iso14443a_init_diffmiller(0);
+			break;
+		case CLOCK_SELECT_PLL:
+			decoder = iso14443a_init_diffmiller(1);
+			break;
+		}
+	}
+	
+	if(!decoder) vLedHaltBlinking(1);
 	
 	// The change interrupt is going to be handled by the FIQ 
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_SSC_DATA);
@@ -125,16 +195,20 @@ void tc_sniffer (void *pvParameters)
 				tc_sniffer_next_buffer_for_fiq = 0;
 				memset(fiq_buffers, 0, sizeof(fiq_buffers));
 				current = 0;
+#ifdef USE_BINARY_PROTOCOL
 				vUSBSendBuffer_blocking((unsigned char *)"----", 0, 4, WAIT_TICKS);
 				usb_print_set_force_silence(0);
+#endif
 			} else vTaskDelay(2* portTICK_RATE_MS);
 		} else {
 			// Do nothing, wait longer
 			
 			if(request_change == REQUEST_START) {
 				// Prevent usb_print code from barging in
+#ifdef USE_BINARY_PROTOCOL
 				usb_print_set_force_silence(1);
 				vUSBSendBuffer_blocking((unsigned char *)"----", 0, 4, WAIT_TICKS);
+#endif
 				currently_sniffing = 1;
 				request_change = NONE;
 			} else vTaskDelay(100 * portTICK_RATE_MS);

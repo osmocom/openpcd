@@ -34,6 +34,7 @@
 #include "ssc.h"
 #include "iso14443.h"
 
+#include "clock_switch.h"
 #include "tc_cdiv_sync.h"
 #include "tc_fdt.h"
 #include "led.h"
@@ -331,20 +332,6 @@ static __ramfunc ssc_dma_rx_buffer_t* _unload_rx(ssc_handle_t *sh)
 	return buffer;
 }
 
-void ssc_select_clock(enum ssc_clock_source clock)
-{
-	if(!OPENPICC->features.clock_switching) return;
-	switch(clock) {
-	case CLOCK_SELECT_PLL:
-		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC->CLOCK_SWITCH);
-		break;
-	case CLOCK_SELECT_CARRIER:
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC->CLOCK_SWITCH);
-		break;
-	default: break;
-	}
-}
-
 void ssc_set_gate(int data_enabled) {
 	if(OPENPICC->features.data_gating) {
 		if(data_enabled) {
@@ -478,7 +465,7 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 	
 	if(OPENPICC->features.clock_switching) {
 		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->CLOCK_SWITCH);
-		ssc_select_clock(CLOCK_SELECT_PLL);
+		clock_switch(CLOCK_SELECT_PLL);
 	}
 
 	/* Disable all interrupts */
@@ -512,8 +499,8 @@ static inline int _init_ssc_tx(ssc_handle_t *sh)
 			    OPENPICC_SSC_CLOCK | OPENPICC_SSC_TF, 0);
 	
 	if(OPENPICC->features.clock_switching) {
-		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC->CLOCK_SWITCH);
-		/* Users: remember to ssc_select_clock(CLOCK_SELECT_CARRIER) as
+		clock_switch_init();
+		/* Users: remember to clock_switch(CLOCK_SELECT_CARRIER) as
 		 * early as possible, e.g. right after receive end */
 	}
 
