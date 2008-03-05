@@ -2,9 +2,10 @@
 #define _PIO_IRQ_H
 
 #include "openpicc.h"
+#include "FreeRTOS.h"
 
 #define NR_PIO 32
-typedef void irq_handler_t(u_int32_t pio);
+typedef portBASE_TYPE irq_handler_t(u_int32_t pio, portBASE_TYPE xTaskWoken);
 
 extern void pio_irq_enable(u_int32_t pio);
 extern void pio_irq_disable(u_int32_t pio);

@@ -219,12 +219,13 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 	
 }
 
-static void iso14443_rx_FRAME_cb(u_int32_t pio)
+static portBASE_TYPE iso14443_rx_FRAME_cb(u_int32_t pio, portBASE_TYPE xTaskWoken)
 {
 	(void)pio;
 	if(PRINT_DEBUG) usb_print_string_f("°", 0);  // DEBUG OUTPUT
 	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_FRAME))
 		ssc_frame_started();
+	return xTaskWoken;
 }
 
 int iso14443_layer2a_init(u_int8_t enable_fast_receive)

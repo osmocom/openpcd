@@ -18,6 +18,8 @@
  *
  */
 
+#include "FreeRTOS.h"
+
 #include <errno.h>
 #include <sys/types.h>
 #include <lib_AT91SAM7.h>
@@ -73,7 +75,7 @@ volatile u_int32_t pio_irq_isr_value;
 
 /* low-level handler, used by Cstartup_app.S PIOA fast forcing and
  * by regular interrupt handler below */
-void __ramfunc __pio_irq_demux(u_int32_t pio)
+portBASE_TYPE __ramfunc __pio_irq_demux(u_int32_t pio, portBASE_TYPE xTaskWoken)
 {
 	u_int8_t send_usb = 0;
 	int i;
@@ -83,33 +85,36 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 
 	for (i = 0; i < NR_PIO; i++) {
 		if (pio & (1 << i) && pirqs.handlers[i])
-			pirqs.handlers[i](i);
+			xTaskWoken = pirqs.handlers[i](i, xTaskWoken);
 		if (pirqs.usbmask & (1 << i))
 			send_usb = 1;
 	}
 
 	AT91F_AIC_AcknowledgeIt();
 	//AT91F_AIC_ClearIt(AT91C_ID_PIOA);
+	return xTaskWoken;
 }
 
 /* regular interrupt handler, in case fast forcing for PIOA disabled */
 static void pio_irq_demux(void) __attribute__ ((naked));
 static void pio_irq_demux(void)
 {
-	portSAVE_CONTEXT();
+	portENTER_SWITCHING_ISR();
+	portBASE_TYPE xTaskWoken = pdFALSE;
 	u_int32_t pio = AT91F_PIO_GetInterruptStatus(AT91C_BASE_PIOA);
-	__pio_irq_demux(pio);
-	portRESTORE_CONTEXT();	
+	xTaskWoken = __pio_irq_demux(pio, xTaskWoken);
+	portEXIT_SWITCHING_ISR(xTaskWoken);
 }
 
 /* nearly regular interrupt handler, in case fast forcing for PIOA is enabled and the secondary irq hack used */
 static void pio_irq_demux_secondary(void) __attribute__ ((naked));
 static void pio_irq_demux_secondary(void)
 {
-	portSAVE_CONTEXT();
-	__pio_irq_demux(pio_irq_isr_value);
+	portENTER_SWITCHING_ISR();
+	portBASE_TYPE xTaskWoken = pdFALSE;
+	xTaskWoken = __pio_irq_demux(pio_irq_isr_value, xTaskWoken);
 	AT91F_AIC_ClearIt(PIO_SECONDARY_IRQ);
-	portRESTORE_CONTEXT();	
+	portEXIT_SWITCHING_ISR(xTaskWoken);
 }
 
 void pio_irq_enable(u_int32_t pio)
