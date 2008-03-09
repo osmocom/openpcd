@@ -120,6 +120,8 @@ ARM_OBJ = $(ARM_SRC:.c=.o)
 FREERTOS_THUMB_OBJ = $(FREERTOS_THUMB_SRC:.c=.o)
 DEMO_APP_THMUB_OBJ = $(DEMO_APP_THMUB_SRC:.c=.o)
 
+all: old-size openpicc.bin print-size
+
 openpicc.bin : openpicc.elf
 	$(OBJCOPY) openpicc.elf -O binary openpicc.bin
 
@@ -146,10 +148,18 @@ clean :
 	find -name '*.o' -exec rm \{\} \;
 	rm -f openpicc.bin openpicc.elf openpicc.map openpicc.asm config/compile.h
 	rm -rf $(DEPDIR)
+	rm -f old-size new-size
 
-.PHONY: config/compile.h
+.PHONY: config/compile.h print-size old-size all
 config/compile.h:
 	scripts/mkcompile_h > config/compile.h
 application/cmd.o: config/compile.h
+
+old-size:
+	arm-elf-size -B openpicc.elf > old-size || true
+
+print-size: openpicc.elf
+	arm-elf-size -B $< > new-size
+	((diff -u old-size new-size 2> /dev/null && cat new-size) || true) | egrep "(text|elf)"
 
 -include $(DEPDIR)/*.P
