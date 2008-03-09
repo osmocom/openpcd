@@ -12,6 +12,9 @@ typedef enum {
 	METRIC_MANAGEMENT_ERRORS_2, // Internal buffer management error type 2
 	METRIC_MANAGEMENT_ERRORS_3, // Internal buffer management error type 3
 	METRIC_LATE_TX_FRAMES,    // Frames that only reached the SSC when TF already was high
+	METRIC_RX_FRAMES,         // Frames received
+	METRIC_TX_FRAMES,         // Frames sent
+	METRIC_TX_ABORTED_FRAMES, // Aborted send frames
 	_MAX_METRICS,
 } ssc_metric;
 
@@ -26,6 +29,7 @@ typedef enum {
 	CALLBACK_RX_FRAME_ENDED,    // *data is ssc_dma_rx_buffer *buffer
 	CALLBACK_TX_FRAME_BEGIN,
 	CALLBACK_TX_FRAME_ENDED,
+	CALLBACK_TX_FRAME_ABORTED,
 	CALLBACK_SETUP,             // *data is ssh_handle_t *sh
 	CALLBACK_TEARDOWN,          // *data is ssh_handle_t *sh
 } ssc_callback_reason;
@@ -44,6 +48,9 @@ extern ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode 
 
 extern int ssc_recv(ssc_handle_t* sh, ssc_dma_rx_buffer_t* *buffer, unsigned int timeout);
 extern int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t* buffer);
+extern int ssc_send_abort(ssc_handle_t* sh);
+
+extern void ssc_hard_reset(ssc_handle_t *sh);
 
 extern int ssc_close(ssc_handle_t* sh);
 

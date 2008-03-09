@@ -79,6 +79,9 @@ static struct {
 		[METRIC_MANAGEMENT_ERRORS_2] = {METRIC_MANAGEMENT_ERRORS_2, "Internal buffer management error type 2", 0},
 		[METRIC_MANAGEMENT_ERRORS_3] = {METRIC_MANAGEMENT_ERRORS_3, "Internal buffer management error type 3", 0},
 		[METRIC_LATE_TX_FRAMES]    = {METRIC_LATE_TX_FRAMES, "Late Tx frames", 0},
+		[METRIC_RX_FRAMES]         = {METRIC_RX_FRAMES, "Rx frames", 0},
+		[METRIC_TX_FRAMES]         = {METRIC_TX_FRAMES, "Tx frames", 0},
+		[METRIC_TX_ABORTED_FRAMES] = {METRIC_TX_ABORTED_FRAMES, "Aborted Tx frames", 0},
 };
 
 static ssc_dma_rx_buffer_t _rx_buffers[SSC_DMA_BUFFER_COUNT];
@@ -186,29 +189,60 @@ void ssc_frame_started(void)
 	_ssc_rx_irq(_ssc.ssc->SSC_SR, 1, pdFALSE);
 }
 
+static void __ramfunc _ssc_tx_end(ssc_handle_t *sh, int is_an_abort)
+{
+	AT91F_PDC_DisableTx(sh->pdc);
+	AT91F_SSC_DisableTx(sh->ssc);
+	sh->ssc->SSC_IDR = SSC_TX_IRQ_MASK;
+	
+	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, AT91C_PA15_TF, 0);
+	usb_print_string_f(">",0);
+	
+	AT91F_PDC_SetTx(sh->pdc, 0, 0);
+	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);
+
+	if(sh->tx_buffer) {
+		sh->tx_buffer->state = FREE;
+		sh->tx_running = 0;
+	}
+	
+	if(sh->rx_running) {
+		/* Receiver has been suspended by the pending transmission. Restart it. */
+		AT91F_SSC_EnableRx(sh->ssc);
+	}
+	
+	if(sh->callback) {
+		if(is_an_abort)
+			sh->callback(CALLBACK_TX_FRAME_ABORTED, sh->tx_buffer);
+		else
+			sh->callback(CALLBACK_TX_FRAME_ENDED, sh->tx_buffer);
+	}
+		
+	sh->tx_buffer = NULL;
+}
+
 static int __ramfunc _ssc_tx_irq(u_int32_t sr, portBASE_TYPE task_woken)
 {
 	ssc_handle_t *sh = &_ssc;
 	
+	if( sr & AT91C_SSC_TXSYN ) {
+		/* Tx starting, hardwire TF pin to high */
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, AT91C_PA15_TF);
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, AT91C_PA15_TF);
+		usb_print_string_f("<",0);
+		
+		/* Also set SSC mode to continous 
+		 * FIXME BUG: This will somehow drop some samples or something on the SSC*/
+		sh->ssc->SSC_TCMR = (sh->ssc->SSC_TCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
+
+		if(sh->callback) 
+			sh->callback(CALLBACK_TX_FRAME_BEGIN, NULL);
+	}
+	
 	if( sr & AT91C_SSC_TXEMPTY ) {
 		/* Tx has ended */
-		AT91F_PDC_DisableTx(sh->pdc);
-		AT91F_SSC_DisableTx(sh->ssc);
-		sh->ssc->SSC_IDR = SSC_TX_IRQ_MASK;
-		
-		if(sh->tx_buffer) {
-			sh->tx_buffer->state = FREE;
-			sh->tx_running = 0;
-		}
-		
-		if(sh->rx_running) {
-			/* Receiver has been suspended by the pending transmission. Restart it. */
-			AT91F_SSC_EnableRx(sh->ssc);
-		}
-		
-		if(sh->callback) 
-			sh->callback(CALLBACK_TX_FRAME_ENDED, sh->tx_buffer);
-		sh->tx_buffer = NULL;
+		ssc_metrics[METRIC_TX_FRAMES].value++;
+		_ssc_tx_end(sh, 0);
 	}
 	
 	return task_woken;
@@ -460,6 +494,7 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 			    OPENPICC_PIO_FRAME,
 			    0);
 	
+	/* FIXME: This is handled by tc_cdiv_sync and shouldn't be necessary */
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC_PIO_SSC_DATA_CONTROL);
 	
@@ -571,12 +606,11 @@ ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode, s
 		if(!sh->rx_enabled) {
 			ssc_close(sh);
 			return NULL;
-		} else { 
-			_ssc_rx_mode_set(sh, mode);
 		}
 	}
 	
 	if(sh->rx_enabled || sh->tx_enabled) {
+		_ssc_rx_mode_set(sh, mode);
 		AT91F_AIC_ConfigureIt(AT91C_ID_SSC,
 				      OPENPICC_IRQ_PRIO_SSC,
 				      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&ssc_irq);
@@ -646,7 +680,7 @@ int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
 	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);
 	buffer->state = PENDING;
 
-	sh->ssc->SSC_IER = AT91C_SSC_TXEMPTY;
+	sh->ssc->SSC_IER = AT91C_SSC_TXEMPTY | AT91C_SSC_TXSYN;
 	/* Enable DMA */
 	sh->ssc->SSC_THR = 0;
 	AT91F_PDC_EnableTx(sh->pdc);
@@ -660,6 +694,18 @@ int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
 	if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_SSC_TF)) {
 		ssc_metrics[METRIC_LATE_TX_FRAMES].value++;
 	}
+	
+	return 0;
+}
+
+int ssc_send_abort(ssc_handle_t* sh)
+{
+	if(!sh) return -EINVAL;
+	if(!sh->tx_enabled) return -EINVAL;
+	if(!sh->tx_running) return -EINVAL;
+	
+	ssc_metrics[METRIC_TX_ABORTED_FRAMES].value++;
+	_ssc_tx_end(sh, 1);
 	
 	return 0;
 }
@@ -681,6 +727,48 @@ int ssc_close(ssc_handle_t* sh)
 	_ssc_unregister_callback(sh, NULL);
 	return 0;
 }
+
+/* Hard reset the SSC to flush all buffers and whatnot. Call with IRQs disabled */ 
+void ssc_hard_reset(ssc_handle_t *sh)
+{
+	if(sh == NULL) return;
+	if(!sh->rx_enabled && !sh->tx_enabled) return;
+	
+	u_int32_t
+		cmr = sh->ssc->SSC_CMR,
+		rcmr = sh->ssc->SSC_RCMR,
+		rfmr = sh->ssc->SSC_RFMR,
+		tcmr = sh->ssc->SSC_TCMR,
+		tfmr = sh->ssc->SSC_TFMR,
+		rc0r = sh->ssc->SSC_RC0R,
+		rc1r = sh->ssc->SSC_RC1R,
+		sr = sh->ssc->SSC_SR,
+		imr = sh->ssc->SSC_IMR;
+	
+	sh->ssc->SSC_CR = AT91C_SSC_SWRST;
+	
+	sh->ssc->SSC_CMR = cmr;
+	sh->ssc->SSC_RCMR = rcmr;
+	sh->ssc->SSC_RFMR = rfmr;
+	sh->ssc->SSC_TCMR = tcmr;
+	sh->ssc->SSC_TFMR = tfmr;
+	sh->ssc->SSC_RC0R = rc0r;
+	sh->ssc->SSC_RC1R = rc1r;
+	
+	sh->ssc->SSC_IDR = ~imr;
+	sh->ssc->SSC_IER = imr;
+	
+	if(sr & AT91C_SSC_RXEN) 
+		AT91F_SSC_EnableRx(sh->ssc);
+	else
+		AT91F_SSC_DisableRx(sh->ssc);
+	
+	if(sr & AT91C_SSC_TXEN) 
+		AT91F_SSC_EnableTx(sh->ssc);
+	else
+		AT91F_SSC_DisableTx(sh->ssc);
+}
+
 
 int ssc_get_metric(ssc_metric metric, char **description, int *value)
 {

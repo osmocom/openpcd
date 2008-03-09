@@ -155,6 +155,16 @@ int iso14443_transmit(ssc_dma_tx_buffer_t *buffer, unsigned int fdt, u_int8_t as
 	return 0;
 }
 
+int iso14443_tx_abort(void)
+{
+	int ret = 0;
+	taskENTER_CRITICAL();
+	ret = ssc_send_abort(ssc);
+	tx_pending = 0;
+	taskEXIT_CRITICAL();
+	return ret;
+}
+
 int iso14443_wait_for_carrier(unsigned int timeout)
 {
 	(void)timeout;

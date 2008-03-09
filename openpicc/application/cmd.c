@@ -30,7 +30,7 @@ xTaskHandle xCmdRecvUsbTask;
 xTaskHandle xFieldMeterTask;
 xSemaphoreHandle xFieldMeterMutex;
 
-volatile int fdt_offset=-20;
+volatile int fdt_offset=-20  -16; // -16 for the SSC Tx set to continous bug
 volatile int load_mod_level_set=3;
 
 #if ( configUSE_TRACE_FACILITY == 1 )
