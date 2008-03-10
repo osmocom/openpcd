@@ -36,22 +36,6 @@
 #define DEBUGP (void)
 #define printf usb_print_string
 
-struct diffmiller_state {
-	int initialized, pauses_count;
-	iso14443_frame *frame;
-	u_int32_t counter;
-	u_int16_t byte,crc;
-	u_int8_t parity;
-	struct {
-		u_int8_t in_frame:1;
-		u_int8_t frame_finished:1;
-		u_int8_t overflow:1;
-		u_int8_t error:1;
-	} flags;
-};
-
-struct diffmiller_state _state;
-
 /*
  * Decoding Methodology: We'll only see the edges for the start of modulation pauses and not
  * all symbols generate modulation pauses at all. Two phases:
@@ -108,26 +92,24 @@ struct diffmiller_state _state;
 
 enum symbol {NO_SYM=0, sym_x, sym_y, sym_z};
 enum bit { BIT_ERROR, BIT_SOF, BIT_0, BIT_1, BIT_EOF };
-enum bit_length { out_of_range=0, len_3=1, len_5=2, len_7=3, len_9_or_greater=4 };
-const char *bit_length_descriptions[] = {
-		[out_of_range] = "OOR",
-		[len_3] = "3/4",
-		[len_5] = "5/4",
-		[len_7] = "7/4",
-		[len_9_or_greater] = ">=9/4",
-};
-#define NIENTE {NO_SYM, NO_SYM}
 
-struct decoder_table_entry { enum symbol first, second; };
-const struct decoder_table_entry decoder_table[][5] = {
-		         /* out_of_range len_3            len_5            len_7            len_9_or_greater*/
-		[NO_SYM] = {NIENTE,      {sym_z, sym_z},  {sym_z, sym_x},  },
-		[sym_x]  = {NIENTE,      {sym_x, NO_SYM}, {sym_y, sym_z},  {sym_y, sym_x},  {sym_y, sym_y}, },
-		[sym_y]  = {NIENTE,      {sym_z, sym_z},  {sym_z, sym_x},  },
-		[sym_z]  = {NIENTE,      {sym_z, NO_SYM}, {sym_x, NO_SYM}, {sym_y, NO_SYM}, {sym_y, NO_SYM}, },
+struct diffmiller_state {
+	int initialized, pauses_count;
+	enum symbol old_state;
+	enum bit last_bit;
+	iso14443_frame *frame;
+	u_int32_t counter;
+	u_int16_t byte,crc;
+	u_int8_t parity;
+	struct {
+		u_int8_t in_frame:1;
+		u_int8_t frame_finished:1;
+		u_int8_t overflow:1;
+		u_int8_t error:1;
+	} flags;
 };
 
-int print_bits = 0;
+struct diffmiller_state _state;
 
 inline void start_frame(struct diffmiller_state * const state)
 {
@@ -141,8 +123,7 @@ inline void start_frame(struct diffmiller_state * const state)
 	state->flags.in_frame = 1;
 	
 	//memset(state->frame, 0, sizeof(*state->frame));
-	//memset(state->frame, 0, (u_int32_t)&(((iso14443_frame*)0)->data) );
-	memset(state->frame, 0, 26 );
+	memset(state->frame, 0, (u_int32_t)&(((iso14443_frame*)0)->data) );
 	performance_set_checkpoint("start_frame after memset");
 }
 
@@ -187,34 +168,8 @@ static inline void end_frame(struct diffmiller_state * const state)
 	}
 }
 
-static inline void Miller_Bit(struct diffmiller_state * const state, const enum bit bit)
+static inline void Miller_Bit(struct diffmiller_state * const state, const int bit_value)
 {
-	switch(bit) {
-	case BIT_SOF:
-		if(print_bits) printf("SOF");
-		start_frame(state);
-		break;
-	case BIT_0:
-		if(print_bits) printf(" 0");
-		break;
-	case BIT_1:
-		if(print_bits) printf(" 1");
-		break;
-	case BIT_EOF:
-		if(print_bits) printf(" EOF\n");
-		end_frame(state);
-		break;
-	default:
-		if(print_bits) printf(" ERROR\n");
-		state->flags.error = 1;
-		end_frame(state);
-		break;
-	}
-	
-	int bit_value;
-	if(bit==BIT_0) bit_value = 0;
-	else if(bit==BIT_1) bit_value = 1;
-	else return;
 	
     if(state->counter<8) {
     	state->byte=state->byte | (bit_value<<state->counter);
@@ -239,82 +194,64 @@ static inline void Miller_Bit(struct diffmiller_state * const state, const enum 
     }
 }
 
-static inline void Miller_Symbol(struct diffmiller_state * const state, const enum symbol symbol)
-{
-	static enum bit last_bit = BIT_ERROR;
-	static int in_frame = 0;
-	enum bit bit = BIT_ERROR;
-	
-	//DEBUGP("%c ", 'X'+(symbol-1));
-	if(!in_frame) {
-		if(symbol == sym_z)
-			bit = BIT_SOF;
-		else
-			bit = BIT_ERROR;
-	} else {
-		switch(symbol) {
-		case sym_y:
-			if(last_bit == BIT_0)
-				bit = BIT_EOF;
-			else 
-				bit = BIT_0;
-			break;
-		case sym_x:
-			bit = BIT_1;
-			break;
-		case sym_z:
-			bit = BIT_0;
-			break;
-		default:
-			bit = BIT_ERROR;
-			break;
-		}	
-	}
-	
-	if(bit != BIT_EOF && last_bit == BIT_0)
-		Miller_Bit(state, last_bit);
-	if(bit != BIT_0) Miller_Bit(state, bit);
-	
-	last_bit = bit;
-	if(bit==BIT_SOF) {
-		in_frame = 1;
-		last_bit = BIT_ERROR;
-	} else if(bit==BIT_EOF || bit==BIT_ERROR) {
-		in_frame = 0;
-	}
-	
-}
+#define PRINT_BIT(a) if(0){(void)a;}
+//#define PRINT_BIT(a) usb_print_string(a)
 
-static inline void Miller_Edge(struct diffmiller_state * const state, const unsigned int delta)
-{
-	static enum symbol old_state = NO_SYM;
-	enum bit_length length = out_of_range;
+#define DO_BIT_0 { \
+	Miller_Bit(state, 0); \
+	PRINT_BIT(" 0"); \
+	}
 
-	if( ALMOST_EQUAL(delta, BIT_LEN_3) ) {
-		length = len_3;
-	} else if( ALMOST_EQUAL(delta, BIT_LEN_5) ) {
-		length = len_5;
-	} else if( ALMOST_EQUAL(delta, BIT_LEN_7) ) {
-		length = len_7;
-	} else if( ALMOST_GREATER_THAN_OR_EQUAL(delta, BIT_LEN_9)) {
-		length = len_9_or_greater;
+#define DO_BIT_1 { \
+	Miller_Bit(state, 1); \
+	PRINT_BIT(" 1"); \
 	}
-	
-	const struct decoder_table_entry *entry;
-	entry = &decoder_table[old_state][length];
-	//DEBUGP(" %c{%i}[%s]", 'X'-sym_x+old_state, delta, bit_length_descriptions[length]);
-	if(entry->first != NO_SYM) {
-		//DEBUGP("%c ", 'X'-sym_x+entry->first);
-		Miller_Symbol(state, old_state = entry->first);
-	} else {
-		DEBUGP("! ");
+
+#define DO_SYMBOL_X \
+	if(!in_frame) { \
+		if(last_bit == BIT_0) DO_BIT_0; \
+		error = 1; \
+		end_frame(state); \
+		PRINT_BIT(" ERROR\n"); \
+		last_bit = BIT_ERROR; \
+		in_frame = 0; \
+	} else { \
+		if(last_bit == BIT_0) DO_BIT_0; \
+		DO_BIT_1; \
+		last_bit = BIT_1; \
 	}
-	
-	if(entry->second != NO_SYM) {
-		//DEBUGP("%c ", 'X'-sym_x+entry->second);
-		Miller_Symbol(state, old_state = entry->second);
+
+#define DO_SYMBOL_Y \
+	if(!in_frame) { \
+		if(last_bit == BIT_0) DO_BIT_0; \
+		error = 1; \
+		end_frame(state); \
+		PRINT_BIT(" ERROR\n"); \
+		last_bit = BIT_ERROR; \
+		in_frame = 0; \
+	} else { \
+		if(last_bit == BIT_0) { \
+			end_frame(state); \
+			PRINT_BIT(" EOF\n"); \
+			last_bit = BIT_EOF; \
+			in_frame = 0; \
+		} else { \
+			last_bit = BIT_0; \
+		} \
 	}
-}
+
+#define DO_SYMBOL_Z \
+	if(!in_frame) { \
+		if(last_bit == BIT_0) DO_BIT_0; \
+		start_frame(state); \
+		PRINT_BIT("SOF"); \
+		in_frame = 1; \
+		last_bit = BIT_ERROR; \
+		last_bit = BIT_SOF; \
+	} else { \
+		if(last_bit == BIT_0) DO_BIT_0; \
+		last_bit = BIT_0; \
+	}
 
 
 int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_frame * const frame, 
@@ -324,18 +261,78 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 	if(state->frame != NULL && state->frame != frame) return -EINVAL;
 	state->frame = frame;
 	
+	enum symbol old_state = state->old_state;
+	enum bit last_bit = state->last_bit;
+	int in_frame = state->flags.in_frame;
+	int error = state->flags.error;
+	
 	for(; *offset < buflen; ) {
+		int delta;
 		if(state->pauses_count)
-			Miller_Edge(state, buffer[(*offset)++] - PAUSE_LEN);
+			delta = buffer[(*offset)++] - PAUSE_LEN;
 		else
-			Miller_Edge(state, buffer[(*offset)++]);
+			delta = buffer[(*offset)++];
+
+		switch(old_state) {
+		case sym_x:
+			if( ALMOST_EQUAL(delta, BIT_LEN_3) ) {
+				DO_SYMBOL_X;
+				old_state = sym_x;
+			} else if( ALMOST_EQUAL(delta, BIT_LEN_5) ) {
+				DO_SYMBOL_Y;
+				DO_SYMBOL_Z;
+				old_state = sym_z;
+			} else if( ALMOST_EQUAL(delta, BIT_LEN_7) ) {
+				DO_SYMBOL_Y;
+				DO_SYMBOL_X;
+				old_state = sym_x;
+			} else if( ALMOST_GREATER_THAN_OR_EQUAL(delta, BIT_LEN_9)) {
+				DO_SYMBOL_Y;
+				DO_SYMBOL_Y;
+				old_state = sym_y;
+			}
+			break;
+		case NO_SYM: /* Fall-Through */
+		case sym_y:
+			if( ALMOST_EQUAL(delta, BIT_LEN_3) ) {
+				DO_SYMBOL_Z;
+				DO_SYMBOL_Z;
+				old_state = sym_z;
+			} else if( ALMOST_EQUAL(delta, BIT_LEN_5) ) {
+				DO_SYMBOL_Z;
+				DO_SYMBOL_X;
+				old_state = sym_x;
+			} 
+			break;
+		case sym_z:
+			if( ALMOST_EQUAL(delta, BIT_LEN_3) ) {
+				DO_SYMBOL_Z;
+				old_state = sym_z;
+			} else if( ALMOST_EQUAL(delta, BIT_LEN_5) ) {
+				DO_SYMBOL_X;
+				old_state = sym_x;
+			} else if( ALMOST_GREATER_THAN_OR_EQUAL(delta, BIT_LEN_7)) {
+				DO_SYMBOL_Y;
+				old_state = sym_y;
+			}
+			break;
+		}
 		
 		if(state->flags.frame_finished)  {
 			state->flags.frame_finished = 0;
+			state->old_state = old_state;
+			state->last_bit = last_bit;
+			state->flags.in_frame = in_frame;
+			state->flags.error = error;
 			performance_set_checkpoint("frame finished");
 			return 0;
 		}
 	}
+	
+	state->old_state = old_state;
+	state->last_bit = last_bit;
+	state->flags.in_frame = in_frame;
+	state->flags.error = error;
 	
 	return -EBUSY;
 }

@@ -191,6 +191,11 @@ static void timing_loop(void)
 		performance_set_checkpoint("end of first buffer");
 		handle_buffer(testdata2, sizeof(testdata2)/sizeof(testdata2[0]));
 		performance_stop_report();
+		DumpStringToUSB("Produced frame of "); DumpUIntToUSB(rx_frame.numbytes);
+		DumpStringToUSB(" bytes and "); DumpUIntToUSB(rx_frame.numbits);
+		DumpStringToUSB(" bits: "); DumpBufferToUSB((char*)rx_frame.data, rx_frame.numbytes + (rx_frame.numbits+7)/8 );
+		DumpStringToUSB(" CRC "); if(rx_frame.parameters.a.crc) DumpStringToUSB("OK"); else DumpStringToUSB("ERROR");
+		DumpStringToUSB("\n\r");
 	}
 }
 
