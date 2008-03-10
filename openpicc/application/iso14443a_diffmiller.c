@@ -31,6 +31,8 @@
 #include "iso14443a_diffmiller.h"
 #include "usb_print.h"
 
+#include "performance.h"
+
 #define DEBUGP (void)
 #define printf usb_print_string
 
@@ -125,7 +127,7 @@ const struct decoder_table_entry decoder_table[][5] = {
 		[sym_z]  = {NIENTE,      {sym_z, NO_SYM}, {sym_x, NO_SYM}, {sym_y, NO_SYM}, {sym_y, NO_SYM}, },
 };
 
-int print_bits = 1;
+int print_bits = 0;
 
 inline void start_frame(struct diffmiller_state * const state)
 {
@@ -134,10 +136,14 @@ inline void start_frame(struct diffmiller_state * const state)
 	state->parity=0;
 	state->crc=0x6363;
 	
+	performance_set_checkpoint("start_frame before memset");
 	memset(&state->flags, 0, sizeof(state->flags));
 	state->flags.in_frame = 1;
 	
-	memset(state->frame, 0, sizeof(*state->frame));
+	//memset(state->frame, 0, sizeof(*state->frame));
+	//memset(state->frame, 0, (u_int32_t)&(((iso14443_frame*)0)->data) );
+	memset(state->frame, 0, 26 );
+	performance_set_checkpoint("start_frame after memset");
 }
 
 static inline void append_to_frame(struct diffmiller_state *const state,
@@ -165,7 +171,7 @@ static inline void append_to_frame(struct diffmiller_state *const state,
 }
 
 
-static void end_frame(struct diffmiller_state * const state)
+static inline void end_frame(struct diffmiller_state * const state)
 {
 	if(state->frame != NULL) {
 		if(state->counter > 0) {
@@ -181,7 +187,7 @@ static void end_frame(struct diffmiller_state * const state)
 	}
 }
 
-static void Miller_Bit(struct diffmiller_state * const state, const enum bit bit)
+static inline void Miller_Bit(struct diffmiller_state * const state, const enum bit bit)
 {
 	switch(bit) {
 	case BIT_SOF:
@@ -233,7 +239,7 @@ static void Miller_Bit(struct diffmiller_state * const state, const enum bit bit
     }
 }
 
-static void Miller_Symbol(struct diffmiller_state * const state, const enum symbol symbol)
+static inline void Miller_Symbol(struct diffmiller_state * const state, const enum symbol symbol)
 {
 	static enum bit last_bit = BIT_ERROR;
 	static int in_frame = 0;
@@ -279,7 +285,7 @@ static void Miller_Symbol(struct diffmiller_state * const state, const enum symb
 	
 }
 
-static void Miller_Edge(struct diffmiller_state * const state, const unsigned int delta)
+static inline void Miller_Edge(struct diffmiller_state * const state, const unsigned int delta)
 {
 	static enum symbol old_state = NO_SYM;
 	enum bit_length length = out_of_range;
@@ -326,6 +332,7 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 		
 		if(state->flags.frame_finished)  {
 			state->flags.frame_finished = 0;
+			performance_set_checkpoint("frame finished");
 			return 0;
 		}
 	}

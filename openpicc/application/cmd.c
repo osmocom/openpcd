@@ -68,7 +68,7 @@ void DumpUIntToUSB(unsigned int data)
 }
 /**********************************************************************/
 
-void DumpStringToUSB(char* text)
+void DumpStringToUSB(const char* text)
 {
     usb_print_string(text);
 }

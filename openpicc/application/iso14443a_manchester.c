@@ -59,7 +59,7 @@ enum parity {
 	PARITY_0, PARITY_1 /* Set fixed parity */
 };
 
-static void manchester_enc_byte(u_int16_t **s16, u_int8_t data, enum parity parity)
+static inline void manchester_enc_byte(u_int16_t **s16, const u_int8_t data, const enum parity parity)
 {
 	int i;
 	u_int8_t sum_1 = 0;

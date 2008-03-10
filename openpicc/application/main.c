@@ -52,6 +52,7 @@
 #include "iso14443a_pretender.h"
 #include "decoder.h"
 #include "tc_sniffer.h"
+#include "performance.h"
 
 static inline int detect_board(void)
 {
@@ -197,6 +198,7 @@ int main (void)
     prvSetupHardware ();
     usb_print_init();
     decoder_init();
+    performance_init();
     
     pio_irq_init();
     

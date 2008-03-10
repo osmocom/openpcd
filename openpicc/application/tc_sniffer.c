@@ -30,6 +30,7 @@
 #include <FreeRTOS.h>
 #include <openpicc.h>
 #include <task.h>
+#include <semphr.h>
 #include <string.h>
 
 #include <USB-CDC.h>
@@ -43,6 +44,7 @@
 #include "pio_irq.h"
 #include "led.h"
 #include "clock_switch.h"
+#include "performance.h"
 
 #include "iso14443a_diffmiller.h"
 
@@ -50,6 +52,7 @@
  * Strategy: Double buffering.
  */
 
+static xSemaphoreHandle data_semaphore;
 struct diffmiller_state *decoder;
 iso14443_frame rx_frame;
 
@@ -71,32 +74,26 @@ enum { NONE, REQUEST_START, REQUEST_STOP } request_change = REQUEST_START;
 
 #define MIN(a, b) ((a)>(b)?(b):(a))
 static int overruns = 0; 
-void flush_buffer(fiq_buffer_t *buffer)
+static void handle_buffer(u_int32_t data[], unsigned int count)
 {
-	/* Write all data from the given buffer out, then zero the count */
-	if(buffer->count > 0) {
-		if(buffer->count >= BUFSIZE) {
-			DumpStringToUSB("Warning: Possible buffer overrun detected\n\r");
-			overruns++;
-		}
-		buffer->count = MIN(buffer->count, BUFSIZE);
 #ifdef USE_BINARY_PROTOCOL
-		vUSBSendBuffer_blocking((unsigned char*)(&(buffer->data[0])), 0, MIN(buffer->count,BUFSIZE)*4, WAIT_TICKS);
-		if(buffer->count >= BUFSIZE)
+		vUSBSendBuffer_blocking((unsigned char*)(&data[0]), 0, MIN(count,BUFSIZE)*4, WAIT_TICKS);
+		if(count >= BUFSIZE)
 			vUSBSendBuffer_blocking((unsigned char*)"////", 0, 4, WAIT_TICKS);
 		else
 			vUSBSendBuffer_blocking((unsigned char*)"____", 0, 4, WAIT_TICKS);
 #elif defined(PRINT_TIMES)
 		unsigned int i=0;
-		for(i=0; i<buffer->count; i++) {
-			DumpUIntToUSB(buffer->data[i]);
+		for(i=0; i<count; i++) {
+			DumpUIntToUSB(data[i]);
 			DumpStringToUSB(" ");
 		}
 		DumpStringToUSB("\n\r");
 #else
 		unsigned int offset = 0;
-		while(offset < buffer->count) {
-			int ret = iso14443a_decode_diffmiller(decoder, &rx_frame, buffer->data, &offset, buffer->count);
+		while(offset < count) {
+			int ret = iso14443a_decode_diffmiller(decoder, &rx_frame, data, &offset, count);
+			/*
 			DumpStringToUSB("\n\r");
 			if(ret < 0) {
 				DumpStringToUSB("-");
@@ -105,7 +102,7 @@ void flush_buffer(fiq_buffer_t *buffer)
 				DumpUIntToUSB(ret);
 			}
 			DumpStringToUSB(" ");
-			DumpUIntToUSB(offset); DumpStringToUSB(" "); DumpUIntToUSB(buffer->count); DumpStringToUSB(" "); DumpUIntToUSB(overruns);
+			DumpUIntToUSB(offset); DumpStringToUSB(" "); DumpUIntToUSB(count); DumpStringToUSB(" "); DumpUIntToUSB(overruns);
 			DumpStringToUSB("\n\r");
 			if(ret >= 0) {
 				DumpStringToUSB("Frame finished, ");
@@ -118,9 +115,22 @@ void flush_buffer(fiq_buffer_t *buffer)
 				case CRC_ERROR: DumpStringToUSB("CRC ERROR\n\r"); break;
 				case CRC_UNCALCULATED: DumpStringToUSB("CRC UNCALCULATED\n\r"); break;
 				}
-			}
+			}*/
+			(void)ret;
 		}
 #endif
+}
+
+void flush_buffer(fiq_buffer_t *buffer)
+{
+	/* Write all data from the given buffer out, then zero the count */
+	if(buffer->count > 0) {
+		if(buffer->count >= BUFSIZE) {
+			DumpStringToUSB("Warning: Possible buffer overrun detected\n\r");
+			overruns++;
+		}
+		buffer->count = MIN(buffer->count, BUFSIZE);
+		handle_buffer(buffer->data, buffer->count);
 		buffer->count = 0;
 	}
 }
@@ -133,10 +143,60 @@ void start_stop_sniffing(void)
 		request_change = REQUEST_START;
 }
 
+static portBASE_TYPE tc_sniffer_irq(u_int32_t pio, portBASE_TYPE xTaskWoken)
+{
+	(void)pio;
+	usb_print_string_f("?", 0);
+	xTaskWoken = xSemaphoreGiveFromISR(data_semaphore, xTaskWoken);
+	return xTaskWoken;
+}
+
+static void main_loop(void)
+{
+	int current = 0;
+	
+	while(1) {
+		/* Main loop of the sniffer */
+		//vTaskDelay(1000 * portTICK_RATE_MS);
+		
+			u_int32_t start = *AT91C_TC2_CV;
+			int next = (current+1)%(sizeof(fiq_buffers)/sizeof(fiq_buffers[0]));
+			flush_buffer( &fiq_buffers[next] );
+			/* The buffer designated by next is now empty, give it to the fiq,
+			 * we'll just guess that this write is atomic */ 
+			tc_sniffer_next_buffer_for_fiq = &fiq_buffers[current=next];
+			u_int32_t stop = *AT91C_TC2_CV;
+			
+			DumpStringToUSB("{"); DumpUIntToUSB(start); DumpStringToUSB(":"); DumpUIntToUSB(stop); DumpStringToUSB("}");
+			if(*AT91C_TC2_CV > 2*128) {
+				u_int32_t dummybuf[1] = {*AT91C_TC2_CV};
+				handle_buffer(dummybuf, 1);
+				
+				usb_print_string_f("[", 0);
+				while(xSemaphoreTake(data_semaphore, portMAX_DELAY) == pdFALSE) ;
+				usb_print_string_f("]", 0);
+			}
+	}	
+}
+
+static u_int32_t testdata[] = {65535, 75, 138, 75, 138, 139, 139, 300};
+static u_int32_t testdata2[] = {65535, 80, 144, 208, 208, 208, 80, 80, 208, 208, 208, 208, 80, 144, 80, 144, 144, 80, 144, 208, 81, 80, 80, 81, 80, 81, 209, 209, 209, 80, 81, 145, 81, 300};
+
+static void timing_loop(void)
+{
+	while(1) {
+		vTaskDelay(5000*portTICK_RATE_MS);
+		performance_start();
+		handle_buffer(testdata, sizeof(testdata)/sizeof(testdata[0]));
+		performance_set_checkpoint("end of first buffer");
+		handle_buffer(testdata2, sizeof(testdata2)/sizeof(testdata2[0]));
+		performance_stop_report();
+	}
+}
+
 void tc_sniffer (void *pvParameters)
 {
 	(void)pvParameters;
-	
 	/* Disable load modulation circuitry
 	 * (Must be done explicitly, because the default state is pull-up high, leading
 	 * to a constant modulation output which prevents reception. I've been bitten by
@@ -172,46 +232,17 @@ void tc_sniffer (void *pvParameters)
 	}
 	
 	if(!decoder) vLedHaltBlinking(1);
+	vSemaphoreCreateBinary(data_semaphore);
+	if(data_semaphore == NULL) vLedHaltBlinking(3);
 	
 	// The change interrupt is going to be handled by the FIQ 
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, OPENPICC_SSC_DATA);
+	if( pio_irq_register(OPENPICC_SSC_DATA, &tc_sniffer_irq) < 0) 
+		vLedHaltBlinking(2);
 	pio_irq_enable(OPENPICC_SSC_DATA);
-	
-	int current = 0;
-	while(1) {
-		/* Main loop of the sniffer */
-		
-		if(currently_sniffing) {
-			int next = (current+1)%(sizeof(fiq_buffers)/sizeof(fiq_buffers[0]));
-			flush_buffer( &fiq_buffers[next] );
-			/* The buffer designated by next is now empty, give it to the fiq,
-			 * we'll just guess that this write is atomic */ 
-			tc_sniffer_next_buffer_for_fiq = &fiq_buffers[current=next];
 
-			if(request_change == REQUEST_STOP) {
-				currently_sniffing = 0;
-				request_change = NONE;
-				
-				tc_sniffer_next_buffer_for_fiq = 0;
-				memset(fiq_buffers, 0, sizeof(fiq_buffers));
-				current = 0;
-#ifdef USE_BINARY_PROTOCOL
-				vUSBSendBuffer_blocking((unsigned char *)"----", 0, 4, WAIT_TICKS);
-				usb_print_set_force_silence(0);
-#endif
-			} else vTaskDelay(2* portTICK_RATE_MS);
-		} else {
-			// Do nothing, wait longer
-			
-			if(request_change == REQUEST_START) {
-				// Prevent usb_print code from barging in
-#ifdef USE_BINARY_PROTOCOL
-				usb_print_set_force_silence(1);
-				vUSBSendBuffer_blocking((unsigned char *)"----", 0, 4, WAIT_TICKS);
-#endif
-				currently_sniffing = 1;
-				request_change = NONE;
-			} else vTaskDelay(100 * portTICK_RATE_MS);
-		}
-	}
+	//main_loop();
+	timing_loop();
+	
+	(void)main_loop; (void)timing_loop;
 }

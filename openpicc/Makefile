@@ -98,7 +98,7 @@ ARM_SRC= \
   application/decoder_miller.c \
   application/decoder_nrzl.c \
   application/decoder.c \
-  application/tc_sniffer.c \
+  application/performance.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \
@@ -109,7 +109,8 @@ ARM_SRC= \
   os/core/MemMang/heap_2.c \
   os/usb/USB-CDC.c \
   os/usb/USBIsr.c \
-  application/iso14443a_pretender.c \
+  application/tc_sniffer.c \
+#  application/iso14443a_pretender.c \
 #  application/iso14443_sniffer.c \
 #  application/iso14443_layer3a.c
 
