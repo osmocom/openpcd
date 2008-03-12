@@ -478,6 +478,7 @@ out:
 	taskEXIT_CRITICAL();
 }
 
+#if SSC_DMA_BUFFER_COUNT > 0
 static inline int _init_ssc_rx(ssc_handle_t *sh)
 {
 	tc_cdiv_sync_init();
@@ -524,6 +525,7 @@ static inline int _init_ssc_rx(ssc_handle_t *sh)
 out_fail_queue:
 	return 0;
 }
+#endif
 
 static inline int _init_ssc_tx(ssc_handle_t *sh)
 {
@@ -602,11 +604,16 @@ ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode, s
 	}
 	
 	if(init_rx) {
+#if SSC_DMA_BUFFER_COUNT > 0
 		sh->rx_enabled = _init_ssc_rx(sh);
 		if(!sh->rx_enabled) {
 			ssc_close(sh);
 			return NULL;
 		}
+#else
+		ssc_close(sh);
+		return NULL;
+#endif
 	}
 	
 	if(sh->rx_enabled || sh->tx_enabled) {

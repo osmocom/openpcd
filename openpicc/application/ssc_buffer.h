@@ -4,7 +4,7 @@
 #include "iso14443.h"
 
 #define SSC_RX_BUFFER_SIZE_AS_UINT8 2048
-#define SSC_DMA_BUFFER_COUNT 4
+#define SSC_DMA_BUFFER_COUNT 0
 
 /* in bytes, used for the sample buffer that holds the subcarrier modulation data at fc/8 = 1695 MHz */
 #define SSC_TX_BUFFER_SIZE_AS_UINT8 ((MAXIMUM_FRAME_SIZE*( (8+1)*2 ) ) + 2 + 2)
