@@ -637,6 +637,7 @@ ssc_handle_t* ssc_open(u_int8_t init_rx, u_int8_t init_tx, enum ssc_mode mode, s
 int ssc_recv(ssc_handle_t* sh, ssc_dma_rx_buffer_t* *buffer,unsigned int timeout)
 {
 	if(sh == NULL) return -EINVAL;
+	if(!sh->rx_enabled) return -EINVAL;
 	
 	taskENTER_CRITICAL();
 	if(sh->rx_running) {
