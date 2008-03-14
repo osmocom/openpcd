@@ -21,17 +21,17 @@ typedef enum {
 extern int ssc_get_metric(ssc_metric metric, char **description, int *value);
 
 typedef enum {
-	CALLBACK_RX_STARTING,       // *data is ssh_handle_t *sh
-	CALLBACK_RX_STOPPED,        // *data is ssh_handle_t *sh
-	CALLBACK_RX_FRAME_BEGIN,    // *data is int *end_asserted
-								//  may set *end_asserted = 1 to force tell the IRQ handler  
-								//  that you have detected the end of reception
-	CALLBACK_RX_FRAME_ENDED,    // *data is ssc_dma_rx_buffer *buffer
-	CALLBACK_TX_FRAME_BEGIN,
-	CALLBACK_TX_FRAME_ENDED,
-	CALLBACK_TX_FRAME_ABORTED,
-	CALLBACK_SETUP,             // *data is ssh_handle_t *sh
-	CALLBACK_TEARDOWN,          // *data is ssh_handle_t *sh
+	SSC_CALLBACK_RX_STARTING,       // *data is ssh_handle_t *sh
+	SSC_CALLBACK_RX_STOPPED,        // *data is ssh_handle_t *sh
+	SSC_CALLBACK_RX_FRAME_BEGIN,    // *data is int *end_asserted
+									//  may set *end_asserted = 1 to force tell the IRQ handler  
+									//  that you have detected the end of reception
+	SSC_CALLBACK_RX_FRAME_ENDED,    // *data is ssc_dma_rx_buffer *buffer
+	SSC_CALLBACK_TX_FRAME_BEGIN,
+	SSC_CALLBACK_TX_FRAME_ENDED,
+	SSC_CALLBACK_TX_FRAME_ABORTED,
+	SSC_CALLBACK_SETUP,             // *data is ssh_handle_t *sh
+	SSC_CALLBACK_TEARDOWN,          // *data is ssh_handle_t *sh
 } ssc_callback_reason;
 typedef void (*ssc_callback_t)(ssc_callback_reason reason, void *data);
 

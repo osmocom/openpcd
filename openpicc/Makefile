@@ -88,6 +88,7 @@ ARM_SRC= \
   application/tc_cdiv_sync.c \
   application/tc_fdt.c \
   application/tc_cdiv.c \
+  application/tc_recv.c \
   application/usb_print.c \
   application/iso14443_layer2a.c \
   application/iso14443a_manchester.c \
@@ -109,9 +110,9 @@ ARM_SRC= \
   os/core/MemMang/heap_2.c \
   os/usb/USB-CDC.c \
   os/usb/USBIsr.c \
-  application/tc_sniffer.c \
+  application/iso14443_sniffer.c \
+#  application/tc_sniffer.c \
 #  application/iso14443a_pretender.c \
-#  application/iso14443_sniffer.c \
 #  application/iso14443_layer3a.c
 
 #

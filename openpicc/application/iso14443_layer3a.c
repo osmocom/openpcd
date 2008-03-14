@@ -158,8 +158,8 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 		
 		if(send_atqa) {
 		vLedSetGreen(0);
-			if(ssc_tx_buffer.state == PREFILLED && ssc_tx_buffer.source == &ATQA_FRAME) {
-				ssc_tx_buffer.state = PROCESSING;
+			if(ssc_tx_buffer.state == SSC_PREFILLED && ssc_tx_buffer.source == &ATQA_FRAME) {
+				ssc_tx_buffer.state = SSC_PROCESSING;
 				vLedSetGreen(1);
 				iso14443_transmit(&ssc_tx_buffer, fdt, 8);
 				atqa_sent = 1;
@@ -174,8 +174,8 @@ void __ramfunc iso14443_layer3a_irq_ext(u_int32_t ssc_sr, enum ssc_mode ssc_mode
 #define FALSE (0!=0)
 static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) {
 	portENTER_CRITICAL();
-	if(dest->state == FREE) {
-		dest->state = PROCESSING;
+	if(dest->state == SSC_FREE) {
+		dest->state = SSC_PROCESSING;
 		portEXIT_CRITICAL();
 		dest->source = (void*)src;
 		dest->len = sizeof(ssc_tx_buffer.data);
@@ -185,15 +185,15 @@ static int prefill_buffer(ssc_dma_tx_buffer_t *dest, const iso14443_frame *src) 
 		if(ret>0) {
 			dest->len = ret;
 			portENTER_CRITICAL();
-			dest->state = PREFILLED;
+			dest->state = SSC_PREFILLED;
 			portEXIT_CRITICAL();
 		} else {
 			portENTER_CRITICAL();
-			dest->state = FREE;
+			dest->state = SSC_FREE;
 			portEXIT_CRITICAL();
 		}
 		return ret > 0;
-	} else if(dest->state == PREFILLED) {
+	} else if(dest->state == SSC_PREFILLED) {
 		portEXIT_CRITICAL();
 		return dest->source == src;
 	} else {
@@ -325,7 +325,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				vLedSetGreen(0);
 				vLedBlinkGreen();
 				portENTER_CRITICAL();
-				buffer->state = PROCESSING;
+				buffer->state = SSC_PROCESSING;
 				portEXIT_CRITICAL();
 				u_int32_t first_sample = *(u_int32_t*)buffer->data;
 				
@@ -392,16 +392,16 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 								ssc_rx_start();
 							} else {
 								//vTaskDelay(portTICK_RATE_MS);
-								if(ssc_tx_buffer.source == &ATQA_FRAME) ssc_tx_buffer.state = FREE;
+								if(ssc_tx_buffer.source == &ATQA_FRAME) ssc_tx_buffer.state = SSC_FREE;
 								if(prefill_buffer(&ssc_tx_buffer, &NULL_FRAME)) {
 									usb_print_string_f("Sending response ...",0);
-									ssc_tx_buffer.state = PROCESSING;
+									ssc_tx_buffer.state = SSC_PROCESSING;
 									iso14443_transmit(&ssc_tx_buffer,
 										received_frame.parameters.a.last_bit==ISO14443A_LAST_BIT_0 ?
 										ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_0 :
 										ISO14443A_TRANSMIT_AT_NEXT_INTERVAL_1, 
 									8);
-									while( ssc_tx_buffer.state != FREE ) {
+									while( ssc_tx_buffer.state != SSC_FREE ) {
 										vTaskDelay(portTICK_RATE_MS);
 									}
 									usb_print_string("done\n\r");
@@ -415,7 +415,7 @@ void iso14443_layer3a_state_machine (void *pvParameters)
 				}
 				
 				portENTER_CRITICAL();
-				buffer->state = FREE;
+				buffer->state = SSC_FREE;
 				portEXIT_CRITICAL();
 			}
 		} else vTaskDelay(portTICK_RATE_MS);

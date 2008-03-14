@@ -26,6 +26,7 @@
 #include <board.h>
 #include <task.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include "openpicc.h"
 #include "ssc_buffer.h"
@@ -37,12 +38,11 @@
 #include "cmd.h"
 #include "led.h"
 
-static iso14443_frame rx_frame;
+static iso14443_frame *rx_frame;
 
 void iso14443_sniffer (void *pvParameters)
 {
 	(void)pvParameters;
-	(void)rx_frame;
 	int res;
 	
 	/* Delay until USB print etc. are ready */
@@ -56,47 +56,30 @@ void iso14443_sniffer (void *pvParameters)
 		}
 	} while(res < 0);
 	
+	
+	//while(1) { static int i=0; vTaskDelay(10*portTICK_RATE_MS); vLedSetBrightness(LED_RED, abs(1000-i)); i=(i+8)%2000; }
+		
 	usb_print_string("Waiting for carrier. ");
 	while(iso14443_wait_for_carrier(1000 * portTICK_RATE_MS) != 0) {
 	}
 	usb_print_string("Carrier detected.\n\r");
 	
 	while(true) {
-		ssc_dma_rx_buffer_t *buffer = 0;
-		res = iso14443_receive(NULL, &buffer, 20000 * portTICK_RATE_MS);
+		res = iso14443_receive(NULL, &rx_frame, 20000 * portTICK_RATE_MS);
 		if(res >= 0) {
-#if 1
 			DumpStringToUSB("\n\r");
 			DumpTimeToUSB(xTaskGetTickCount());
 			usb_print_string(": Frame received, consists of ");
-			DumpUIntToUSB(res);
-			usb_print_string(" transfers (");
-			DumpUIntToUSB(buffer->reception_mode->transfersize_ssc);
-			usb_print_string(" bits from SSC each)\n\r                  ");
-			if(buffer->len_transfers < 200)
-				DumpBufferToUSB((char*)buffer->data, (buffer->len_transfers * buffer->reception_mode->transfersize_pdc)/8);
-			else {
-				DumpBufferToUSB((char*)buffer->data, (200 * buffer->reception_mode->transfersize_pdc)/8);
-				usb_print_string("...");
-			}
-			usb_print_string("\n\r                  ");
 			
-			iso14443a_decode_miller(&rx_frame, buffer);
-			
-			usb_print_string("Decodes to ");
-			DumpUIntToUSB(rx_frame.numbytes);
+			DumpUIntToUSB(rx_frame->numbytes);
 			usb_print_string(" bytes and ");
-			DumpUIntToUSB(rx_frame.numbits);
+			DumpUIntToUSB(rx_frame->numbits);
 			usb_print_string(" bits:  ");
-			DumpBufferToUSB((char*)rx_frame.data, rx_frame.numbytes + (rx_frame.numbits+7)/8 );
+			DumpBufferToUSB((char*)rx_frame->data, rx_frame->numbytes + (rx_frame->numbits+7)/8 );
 			usb_print_string("\n\r");
-#else
-			DumpUIntToUSB(buffer->len_transfers);
-			DumpStringToUSB("\n\r");
-#endif
 			
 			portENTER_CRITICAL();
-			buffer->state = FREE;
+			rx_frame->state = FRAME_FREE;
 			portEXIT_CRITICAL();
 		} else {
 			if(res != -ETIMEDOUT) {

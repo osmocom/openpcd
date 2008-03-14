@@ -15,11 +15,11 @@
 #endif
 
 typedef enum {
-	FREE=0,    /* Buffer is free */
-	PENDING,   /* Buffer has been given to the DMA controller and is currently being filled */
-	FULL,      /* DMA controller signalled that the buffer is full */
-	PROCESSING,/* The buffer is currently processed by the consumer (e.g. decoder) */
-	PREFILLED, /* The buffer has been prefilled for later usage (only used for TX) */
+	SSC_FREE=0,    /* Buffer is free */
+	SSC_PENDING,   /* Buffer has been given to the DMA controller and is currently being filled */
+	SSC_FULL,      /* DMA controller signalled that the buffer is full */
+	SSC_PROCESSING,/* The buffer is currently processed by the consumer (e.g. decoder) */
+	SSC_PREFILLED, /* The buffer has been prefilled for later usage (only used for TX) */
 } ssc_dma_buffer_state_t;
 
 enum ssc_mode {

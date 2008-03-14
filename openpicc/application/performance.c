@@ -33,6 +33,7 @@ static u_int32_t overruns = 0;
 #define NUMBER_OF_CHECKPOINTS 20
 static struct performance_checkpoint checkpoints[NUMBER_OF_CHECKPOINTS];
 static int current_checkpoint;
+static int running=0;
 
 static void __ramfunc tc_perf_irq(void) __attribute__ ((naked));
 static void __ramfunc tc_perf_irq(void)
@@ -66,6 +67,7 @@ inline void performance_start(void)
 	memset(checkpoints, 0, sizeof(checkpoints));
 	current_checkpoint = 0;
 	overruns = 0;
+	running = 1;
 	tc_perf->TC_CCR = AT91C_TC_SWTRG | AT91C_TC_CLKEN;
 }
 
@@ -82,6 +84,7 @@ inline perf_time_t performance_get(void)
 inline perf_time_t performance_stop(void)
 {
 	perf_time_t result = performance_get();
+	running = 0;
 	tc_perf->TC_CCR = AT91C_TC_CLKDIS;
 	return result;
 }
@@ -105,6 +108,7 @@ perf_time_t performance_diff(perf_time_t a, perf_time_t b)
 
 void performance_set_checkpoint(const char * const description)
 {
+	if(!running) return;
 	if(current_checkpoint < NUMBER_OF_CHECKPOINTS) {
 		perf_time_t time = performance_get();
 		checkpoints[current_checkpoint++] = (struct performance_checkpoint){
@@ -116,6 +120,7 @@ void performance_set_checkpoint(const char * const description)
 
 void performance_stop_report(void)
 {
+	if(!running) return;
 	perf_time_t _now = performance_stop();
 	struct performance_checkpoint now = {
 			.time = _now,

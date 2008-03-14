@@ -125,7 +125,7 @@ static int __ramfunc _ssc_rx_irq(u_int32_t orig_sr, int start_asserted, portBASE
 		sh->ssc->SSC_RCMR = (orig_rcmr & (~AT91C_SSC_START)) | (AT91C_SSC_START_CONTINOUS);
 		/* Receiving has started */
 		if(sh->callback != NULL) {
-			sh->callback(CALLBACK_RX_FRAME_BEGIN, &end_asserted);
+			sh->callback(SSC_CALLBACK_RX_FRAME_BEGIN, &end_asserted);
 			if(end_asserted)
 				sr = orig_sr | _ssc.ssc->SSC_SR;
 		}
@@ -147,9 +147,9 @@ static int __ramfunc _ssc_rx_irq(u_int32_t orig_sr, int start_asserted, portBASE
 		ssc_dma_rx_buffer_t *buffer = _unload_rx(sh);
 		if(buffer != NULL) {
 			if(sh->callback != NULL)
-				sh->callback(CALLBACK_RX_FRAME_ENDED, buffer);
+				sh->callback(SSC_CALLBACK_RX_FRAME_ENDED, buffer);
 
-			if(buffer->state != FREE) {
+			if(buffer->state != SSC_FREE) {
 				task_woken = xQueueSendFromISR(sh->rx_queue, &buffer, task_woken);
 			}
 		}
@@ -174,7 +174,7 @@ static int __ramfunc _ssc_rx_irq(u_int32_t orig_sr, int start_asserted, portBASE
 		} else {
 			sh->ssc->SSC_IDR = SSC_RX_IRQ_MASK;
 			sh->rx_running = 0;
-			sh->callback(CALLBACK_RX_STOPPED, sh);
+			sh->callback(SSC_CALLBACK_RX_STOPPED, sh);
 		}
 		
 	}
@@ -202,7 +202,7 @@ static void __ramfunc _ssc_tx_end(ssc_handle_t *sh, int is_an_abort)
 	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);
 
 	if(sh->tx_buffer) {
-		sh->tx_buffer->state = FREE;
+		sh->tx_buffer->state = SSC_FREE;
 		sh->tx_running = 0;
 	}
 	
@@ -213,9 +213,9 @@ static void __ramfunc _ssc_tx_end(ssc_handle_t *sh, int is_an_abort)
 	
 	if(sh->callback) {
 		if(is_an_abort)
-			sh->callback(CALLBACK_TX_FRAME_ABORTED, sh->tx_buffer);
+			sh->callback(SSC_CALLBACK_TX_FRAME_ABORTED, sh->tx_buffer);
 		else
-			sh->callback(CALLBACK_TX_FRAME_ENDED, sh->tx_buffer);
+			sh->callback(SSC_CALLBACK_TX_FRAME_ENDED, sh->tx_buffer);
 	}
 		
 	sh->tx_buffer = NULL;
@@ -236,7 +236,7 @@ static int __ramfunc _ssc_tx_irq(u_int32_t sr, portBASE_TYPE task_woken)
 		sh->ssc->SSC_TCMR = (sh->ssc->SSC_TCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
 
 		if(sh->callback) 
-			sh->callback(CALLBACK_TX_FRAME_BEGIN, NULL);
+			sh->callback(SSC_CALLBACK_TX_FRAME_BEGIN, NULL);
 	}
 	
 	if( sr & AT91C_SSC_TXEMPTY ) {
@@ -297,7 +297,7 @@ static __ramfunc int _reload_rx(ssc_handle_t *sh)
 		goto out;
 	}
 	
-	ssc_dma_rx_buffer_t *buffer = _get_buffer(FREE, PENDING);
+	ssc_dma_rx_buffer_t *buffer = _get_buffer(SSC_FREE, SSC_PENDING);
 	
 	if(buffer == NULL) {
 		ssc_metrics[METRIC_RX_OVERFLOWS].value++;
@@ -328,7 +328,7 @@ static __ramfunc ssc_dma_rx_buffer_t* _unload_rx(ssc_handle_t *sh)
 		rcr = sh->pdc->PDC_RCR;
 	AT91F_PDC_SetRx(sh->pdc, 0, 0);
 	sh->rx_buffer[0] = NULL;
-	buffer->state = FULL;
+	buffer->state = SSC_FULL;
 	
 	if(rcr == 0) {
 		buffer->flags.overflow = 1;
@@ -357,7 +357,7 @@ static __ramfunc ssc_dma_rx_buffer_t* _unload_rx(ssc_handle_t *sh)
 	
 	if((buffer->len_transfers - rcr) != (rpr - (unsigned int)buffer->data)*(buffer->reception_mode->transfersize_pdc/8)) {
 		ssc_metrics[METRIC_MANAGEMENT_ERRORS_3].value++;
-		buffer->state = FREE;
+		buffer->state = SSC_FREE;
 		return NULL;
 	}
 	
@@ -393,7 +393,7 @@ static void _ssc_start_rx(ssc_handle_t *sh)
 		 AT91C_SSC_CP1 | AT91C_SSC_ENDRX;
 	sh->rx_running = 1;
 	if(sh->callback != NULL)
-		sh->callback(CALLBACK_RX_STARTING, sh);
+		sh->callback(SSC_CALLBACK_RX_STARTING, sh);
 
 	// Actually enable reception
 	int dummy = sh->ssc->SSC_RHR; (void)dummy;
@@ -411,7 +411,7 @@ static void _ssc_stop_rx(ssc_handle_t *sh)
 	sh->ssc->SSC_IDR = SSC_RX_IRQ_MASK;
 	sh->rx_running = 0;
 	if(sh->callback != NULL)
-		sh->callback(CALLBACK_RX_STOPPED, sh);
+		sh->callback(SSC_CALLBACK_RX_STOPPED, sh);
 	taskEXIT_CRITICAL();
 }
 
@@ -556,7 +556,7 @@ static int _ssc_register_callback(ssc_handle_t *sh, ssc_callback_t _callback)
 	if(sh->callback != NULL) return -EBUSY;
 	sh->callback = _callback;
 	if(sh->callback != NULL) 
-		sh->callback(CALLBACK_SETUP, sh);
+		sh->callback(SSC_CALLBACK_SETUP, sh);
 	return 0;
 }
 
@@ -565,7 +565,7 @@ static int _ssc_unregister_callback(ssc_handle_t *sh, ssc_callback_t _callback)
 	if(!sh) return -EINVAL;
 	if(_callback == NULL || sh->callback == _callback) {
 		if(sh->callback != NULL) 
-			sh->callback(CALLBACK_TEARDOWN, sh);
+			sh->callback(SSC_CALLBACK_TEARDOWN, sh);
 		sh->callback = NULL;
 	}
 	return 0;
@@ -686,7 +686,7 @@ int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
 	
 	AT91F_PDC_SetTx(sh->pdc, buffer->data, num_data);
 	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);
-	buffer->state = PENDING;
+	buffer->state = SSC_PENDING;
 
 	sh->ssc->SSC_IER = AT91C_SSC_TXEMPTY | AT91C_SSC_TXSYN;
 	/* Enable DMA */
@@ -795,7 +795,7 @@ int ssc_get_metric(ssc_metric metric, char **description, int *value)
 			_value = 0;
 			int i;
 			for(i=0; i < SSC_DMA_BUFFER_COUNT; i++)
-				if(_rx_buffers[i].state == FREE) _value++;
+				if(_rx_buffers[i].state == SSC_FREE) _value++;
 			break;
 		case METRIC_MANAGEMENT_ERRORS:
 			_value = ssc_metrics[METRIC_MANAGEMENT_ERRORS_1].value +

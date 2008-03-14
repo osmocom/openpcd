@@ -243,9 +243,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case 'P':
 		    print_pio();
 		    break;
-		case 'R':
+/*		case 'R':
 			start_stop_sniffing();
-			break;
+			break;*/
 		case 'C':
 		    DumpStringToUSB(
 			" *****************************************************\n\r"

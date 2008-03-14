@@ -124,6 +124,7 @@ inline void start_frame(struct diffmiller_state * const state)
 	//memset(state->frame, 0, sizeof(*state->frame));
 	memset(state->frame, 0, (u_int32_t)&(((iso14443_frame*)0)->data) );
 	performance_set_checkpoint("start_frame after memset");
+	state->frame->state = FRAME_PENDING;
 }
 
 static inline void append_to_frame(struct diffmiller_state *const state,
@@ -171,7 +172,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 }
 
 #define PRINT_BIT(a) if(0){(void)a;}
-//#define PRINT_BIT(a) usb_print_string(a)
+//#define PRINT_BIT(a) usb_print_string_f(a,0)
 
 #define DO_BIT_0 { \
 	if(++counter==9) { \
@@ -194,10 +195,10 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 }
 
 #define DO_SYMBOL_X \
+	PRINT_BIT("(X)"); \
 	if(!in_frame) { \
 		if(last_bit == BIT_0) DO_BIT_0; \
 		error = 1; \
-		end_frame(state, counter); \
 		PRINT_BIT(" ERROR\n"); \
 		last_bit = BIT_ERROR; \
 		in_frame = 0; \
@@ -208,10 +209,10 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 	}
 
 #define DO_SYMBOL_Y \
+	PRINT_BIT("(Y)"); \
 	if(!in_frame) { \
 		if(last_bit == BIT_0) DO_BIT_0; \
 		error = 1; \
-		end_frame(state, counter); \
 		PRINT_BIT(" ERROR\n"); \
 		last_bit = BIT_ERROR; \
 		in_frame = 0; \
@@ -227,6 +228,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 	}
 
 #define DO_SYMBOL_Z \
+	PRINT_BIT("(Z)"); \
 	if(!in_frame) { \
 		if(last_bit == BIT_0) DO_BIT_0; \
 		counter = 0; \
@@ -308,11 +310,12 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 		
 		if(state->flags.frame_finished)  {
 			state->flags.frame_finished = 0;
-			state->old_state = old_state;
+			state->old_state = sym_y;
 			state->last_bit = last_bit;
 			state->counter = counter;
 			state->flags.in_frame = in_frame;
 			state->flags.error = error;
+			state->frame = NULL;
 			performance_set_checkpoint("frame finished");
 			return 0;
 		}
@@ -327,6 +330,31 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 	return -EBUSY;
 }
 
+int iso14443a_diffmiller_assert_frame_ended(struct diffmiller_state * const state, 
+		iso14443_frame * const frame)
+{
+	if(state == NULL || !state->initialized) return -EINVAL;
+	if(!state->flags.in_frame) return -EBUSY;
+	if(state->frame != NULL && state->frame != frame) return -EINVAL;
+	state->frame = frame;
+
+	end_frame(state, state->counter);
+	PRINT_BIT(" EOF2\n");
+	state->flags.in_frame = 0;
+	
+	if(state->flags.frame_finished)  {
+		state->flags.frame_finished = 0;
+		state->old_state = sym_y;
+		state->last_bit = BIT_EOF;
+		state->counter = 0;
+		state->frame = NULL;
+		performance_set_checkpoint("frame finished2");
+		return 0;
+	}
+	
+	return -EBUSY;
+}
+
 struct diffmiller_state *iso14443a_init_diffmiller(int pauses_count)
 {
 	if(_state.initialized) return NULL;
@@ -334,6 +362,7 @@ struct diffmiller_state *iso14443a_init_diffmiller(int pauses_count)
 	state->initialized = 1;
 	state->pauses_count = pauses_count;
 	state->frame = NULL;
+	state->old_state = sym_y;
 	state->flags.frame_finished = 0;
 	
 	return state;

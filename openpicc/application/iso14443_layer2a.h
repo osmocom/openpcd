@@ -4,36 +4,37 @@
 #include "ssc_buffer.h"
 
 /* Callback type for iso14443_receive().
- * Parameter buffer is being passed a pointer to an SSC Rx buffer structure that this receive happened
- * on. You might want to pass this into iso14443a_decode_miller().
+ * Parameter buffer is either being passed a pointer to an SSC Rx buffer structure that this 
+ * receive happened on, or a fully decoded iso14443_frame. 
+ * If it's an SSC buffer you might want to pass this into iso14443a_decode_miller().
  * Parameter in_irq is true if the callback has been called while still in IRQ mode. It must then *NOT*
  * perform any calls that might upset the IRQ processing. Especially it may not call into FreeRTOS or
  * any parts of the applications that do.
  */
-typedef void (*iso14443_receive_callback_t)(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq);
+typedef void (*iso14443_receive_callback_t)(ssc_dma_rx_buffer_t *buffer, iso14443_frame *frame, u_int8_t in_irq);
 
 /* Wait for and receive a frame. Parameters callback and buffer are optional. If you omit them you'll lose
  * the received frame, obviously.
  * Parameter callback is a callback function that will be called for each received frame and might
  * then trigger a response.
- * Parameter buffer is an output pointer to a pointer to an SSC Rx buffer structure containing the
+ * Parameter frame is an output pointer to a pointer to an ISO14443 frame structure containing the
  * received frame.
  * Parameter timeout gives an optional timeout for the receive operation after which the receive will
  * be aborted. When timeout is 0 the receive will not time out.
  * This call will block until a frame is received or an exception happens. Obviously it must not be run
  * from IRQ context.
  * 
- * Warning: When you get a buffer from the function then its state is set to PROCESSING and you must 
- * FREE it yourself. However, you MUST NOT free a buffer from the callback.
+ * Warning: When you get a frame from the function then its state is set to SSC_PROCESSING and you must 
+ * SSC_FREE it yourself. However, you MUST NOT free a buffer or a frame from the callback.
  * 
  * Return values:
- * >= 0        Frame received, return value is buffer length (yes, 0 is a valid buffer length)
+ * = 0         Frame received
  * -ENETDOWN   PLL is not locked or PLL lock lost
  * -ETIMEDOUT  Receive timed out without receiving anything (usually not regarded an error condition)
  * -EBUSY      A Tx is currently running or pending; can't receive
  * -EALREADY   There's already an iso14443_receive() invocation running
  */
-extern int iso14443_receive(iso14443_receive_callback_t callback, ssc_dma_rx_buffer_t **buffer, unsigned int timeout);
+extern int iso14443_receive(iso14443_receive_callback_t callback, iso14443_frame **frame, unsigned int timeout);
 
 /*
  * Transmit a frame. Starts transmitting fdt carrier cycles after the end of the received frame.

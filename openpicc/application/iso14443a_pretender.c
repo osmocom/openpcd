@@ -118,7 +118,7 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	
 	
 	if(tx_buffer != NULL) {
-		tx_buffer->state = FULL;
+		tx_buffer->state = SSC_FULL;
 		if(	iso14443_transmit(tx_buffer, fdt, 1, 0) < 0) {
 			usb_print_string_f("Tx failed ", 0);
 		}
@@ -229,7 +229,7 @@ prefill_failed:
 			}
 			
 			portENTER_CRITICAL();
-			buffer->state = FREE;
+			buffer->state = SSC_FREE;
 			portEXIT_CRITICAL();
 		} else {
 			if(res != -ETIMEDOUT) {

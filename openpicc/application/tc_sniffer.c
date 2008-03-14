@@ -56,15 +56,7 @@ static xSemaphoreHandle data_semaphore;
 struct diffmiller_state *decoder;
 iso14443_frame rx_frame;
 
-#define BUFSIZE 1024
 #define WAIT_TICKS (20*portTICK_RATE_MS)
-typedef struct {
-	u_int32_t count;
-	u_int32_t data[BUFSIZE];
-} fiq_buffer_t;
-fiq_buffer_t fiq_buffers[2];
-
-fiq_buffer_t *tc_sniffer_next_buffer_for_fiq = 0;
 
 portBASE_TYPE currently_sniffing = 0;
 enum { NONE, REQUEST_START, REQUEST_STOP } request_change = REQUEST_START;

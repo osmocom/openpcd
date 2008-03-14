@@ -75,8 +75,17 @@
 #define MAXIMUM_FRAME_SIZE 256
 #define ISO14443A_MAX_RX_FRAME_SIZE_IN_BITS (MAXIMUM_FRAME_SIZE*9 +2)
 
+typedef enum {
+	FRAME_FREE=0,    /* Frame is free */
+	FRAME_PENDING,   /* Frame is currently filled by Rx */
+	FRAME_FULL,      /* Frame has been filled by Rx */
+	FRAME_PROCESSING,/* The frame is currently processed by the consumer */
+} iso14443_frame_state_t;
+
+
 typedef struct {
   enum { TYPE_A, TYPE_B } type;
+  iso14443_frame_state_t state;
   union {
   	struct {
   		enum { SHORT_FRAME, STANDARD_FRAME, AC_FRAME } format;
