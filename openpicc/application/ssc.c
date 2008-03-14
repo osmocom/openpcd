@@ -43,6 +43,7 @@
 #include "cmd.h"
 
 #define PRINT_DEBUG 0
+#define DEBUG_DATA_GATING 0
 
 struct _ssc_handle {
 	enum ssc_mode mode;
@@ -370,10 +371,10 @@ void ssc_set_gate(int data_enabled) {
 	if(OPENPICC->features.data_gating) {
 		if(data_enabled) {
 			AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
-			usb_print_string_f("(", 0);
+			if(DEBUG_DATA_GATING) usb_print_string_f("(", 0);
 		} else {
 			AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPICC->DATA_GATE);
-			usb_print_string_f(")", 0);
+			if(DEBUG_DATA_GATING) usb_print_string_f(")", 0);
 		}
 	}
 }

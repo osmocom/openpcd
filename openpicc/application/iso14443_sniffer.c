@@ -67,7 +67,7 @@ void iso14443_sniffer (void *pvParameters)
 	while(true) {
 		res = iso14443_receive(NULL, &rx_frame, 20000 * portTICK_RATE_MS);
 		if(res >= 0) {
-			DumpStringToUSB("\n\r");
+			//DumpStringToUSB("\n\r");
 			DumpTimeToUSB(xTaskGetTickCount());
 			usb_print_string(": Frame received, consists of ");
 			
