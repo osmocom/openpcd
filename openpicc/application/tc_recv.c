@@ -70,7 +70,19 @@ fiq_buffer_t *tc_sniffer_next_buffer_for_fiq = 0;
 
 iso14443_frame rx_frames[TC_RECV_NUMBER_OF_FRAME_BUFFERS];
 
-#define REAL_FRAME_END 333 
+/* The standard defines EOF as a logical 0 followed by 128 carrier cycles without modulation.
+ * That means that the frame end is either 20+128+128 carrier cycles after the end of the
+ * last modulation (if there was a 1 bit before the EOF) or 20+64+128 carrier cycles after
+ * the last modulation. So the correct REAL_FRAME_END setting would be something like
+ * 276. However, we can detect that the last bit period (that without modulation) is not a
+ * valid bit much earlier: if the last data bit was 1 there are (ca.) 20 cycles till the start
+ * of the EOF. Then there are 128 cycles without modulation. The next bit (were it not part of
+ * the EOF) would have to be either sequence X (for a 1 bit) or sequence Z (for a 0 bit):
+ * If it were a 0 bit there would be modulation right away, if it were a 1 bit there would be
+ * modulation after 64 cycles. So the maximum valid time without modulation that is not signalling
+ * and EOF is 20+128+64. Define REAL_FRAME_END as that value (plus 20 cycles error margin).  
+ */
+#define REAL_FRAME_END (20+128+64+20)
 
 static int tc_recv_buffer_overruns = 0;
 
