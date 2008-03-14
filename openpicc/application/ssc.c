@@ -234,7 +234,9 @@ static int __ramfunc _ssc_tx_irq(u_int32_t sr, portBASE_TYPE task_woken)
 		
 		/* Also set SSC mode to continous 
 		 * FIXME BUG: This will somehow drop some samples or something on the SSC*/
+		vLedSetGreen(0);
 		sh->ssc->SSC_TCMR = (sh->ssc->SSC_TCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
+		vLedSetGreen(1);
 
 		if(sh->callback) 
 			sh->callback(SSC_CALLBACK_TX_FRAME_BEGIN, NULL);

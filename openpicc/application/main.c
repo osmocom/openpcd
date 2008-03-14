@@ -211,10 +211,10 @@ int main (void)
 	NULL, TASK_USB_PRIORITY, NULL);
     /*xTaskCreate (iso14443_layer3a_state_machine, (signed portCHAR *) "ISO14443A-3", TASK_ISO_STACK,
 	NULL, TASK_ISO_PRIORITY, NULL);*/
-    xTaskCreate (iso14443_sniffer, (signed portCHAR *) "ISO14443-SNIFF", TASK_ISO_STACK,
-	NULL, TASK_ISO_PRIORITY, NULL);
-    /*xTaskCreate (iso14443a_pretender, (signed portCHAR *) "ISO14443A-PRETEND", TASK_ISO_STACK,
+    /*xTaskCreate (iso14443_sniffer, (signed portCHAR *) "ISO14443-SNIFF", TASK_ISO_STACK,
 	NULL, TASK_ISO_PRIORITY, NULL);*/
+    xTaskCreate (iso14443a_pretender, (signed portCHAR *) "ISO14443A-PRETEND", TASK_ISO_STACK,
+	NULL, TASK_ISO_PRIORITY, NULL);
     /*xTaskCreate (tc_sniffer, (signed portCHAR *) "RFID-SNIFFER", TASK_ISO_STACK,
 		 	NULL, TASK_ISO_PRIORITY, NULL);*/
 

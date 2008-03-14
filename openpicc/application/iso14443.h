@@ -80,6 +80,7 @@ typedef enum {
 	FRAME_PENDING,   /* Frame is currently filled by Rx */
 	FRAME_FULL,      /* Frame has been filled by Rx */
 	FRAME_PROCESSING,/* The frame is currently processed by the consumer */
+	FRAME_PREFILLED, /* The frame has been prefilled for later usage (only used for TX) */
 } iso14443_frame_state_t;
 
 

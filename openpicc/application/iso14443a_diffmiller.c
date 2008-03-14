@@ -101,6 +101,7 @@ struct diffmiller_state {
 	u_int32_t counter;
 	u_int16_t byte,crc;
 	u_int8_t parity;
+	u_int8_t last_data_bit;
 	struct {
 		u_int8_t in_frame:1;
 		u_int8_t frame_finished:1;
@@ -155,7 +156,7 @@ static inline void append_to_frame(struct diffmiller_state *const state,
 }
 
 
-static inline void end_frame(struct diffmiller_state * const state, const u_int32_t counter)
+static inline void end_frame(struct diffmiller_state * const state, const u_int32_t counter, const int last_data_bit)
 {
 	if(state->frame != NULL) {
 		if(counter > 0) {
@@ -167,6 +168,11 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 		else
 			state->frame->parameters.a.crc = CRC_ERROR;
 		
+		if(last_data_bit)
+			state->frame->parameters.a.last_bit = ISO14443A_LAST_BIT_1;
+		else
+			state->frame->parameters.a.last_bit = ISO14443A_LAST_BIT_0;
+		
 		state->flags.frame_finished = 1;
 	}
 }
@@ -175,6 +181,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 //#define PRINT_BIT(a) usb_print_string_f(a,0)
 
 #define DO_BIT_0 { \
+	last_data_bit = 0; \
 	if(++counter==9) { \
 	    	append_to_frame(state, state->byte, 0, 8); \
 	    	counter=state->byte=state->parity=0; \
@@ -183,6 +190,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 }
 
 #define DO_BIT_1 { \
+	last_data_bit = 1; \
     if(counter<8) { \
     	state->byte |= (1<<counter); \
     	state->parity ^= 1; \
@@ -218,7 +226,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 		in_frame = 0; \
 	} else { \
 		if(last_bit == BIT_0) { \
-			end_frame(state, counter); \
+			end_frame(state, counter, last_data_bit); \
 			PRINT_BIT(" EOF\n"); \
 			last_bit = BIT_EOF; \
 			in_frame = 0; \
@@ -255,6 +263,7 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 	int in_frame = state->flags.in_frame;
 	int error = state->flags.error;
 	int counter = state->counter;
+	int last_data_bit = state->last_data_bit;
 	
 	for(; *offset < buflen; ) {
 		int delta;
@@ -324,6 +333,7 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 	state->old_state = old_state;
 	state->last_bit = last_bit;
 	state->counter = counter;
+	state->last_data_bit = last_data_bit;
 	state->flags.in_frame = in_frame;
 	state->flags.error = error;
 	
@@ -338,7 +348,7 @@ int iso14443a_diffmiller_assert_frame_ended(struct diffmiller_state * const stat
 	if(state->frame != NULL && state->frame != frame) return -EINVAL;
 	state->frame = frame;
 
-	end_frame(state, state->counter);
+	end_frame(state, state->counter, state->last_data_bit);
 	PRINT_BIT(" EOF2\n");
 	state->flags.in_frame = 0;
 	

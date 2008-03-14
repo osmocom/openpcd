@@ -42,6 +42,7 @@ extern volatile int fdt_offset;
 
 static const iso14443_frame ATQA_FRAME = {
 	TYPE_A,
+	FRAME_PREFILLED,
 	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
 	2,
 	0, 0,
@@ -51,6 +52,7 @@ static const iso14443_frame ATQA_FRAME = {
 
 static const iso14443_frame UID_FRAME = {
 	TYPE_A,
+	FRAME_PREFILLED,
 	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
 	5,
 	0, 0,
@@ -60,6 +62,7 @@ static const iso14443_frame UID_FRAME = {
 
 static const iso14443_frame ATS_FRAME = {
 	TYPE_A,
+	FRAME_PREFILLED,
 	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
 	3,
 	0, 0,
@@ -69,6 +72,7 @@ static const iso14443_frame ATS_FRAME = {
 
 static const iso14443_frame NONCE_FRAME = {
 	TYPE_A,
+	FRAME_PREFILLED,
 	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
 	4,
 	0, 0,
@@ -79,10 +83,11 @@ static const iso14443_frame NONCE_FRAME = {
 
 #define FRAME_SIZE(bytes) (2* (1+(9*bytes)+1) )
 #define SIZED_BUFFER(bytes) struct { int len; u_int8_t data[FRAME_SIZE(bytes)]; }
+#define BYTES_AND_BITS(bytes,bits) (bytes*9+bits)
 
 static ssc_dma_tx_buffer_t ATQA_BUFFER, UID_BUFFER, ATS_BUFFER, NONCE_BUFFER;
 
-static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
+static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *frame, u_int8_t in_irq)
 {
 	(void)buffer; (void)in_irq;
 	unsigned int buffy=0;
@@ -91,31 +96,36 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, u_int8_t in_irq)
 	ssc_dma_tx_buffer_t *tx_buffer=NULL;
 	int fdt = 0;
 	
-	switch(buffer->len_transfers) {
-	case 3: case 4: /* REQA (7 bits) */
-	//case 7: case 8: case 9:
-	case 11:
+	switch(frame->parameters.a.last_bit) {
+	case ISO14443A_LAST_BIT_0:
+		fdt = 20;
+		break;
+	case ISO14443A_LAST_BIT_1:
+		fdt = 84;
+		break;
+	case ISO14443A_LAST_BIT_NONE:
+		fdt = 0;
+		break;
+	}
+	
+	switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
+	case BYTES_AND_BITS(0, 7): /* REQA (7 bits) */
 		tx_buffer = &ATQA_BUFFER;
-		fdt = 1172;
+		fdt += 9*128;
 		break;
-	case 6: case 7: /* ANTICOL (2 bytes) */
-	case 8: case 9:
+	case BYTES_AND_BITS(2, 0): /* ANTICOL (2 bytes) */
 		tx_buffer = &UID_BUFFER;
-		fdt = 1172;
-	case 21: case 22: /* SELECT (9 bytes) */
-		tx_buffer = &ATS_BUFFER;
-		fdt = 1172;
+		fdt += 9*128;
 		break;
-	case 577:
-		usb_print_string_f("f", 0); 
-		buffy=(unsigned int)buffer;
+	case BYTES_AND_BITS(9, 0): /* SELECT (9 bytes) */
+		tx_buffer = &ATS_BUFFER;
+		fdt += 9*128;
 		break;
 	}
 	
 	/* Add some extra room to the fdt for testing */
 	//fdt += 3*128;
 	fdt += fdt_offset;
-	
 	
 	if(tx_buffer != NULL) {
 		tx_buffer->state = SSC_FULL;
@@ -208,28 +218,25 @@ prefill_failed:
 #define DETECTED_MIFARE 4
 	
 	while(true) {
-		ssc_dma_rx_buffer_t *buffer = 0;
-		res = iso14443_receive(fast_receive_callback, &buffer, 1000 * portTICK_RATE_MS);
+		iso14443_frame *frame = 0;
+		res = iso14443_receive(fast_receive_callback, &frame, 1000 * portTICK_RATE_MS);
 		if(res >= 0) {
-			DumpUIntToUSB(buffer->len_transfers);
-			DumpStringToUSB("\n\r");
-			
-			switch(buffer->len_transfers) {
-			case 3: case 4: /* REQA (7 bits) */
+			switch(BYTES_AND_BITS(frame->numbytes, frame->numbits) ) {
+			case BYTES_AND_BITS(0, 7): /* REQA (7 bits) */
 				current_detected |= DETECTED_14443A_3;
 				break;
-			case 6: case 7: /* ANTICOL (2 bytes) */
-			case 22: /* SELECT (9 bytes) */
+			case BYTES_AND_BITS(2, 0): /* ANTICOL (2 bytes) */
+			case BYTES_AND_BITS(9, 0): /* SELECT (9 bytes) */
 				current_detected |= DETECTED_14443A_3;
 				break;
-			case 10: case 11: /* AUTH1A (or any other four byte frame) */
-			case 19: case 20: /* AUTH2 (8 bytes) */
+			case BYTES_AND_BITS(4, 0): /* AUTH1A (or any other four byte frame) */
+			case BYTES_AND_BITS(8, 0): /* AUTH2 (8 bytes) */
 				current_detected |= DETECTED_MIFARE;
 				break;
 			}
 			
 			portENTER_CRITICAL();
-			buffer->state = SSC_FREE;
+			frame->state = FRAME_FREE;
 			portEXIT_CRITICAL();
 		} else {
 			if(res != -ETIMEDOUT) {

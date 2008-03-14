@@ -132,7 +132,8 @@ int iso14443_transmit(ssc_dma_tx_buffer_t *buffer, unsigned int fdt, u_int8_t as
 	clock_switch(CLOCK_SELECT_CARRIER);
 	ssc_set_gate(0);
 	tc_fdt_set(fdt);
-	tc_cdiv_set_divider(8); // FIXME Magic hardcoded number
+	// We'll keep the divider at 8
+	//tc_cdiv_set_divider(8); // FIXME Magic hardcoded number
 	
 	if(!async) {
 		/* FIXME Implement */
@@ -184,6 +185,11 @@ u_int8_t iso14443_get_fast_receive(void)
 
 static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 {
+	if( reason == SSC_CALLBACK_SETUP ) {
+		// We'll keep the divider at 8
+		tc_cdiv_set_divider(8); // FIXME Magic hardcoded number
+	}
+
 	if(reason == SSC_CALLBACK_RX_FRAME_BEGIN) {
 		/* Busy loop for the frame end */
 		int *end_asserted = data, i=0;
@@ -217,7 +223,8 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 		clock_switch(CLOCK_SELECT_CARRIER);
 		ssc_set_gate(1);
 		tc_fdt_set(0xff00);
-		tc_cdiv_set_divider(RX_DIVIDER);
+		// We'll keep the divider at 8
+		//tc_cdiv_set_divider(RX_DIVIDER);
 		tc_cdiv_sync_reset();
 #if 1
 		int old=usb_print_set_default_flush(0);
@@ -243,7 +250,8 @@ static void iso14443_tc_recv_callback(tc_recv_callback_reason reason, void *data
 		clock_switch(CLOCK_SELECT_CARRIER);
 		ssc_set_gate(1);
 		tc_fdt_set(0xff00);
-		tc_cdiv_set_divider(RX_DIVIDER);
+		// We'll keep the divider at 8
+		//tc_cdiv_set_divider(RX_DIVIDER);
 		tc_cdiv_sync_reset();
 	}
 }
