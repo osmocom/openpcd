@@ -191,14 +191,13 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 
 #define DO_BIT_1 { \
 	last_data_bit = 1; \
-    if(counter<8) { \
-    	state->byte |= (1<<counter); \
-    	state->parity ^= 1; \
-    } \
 	if(++counter==9) { \
 	    	append_to_frame(state, state->byte, 1, 8); \
 	    	counter=state->byte=state->parity=0; \
-	} \
+	} else { \
+    	state->byte |= (1<<counter); \
+    	state->parity ^= 1; \
+    } \
 	PRINT_BIT(" 1"); \
 }
 
