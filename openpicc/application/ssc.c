@@ -55,7 +55,7 @@ struct _ssc_handle {
 	AT91PS_PDC pdc;
 	AT91PS_SSC ssc;
 	u_int8_t rx_enabled, tx_enabled;
-	u_int8_t rx_running, tx_running;
+	u_int8_t rx_running, tx_running, tx_need_switching;
 };
 
 static ssc_handle_t _ssc;
@@ -233,10 +233,32 @@ static int __ramfunc _ssc_tx_irq(u_int32_t sr, portBASE_TYPE task_woken)
 		usb_print_string_f("<",0);
 		
 		/* Also set SSC mode to continous 
-		 * FIXME BUG: This will somehow drop some samples or something on the SSC*/
-		vLedSetGreen(0);
-		sh->ssc->SSC_TCMR = (sh->ssc->SSC_TCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
-		vLedSetGreen(1);
+		 * FIXME BUG: This will somehow add two samples on the SSC 
+		 * The abomination below is designed to find a pause in the outgoing modulation data
+		 * (WARNING: Will only work with manchester, not with PSK) so that the SSC start type
+		 * switch will happen during a time of no subcarrier modulation (in order to not
+		 * upset the subcarrier). Still need to find a way to 'absorb' the extra two samples. */
+		if(sh->tx_need_switching) {
+			vLedSetGreen(0);
+			int j = 0;
+off_pre:
+			if(j++ > 100) goto out;
+			if(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_MOD_PWM)) {
+				goto off_pre;
+			}
+on:
+			if(j++ > 100) goto out;
+			if(AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_MOD_PWM)) goto on;
+			int i=0;
+off:
+			if(j++ > 100) goto out;
+			if(!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_MOD_PWM)) {
+				if(i++ > 2) goto out; else goto off;
+			} else goto on;
+out:
+			sh->ssc->SSC_TCMR = (sh->ssc->SSC_TCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
+			vLedSetGreen(1);
+		}
 
 		if(sh->callback) 
 			sh->callback(SSC_CALLBACK_TX_FRAME_BEGIN, NULL);
@@ -659,7 +681,7 @@ int ssc_recv(ssc_handle_t* sh, ssc_dma_rx_buffer_t* *buffer,unsigned int timeout
 	
 	return -ETIMEDOUT;
 }
-
+extern u_int32_t fdt_offset;
 /* Must be called with IRQs disabled. E.g. from IRQ context or within a critical section. */
 int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
 {
@@ -681,11 +703,12 @@ int ssc_send(ssc_handle_t* sh, ssc_dma_tx_buffer_t *buffer)
 	int data_len = 32;
 	int num_data = buffer->len/(data_len/8); /* FIXME This is broken for more than 64 bytes, or is it? */
 	int num_data_ssc = num_data > 16 ? 16 : num_data;
+	sh->tx_need_switching = (num_data > 16);
 	
 	sh->ssc->SSC_TFMR = ((data_len-1) & 0x1f) |
 			(((num_data_ssc-1) & 0x0f) << 8) | 
 			(((sync_len-1) & 0x0f) << 16);
-	sh->ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | AT91C_SSC_CKI | start_cond;
+	sh->ssc->SSC_TCMR = 0x01 | AT91C_SSC_CKO_NONE | (AT91C_SSC_CKI&0) | start_cond;
 	
 	AT91F_PDC_SetTx(sh->pdc, buffer->data, num_data);
 	AT91F_PDC_SetNextTx(sh->pdc, 0, 0);

@@ -263,6 +263,9 @@ int iso14443_layer2a_init(u_int8_t enable_fast_receive)
 	tc_cdiv_init();
 	tc_fdt_init();
 	
+	tc_cdiv_sync_init();
+	tc_cdiv_sync_enable();
+	
 	clock_switch_init();
 	load_mod_init();
 	
