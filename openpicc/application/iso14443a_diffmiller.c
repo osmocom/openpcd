@@ -93,6 +93,7 @@
 enum symbol {NO_SYM=0, sym_x, sym_y, sym_z};
 enum bit { BIT_ERROR, BIT_SOF, BIT_0, BIT_1, BIT_EOF };
 
+#define PERFORMANCE_COUNTS 10
 struct diffmiller_state {
 	int initialized, pauses_count;
 	enum symbol old_state;
@@ -102,6 +103,8 @@ struct diffmiller_state {
 	u_int16_t byte,crc;
 	u_int8_t parity;
 	u_int8_t last_data_bit;
+	u_int32_t performance[PERFORMANCE_COUNTS][2];
+	size_t perf_index;
 	struct {
 		u_int8_t in_frame:1;
 		u_int8_t frame_finished:1;
@@ -265,6 +268,11 @@ int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_
 	int counter = state->counter;
 	int last_data_bit = state->last_data_bit;
 	
+	if(state->perf_index < PERFORMANCE_COUNTS) {
+		state->performance[state->perf_index][0] = *offset;
+		state->performance[state->perf_index++][1] = buflen;
+	}
+	
 	for(; *offset < buflen; ) {
 		int delta;
 		if(state->pauses_count)
@@ -376,4 +384,17 @@ struct diffmiller_state *iso14443a_init_diffmiller(int pauses_count)
 	state->flags.frame_finished = 0;
 	
 	return state;
+}
+
+
+#include "cmd.h"
+void iso14443a_diffmiller_print_performance(struct diffmiller_state * const state)
+{
+	DumpStringToUSB("`");
+	unsigned int i; for(i=0; i<state->perf_index; i++) {
+		if(i>0)DumpStringToUSB(";");
+		DumpUIntToUSB(state->performance[i][0]); DumpStringToUSB(":"); DumpUIntToUSB(state->performance[i][1]);
+	}
+	DumpStringToUSB("'");
+	state->perf_index=0;
 }
