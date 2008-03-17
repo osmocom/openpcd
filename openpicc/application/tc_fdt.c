@@ -136,8 +136,7 @@ void tc_fdt_init(void)
 	AT91F_AIC_ConfigureIt(AT91C_ID_TC2,
 			      OPENPCD_IRQ_PRIO_TC_FDT,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, (THandler)&tc_fdt_irq);
-	tcfdt->TC_IER = AT91C_TC_CPAS | AT91C_TC_CPCS | 
-			AT91C_TC_ETRGS;
+	tcfdt->TC_IER = AT91C_TC_CPCS | AT91C_TC_ETRGS;
 	AT91F_AIC_ClearIt(AT91C_ID_TC2);
 	AT91F_AIC_EnableIt(AT91C_ID_TC2);
 
