@@ -50,15 +50,8 @@ static const iso14443_frame ATQA_FRAME = {
 	{}
 };
 
-static const iso14443_frame UID_FRAME = {
-	TYPE_A,
-	FRAME_PREFILLED,
-	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
-	5,
-	0, 0,
-	{0xF4, 0xAC, 0xF9, 0xD7, 0x76},
-	{}
-};
+static iso14443_frame UID_FRAME;
+static u_int8_t UID[] = {0xF4, 0xAC, 0xF9, 0xD7}; //, 0x76
 
 static const iso14443_frame ATS_FRAME = {
 	TYPE_A,
@@ -76,7 +69,7 @@ static const iso14443_frame NONCE_FRAME = {
 	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
 	4,
 	0, 0,
-	{0xFF, 0xCF, 0x80, 0xE3},
+	{0, 0, 0, 0},
 	{}
 };
 
@@ -108,20 +101,40 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 		break;
 	}
 	
-	switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
-	case BYTES_AND_BITS(0, 7): /* REQA (7 bits) */
-		tx_buffer = &ATQA_BUFFER;
-		fdt += 9*128;
-		break;
-	case BYTES_AND_BITS(2, 0): /* ANTICOL (2 bytes) */
-		tx_buffer = &UID_BUFFER;
-		fdt += 9*128;
-		break;
-	case BYTES_AND_BITS(9, 0): /* SELECT (9 bytes) */
-		tx_buffer = &ATS_BUFFER;
-		fdt += 9*128;
-		break;
-	}
+	
+	if(cv < 870) /* Anticollision is time-critical, do not even try to send if we're too late anyway */
+		switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
+		case BYTES_AND_BITS(0, 7): /* REQA (7 bits) */
+			tx_buffer = &ATQA_BUFFER;
+			fdt += 9*128;
+			break;
+		case BYTES_AND_BITS(2, 0): /* ANTICOL (2 bytes) */
+			tx_buffer = &UID_BUFFER;
+			fdt += 9*128;
+			break;
+		case BYTES_AND_BITS(9, 0): /* SELECT (9 bytes) */
+			tx_buffer = &ATS_BUFFER;
+			fdt += 9*128;
+			break;
+		}
+	
+	if(tx_buffer == NULL) 
+		switch(BYTES_AND_BITS(frame->numbytes, frame->numbits)) {
+		case BYTES_AND_BITS(4, 0):
+			if( (frame->data[0] & 0xfe) == 0x60 && frame->parameters.a.crc) {
+				/* AUTH1A or AUTH1B */
+				int ret = manchester_encode(NONCE_BUFFER.data,  sizeof(NONCE_BUFFER.data),  &NONCE_FRAME);
+				if(ret < 0) {
+				} else {
+					NONCE_BUFFER.len = ret;
+					tx_buffer = &NONCE_BUFFER;
+				}
+				
+				/*fdt += ((cv / 128) + 10) * 128;*/
+				fdt += 50*128;  /* 52 ok, 26 not, 39 not, 45 not, 48 not, 50 ok, 49 not */
+			}
+			break;
+		}
 	
 	/* Add some extra room to the fdt for testing */
 	//fdt += 3*128;
@@ -135,6 +148,8 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 	}
 	
 	u_int32_t cv2 = *AT91C_TC2_CV;
+	usb_print_string_f("\r\n",0);
+	if(tx_buffer == &NONCE_BUFFER) usb_print_string_f("---> ",0);
 	int old=usb_print_set_default_flush(0);
 	DumpUIntToUSB(cv);
 	DumpStringToUSB(":");
@@ -144,7 +159,55 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 		DumpUIntToUSB(buffy);
 	}
 	usb_print_set_default_flush(old);
+	
+	switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
+	case BYTES_AND_BITS(4, 0):
+		if(frame->parameters.a.crc && frame->data[0] == 0x50 && frame->data[1] == 0x00) {
+			/* HLTA */
+			UID[3]++;
+			if(UID[3]==0) {
+				UID[2]++;
+				if(UID[2]==0) {
+					UID[1]++;
+					if(UID[1]==0) {
+						UID[0]++;
+					}
+				}
+			}
+			set_UID(UID, sizeof(UID));
+		}
+	break;
+	}
+	
 	usb_print_string_f("%", 0);
+}
+
+int set_UID(u_int8_t *uid, size_t len)
+{
+	memset(&UID_FRAME, 0, sizeof(UID_FRAME));
+	memset(&UID_BUFFER, 0, sizeof(UID_BUFFER));
+	
+	UID_FRAME.type = TYPE_A;
+	UID_FRAME.parameters.a.format = STANDARD_FRAME;
+	UID_FRAME.parameters.a.parity = PARITY;
+	UID_FRAME.parameters.a.last_bit = ISO14443A_LAST_BIT_NONE;
+	UID_FRAME.parameters.a.crc = CRC_UNCALCULATED;
+	
+	UID_FRAME.numbytes = len+1;
+	
+	u_int8_t bcc = 0;
+	unsigned int i;
+	for(i=0; i<len; i++) {
+		UID_FRAME.data[i] = uid[i];
+		bcc ^= uid[i];
+	}
+	UID_FRAME.data[i] = bcc;
+	UID_FRAME.state = FRAME_PREFILLED;
+	
+	int ret = manchester_encode(UID_BUFFER.data,  sizeof(UID_BUFFER.data),  &UID_FRAME);
+	if(ret < 0) return ret;
+	else UID_BUFFER.len = ret;
+	return 0;
 }
 
 void iso14443a_pretender (void *pvParameters)
@@ -170,9 +233,11 @@ void iso14443a_pretender (void *pvParameters)
 	if(ret < 0) goto prefill_failed; else dst.len = ret;
 	
 	PREFILL_BUFFER(ATQA_BUFFER,  ATQA_FRAME);
-	PREFILL_BUFFER(UID_BUFFER,   UID_FRAME);
+	//PREFILL_BUFFER(UID_BUFFER,   UID_FRAME);
 	PREFILL_BUFFER(ATS_BUFFER,   ATS_FRAME);
 	PREFILL_BUFFER(NONCE_BUFFER, NONCE_FRAME);
+	
+	set_UID(UID, sizeof(UID));
 	
 	if(0) {
 prefill_failed:
