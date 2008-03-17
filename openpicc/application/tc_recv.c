@@ -109,6 +109,9 @@ static portBASE_TYPE handle_frame(iso14443_frame *frame, portBASE_TYPE task_woke
 		task_woken = xQueueSendFromISR(_tc.rx_queue, &frame, task_woken);
 	}
 	_tc.current_frame = NULL;
+	int old=usb_print_set_default_flush(0);
+	iso14443a_diffmiller_print_performance(_tc.decoder);
+	usb_print_set_default_flush(old);
 	return task_woken;
 }
 
