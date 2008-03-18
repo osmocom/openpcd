@@ -84,7 +84,7 @@ static inline int detect_board(void)
 	if(!pa18 && !pa31) {
 	    //vLedInit();
 		//vLedHaltBlinking(1);
-		result = OPENPICC_v0_4_p2;
+		result = OPENPICC_v0_4_karsten;
 	} else if(!pa18 && pa31) {
 	    vLedInit();
 		vLedHaltBlinking(2);
@@ -95,7 +95,7 @@ static inline int detect_board(void)
 		pio->PIO_CODR = AT91C_PIO_PA31;
 		pa18 = AT91F_PIO_IsInputSet(pio, AT91C_PIO_PA18);
 		if(!pa18) {
-			result = OPENPICC_v0_4_p2;
+			result = OPENPICC_v0_4_karsten;
 		} else {
 		    vLedInit();
 			vLedHaltBlinking(3);

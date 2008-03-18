@@ -59,10 +59,13 @@ enum openpicc_release {
 	 				   * + PLL_LOCK relocated from PA4 to PA5
 	 				   * + Copy of FRAME routed to PA4 
 	 				   * + Connection between R18 and 3V3 removed, instead R18 is now connected to PA31*/
-	OPENPICC_v0_4_p2, /* Enhancement of v0.1p1, Add:
+	OPENPICC_v0_4_p2, /* Enhancement of v0.4p1, Add:
 					   * + CARRIER can be switched from PLL output to original carrier
 					   *   using PA30
 					   */
+	OPENPICC_v0_4_karsten, /* Combination of p1 and p2:
+							* + Has everything v0.4p1 has
+							* + CARRIER is fixed to original carrier, PLL ist completely out of the loop*/
 };
 enum clock_source { 
 	CLOCK_SELECT_PLL,

@@ -48,6 +48,15 @@ const struct openpicc_hardware OPENPICC_HARDWARE[] = {
 				AT91C_PIO_PA31,
 				AT91C_PIO_PA30,
 			},
+		[OPENPICC_v0_4_karsten]	   = {OPENPICC_v0_4_karsten, 
+				"OpenPICC v0.4 (Karsten's edition)",
+				{1, 1, 0,},
+				CLOCK_SELECT_CARRIER,
+				AT91C_PIO_PA5,
+				AT91C_PIO_PA4,
+				AT91C_PIO_PA31,
+				-1,
+			},
 };
 
 const struct openpicc_hardware *OPENPICC;
