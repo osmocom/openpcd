@@ -40,6 +40,18 @@
 extern volatile int fdt_offset;
 #include "led.h"
 
+struct challenge_response {
+	u_int8_t UID[5];
+	u_int8_t nonce[4];
+	u_int8_t waiting_for_response; 
+	struct {
+		u_int8_t data[8];
+		u_int8_t parity[2];
+	} response;
+};
+
+struct challenge_response challenge_response;
+
 static const iso14443_frame ATQA_FRAME = {
 	TYPE_A,
 	FRAME_PREFILLED,
@@ -83,7 +95,6 @@ static ssc_dma_tx_buffer_t ATQA_BUFFER, UID_BUFFER, ATS_BUFFER, NONCE_BUFFER;
 static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *frame, u_int8_t in_irq)
 {
 	(void)buffer; (void)in_irq;
-	unsigned int buffy=0;
 	u_int32_t cv = *AT91C_TC2_CV;
 	
 	ssc_dma_tx_buffer_t *tx_buffer=NULL;
@@ -151,6 +162,7 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 		}
 	}
 	
+#if 0
 	u_int32_t cv2 = *AT91C_TC2_CV;
 	usb_print_string_f("\r\n",0);
 	if(tx_buffer == &NONCE_BUFFER) usb_print_string_f("---> ",0);
@@ -158,11 +170,8 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 	DumpUIntToUSB(cv);
 	DumpStringToUSB(":");
 	DumpUIntToUSB(cv2);
-	if(buffy!=0) {
-		DumpStringToUSB("§");
-		DumpUIntToUSB(buffy);
-	}
 	usb_print_set_default_flush(old);
+#endif
 	
 	switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
 	case BYTES_AND_BITS(4, 0):
@@ -183,7 +192,30 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 	break;
 	}
 	
-	usb_print_string_f("%", 0);
+	if(tx_buffer) usb_print_string_f("\r\n",0);
+	if(tx_buffer == &UID_BUFFER) {
+		memcpy(&challenge_response.UID, UID_FRAME.data, 5);
+		usb_print_string_f("uid", 0);
+	} else if(tx_buffer == &NONCE_BUFFER) {
+		memcpy(&challenge_response.nonce, NONCE_FRAME.data, 4);
+		challenge_response.waiting_for_response = 1;
+		usb_print_string_f("nonce", 0);
+	} else if(challenge_response.waiting_for_response) {
+		memcpy(&challenge_response.response.data, frame->data, 8);
+		memcpy(&challenge_response.response.parity, frame->parity, 1);
+		challenge_response.waiting_for_response = 0;
+		
+		int old=usb_print_set_default_flush(0);
+		DumpStringToUSB("[[");
+		DumpBufferToUSB((char*)challenge_response.UID, 5);
+		DumpStringToUSB(" ");
+		DumpBufferToUSB((char*)challenge_response.nonce, 4);
+		DumpStringToUSB(" ");
+		DumpBufferToUSB((char*)challenge_response.response.data, 8);
+		DumpStringToUSB("]]");
+		usb_print_set_default_flush(old);
+	}
+	//usb_print_string_f("%", 0);
 }
 
 int set_UID(u_int8_t *uid, size_t len)
