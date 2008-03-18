@@ -226,7 +226,7 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 		// We'll keep the divider at 8
 		//tc_cdiv_set_divider(RX_DIVIDER);
 		tc_cdiv_sync_reset();
-#if 1
+#if 0
 		int old=usb_print_set_default_flush(0);
 		DumpStringToUSB("["); DumpUIntToUSB(reason); DumpStringToUSB("]");
 		usb_print_set_default_flush(old);
