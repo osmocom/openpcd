@@ -166,6 +166,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 			append_to_frame(state, state->byte, 0, counter);
 		}
 		
+		state->frame->parameters.a.parity = GIVEN_PARITY;
 		if(!state->crc)
 			state->frame->parameters.a.crc = CRC_OK;
 		else
