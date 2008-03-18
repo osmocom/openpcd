@@ -104,16 +104,20 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 	
 	if(cv < 870) /* Anticollision is time-critical, do not even try to send if we're too late anyway */
 		switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
-		case BYTES_AND_BITS(0, 7): /* REQA (7 bits) */
-			tx_buffer = &ATQA_BUFFER;
+		case BYTES_AND_BITS(0, 7): /* REQA or WUPA (7 bits) */
+			if(frame->data[0] == 0x26 || frame->data[0] == 0x52)
+				tx_buffer = &ATQA_BUFFER;
 			fdt += 9*128;
 			break;
 		case BYTES_AND_BITS(2, 0): /* ANTICOL (2 bytes) */
-			tx_buffer = &UID_BUFFER;
+			if(frame->data[0] == 0x93 && frame->data[1] == 0x20)
+				tx_buffer = &UID_BUFFER;
 			fdt += 9*128;
 			break;
 		case BYTES_AND_BITS(9, 0): /* SELECT (9 bytes) */
-			tx_buffer = &ATS_BUFFER;
+			if(frame->data[0] == 0x93 && frame->data[1] == 0x70 && frame->parameters.a.crc &&
+					( *((u_int32_t*)&frame->data[2]) ==  *((u_int32_t*)&UID) ) )
+				tx_buffer = &ATS_BUFFER;
 			fdt += 9*128;
 			break;
 		}
