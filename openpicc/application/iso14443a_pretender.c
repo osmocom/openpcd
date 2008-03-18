@@ -300,7 +300,9 @@ prefill_failed:
 	do {
 		res = iso14443_layer2a_init(1);
 		if(res < 0) {
-			usb_print_string("Pretender: Initialization failed\n\r");
+			usb_print_string("Pretender: Initialization failed: -");
+			DumpUIntToUSB(-res);
+			usb_print_string("\n\r");
 			for(i=0; i<=10000; i++) {
 				vLedSetBrightness(LED_RED, abs(1000-(i%2000)));
 				vTaskDelay(1*portTICK_RATE_MS);
