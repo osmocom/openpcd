@@ -62,9 +62,6 @@ static const iso14443_frame ATQA_FRAME = {
 	{}
 };
 
-static iso14443_frame UID_FRAME;
-static u_int8_t UID[] = {0xF4, 0xAC, 0xF9, 0xD7}; //, 0x76
-
 static const iso14443_frame ATS_FRAME = {
 	TYPE_A,
 	FRAME_PREFILLED,
@@ -75,16 +72,9 @@ static const iso14443_frame ATS_FRAME = {
 	{}
 };
 
-static const iso14443_frame NONCE_FRAME = {
-	TYPE_A,
-	FRAME_PREFILLED,
-	{{STANDARD_FRAME, PARITY, ISO14443A_LAST_BIT_NONE, CRC_UNCALCULATED}},
-	4,
-	0, 0,
-	{0, 0, 0, 0},
-	{}
-};
-
+static iso14443_frame UID_FRAME, NONCE_FRAME;
+static u_int8_t UID[]   = {0xF4, 0xAC, 0xF9, 0xD7}; // bcc = 0x76
+static u_int8_t nonce[] = {0x00, 0x00, 0x00, 0x00};
 
 #define FRAME_SIZE(bytes) (2* (1+(9*bytes)+1) )
 #define SIZED_BUFFER(bytes) struct { int len; u_int8_t data[FRAME_SIZE(bytes)]; }
@@ -218,18 +208,21 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 	//usb_print_string_f("%", 0);
 }
 
+static void prepare_frame(iso14443_frame *frame, int len)
+{
+	memset(frame, 0, sizeof(*frame));
+	frame->type = TYPE_A;
+	frame->parameters.a.format = STANDARD_FRAME;
+	frame->parameters.a.parity = PARITY;
+	frame->parameters.a.last_bit = ISO14443A_LAST_BIT_NONE;
+	frame->parameters.a.crc = CRC_UNCALCULATED;
+	
+	frame->numbytes = len;
+}
+
 int set_UID(u_int8_t *uid, size_t len)
 {
-	memset(&UID_FRAME, 0, sizeof(UID_FRAME));
-	memset(&UID_BUFFER, 0, sizeof(UID_BUFFER));
-	
-	UID_FRAME.type = TYPE_A;
-	UID_FRAME.parameters.a.format = STANDARD_FRAME;
-	UID_FRAME.parameters.a.parity = PARITY;
-	UID_FRAME.parameters.a.last_bit = ISO14443A_LAST_BIT_NONE;
-	UID_FRAME.parameters.a.crc = CRC_UNCALCULATED;
-	
-	UID_FRAME.numbytes = len+1;
+	prepare_frame(&UID_FRAME, len+1);
 	
 	u_int8_t bcc = 0;
 	unsigned int i;
@@ -239,10 +232,27 @@ int set_UID(u_int8_t *uid, size_t len)
 	}
 	UID_FRAME.data[i] = bcc;
 	UID_FRAME.state = FRAME_PREFILLED;
+	memcpy(UID, uid, len);
 	
+	memset(&UID_BUFFER, 0, sizeof(UID_BUFFER));
 	int ret = manchester_encode(UID_BUFFER.data,  sizeof(UID_BUFFER.data),  &UID_FRAME);
 	if(ret < 0) return ret;
 	else UID_BUFFER.len = ret;
+	return 0;
+}
+
+int set_nonce(u_int8_t *_nonce, size_t len)
+{
+	prepare_frame(&NONCE_FRAME, len);
+	
+	memcpy(&NONCE_FRAME.data, _nonce, len);
+	NONCE_FRAME.state = FRAME_PREFILLED;
+	memcpy(nonce, _nonce, len);
+	
+	memset(&NONCE_BUFFER, 0, sizeof(NONCE_BUFFER));
+	int ret = manchester_encode(NONCE_BUFFER.data,  sizeof(NONCE_BUFFER.data),  &NONCE_FRAME);
+	if(ret < 0) return ret;
+	else NONCE_BUFFER.len = ret;
 	return 0;
 }
 
@@ -271,9 +281,10 @@ void iso14443a_pretender (void *pvParameters)
 	PREFILL_BUFFER(ATQA_BUFFER,  ATQA_FRAME);
 	//PREFILL_BUFFER(UID_BUFFER,   UID_FRAME);
 	PREFILL_BUFFER(ATS_BUFFER,   ATS_FRAME);
-	PREFILL_BUFFER(NONCE_BUFFER, NONCE_FRAME);
+	//PREFILL_BUFFER(NONCE_BUFFER, NONCE_FRAME);
 	
 	set_UID(UID, sizeof(UID));
+	set_nonce(nonce, sizeof(nonce));
 	
 	if(0) {
 prefill_failed:
