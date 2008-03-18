@@ -129,7 +129,7 @@ int iso14443_transmit(ssc_dma_tx_buffer_t *buffer, unsigned int fdt, u_int8_t as
 	tx_pending = 1;
 	
 	/* Immediately set up FDT and clock */
-	clock_switch(CLOCK_SELECT_CARRIER);
+	//clock_switch(CLOCK_SELECT_CARRIER);
 	ssc_set_gate(0);
 	tc_fdt_set(fdt);
 	// We'll keep the divider at 8
@@ -207,7 +207,7 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 	}
 	
 	if( reason == SSC_CALLBACK_RX_FRAME_ENDED && fast_receive ) {
-		clock_switch(CLOCK_SELECT_CARRIER); /* A Tx might be coming up */
+		//clock_switch(CLOCK_SELECT_CARRIER); /* A Tx might be coming up */
 		
 		ssc_dma_rx_buffer_t *buffer = data;
 		if(callback != NULL)
@@ -220,7 +220,7 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 		// clock_switch(CLOCK_SELECT_PLL);
 		 * however, the SSC Rx code is going to go away (at least for 14443-A)
 		 * and switching clocks messes up the Tx timing, so we do a */
-		clock_switch(CLOCK_SELECT_CARRIER);
+		//clock_switch(CLOCK_SELECT_CARRIER);
 		ssc_set_gate(1);
 		tc_fdt_set(0xff00);
 		// We'll keep the divider at 8
@@ -237,7 +237,7 @@ static void iso14443_ssc_callback(ssc_callback_reason reason, void *data)
 static void iso14443_tc_recv_callback(tc_recv_callback_reason reason, void *data)
 {
 	if( reason == TC_RECV_CALLBACK_RX_FRAME_ENDED && fast_receive ) {
-		clock_switch(CLOCK_SELECT_CARRIER); /* A Tx might be coming up */
+		//clock_switch(CLOCK_SELECT_CARRIER); /* A Tx might be coming up */
 		
 		iso14443_frame *frame = data;
 		if(callback != NULL)
@@ -247,7 +247,7 @@ static void iso14443_tc_recv_callback(tc_recv_callback_reason reason, void *data
 	if( (reason == TC_RECV_CALLBACK_RX_FRAME_ENDED && !tx_pending) ||
 			reason == TC_RECV_CALLBACK_SETUP ) {
 		/* For T/C Rx we set the clock to */
-		clock_switch(CLOCK_SELECT_CARRIER);
+		//clock_switch(CLOCK_SELECT_CARRIER);
 		ssc_set_gate(1);
 		tc_fdt_set(0xff00);
 		// We'll keep the divider at 8
@@ -276,7 +276,18 @@ int iso14443_layer2a_init(u_int8_t enable_fast_receive)
 	if(ssc == NULL)
 		return -EIO;
 	
-	if(tc_recv_init(&th, 0, iso14443_tc_recv_callback) < 0) {
+	int pauses_count;
+	if(OPENPICC->features.clock_switching) {
+		clock_switch(CLOCK_SELECT_CARRIER);
+		pauses_count = 0;
+	} else {
+		if(OPENPICC->default_clock == CLOCK_SELECT_CARRIER) {
+			pauses_count = 0;
+		} else {
+			return -ENOTSUP;
+		}
+	}
+	if(tc_recv_init(&th, pauses_count, iso14443_tc_recv_callback) < 0) {
 		ssc_close(ssc);
 		return -EIO;
 	}
