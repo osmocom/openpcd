@@ -7,10 +7,10 @@ LayoutFile=layout.inf
 DriverVer=2007-06-03,1.0.31.1
 
 [MANUFACTURER]
-%OpenBeacon%=OpenBeacon
+%OpenPICC%=OpenPICC
 
-[OpenBeacon]
-%OpenBeacon_CDC%=Reader,USB\VID_16C0&PID_08AC
+[OpenPICC]
+%OpenPICC_CDC%=Reader,USB\VID_16C0&PID_08AC
 
 [Reader_Install.NTx86]
 ;Windows2000
@@ -43,6 +43,6 @@ LoadOrderGroup = Base
 
 [Strings]
 bitmanufaktur = "Bitmanufaktur IT Solutions"
-OpenBeacon = "OpenBeaconUSB 2.4GHz"
-OpenBeacon_CDC = "OpenBeaconUSB 2.4GHz CDC"
-Serial.SvcDesc = "OpenBeaconUSB Serial Port"
+OpenPICC = "OpenPICC RFID-Sniffer"
+OpenPICC_CDC = "OpenPICC RFID-Sniffer CDC"
+Serial.SvcDesc = "OpenPICCUSB Serial Port"
