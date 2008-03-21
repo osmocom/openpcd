@@ -169,7 +169,6 @@ extern volatile unsigned portLONG ulCriticalNesting;
 void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	static int led = 0;
 	portCHAR cByte = cmd & 0xff;
-	portLONG j;
 	int i,ms;
 	if(cByte>='A' && cByte<='Z')
 	    cByte-=('A'-'a');
@@ -184,24 +183,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 	// Note: Commands have been uppercased when this code is called
 	    switch(cmd)
 	    {
-		case 'TEST':
-		    DumpStringToUSB("Testing critical sections\r\n");
-		    j=ulCriticalNesting;
-		    DumpStringToUSB("Nesting is now ");
-		    DumpUIntToUSB(j);
-		    DumpStringToUSB("\n\r");
-		    taskENTER_CRITICAL();
-		    for(i=0; i<1000; i++) {;}
-		    j=ulCriticalNesting;
-		    taskEXIT_CRITICAL();
-		    DumpStringToUSB("Nesting was  ");
-		    DumpUIntToUSB(j);
-		    DumpStringToUSB("\n\r");
-		    j=ulCriticalNesting;
-		    DumpStringToUSB("Nesting is now ");
-		    DumpUIntToUSB(j);
-		    DumpStringToUSB("\n\r");
-		    break;
 		case 'THRU': {
 				/*char buffer[64];
 				memset(buffer, 'A', sizeof(buffer));
@@ -437,7 +418,6 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * running on ");
 		    DumpStringToUSB(OPENPICC->release_name);
 		    DumpStringToUSB("\n\r *\n\r"
-			" * test - test critical sections\n\r"
 		    " * thru - test throughput\n\r"
 #if ( configUSE_TRACE_FACILITY == 1 )
 			" * t    - print task list and stack usage\n\r"
