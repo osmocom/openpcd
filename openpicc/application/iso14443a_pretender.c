@@ -47,6 +47,7 @@ struct challenge_response {
 	struct {
 		u_int8_t data[8];
 		u_int8_t parity[2];
+		size_t len;
 	} response;
 };
 
@@ -73,7 +74,8 @@ static const iso14443_frame ATS_FRAME = {
 };
 
 static iso14443_frame UID_FRAME, NONCE_FRAME;
-static u_int8_t UID[]   = {0xF4, 0xAC, 0xF9, 0xD7}; // bcc = 0x76
+//static u_int8_t UID[]   = {0xF4, 0xAC, 0xF9, 0xD7}; // bcc = 0x76
+static u_int8_t UID[]   = {0x00, 0x00, 0x00, 0x00}; 
 static u_int8_t nonce[] = {0x00, 0x00, 0x00, 0x00};
 
 #define FRAME_SIZE(bytes) (2* (1+(9*bytes)+1) )
@@ -191,17 +193,21 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 		challenge_response.waiting_for_response = 1;
 		usb_print_string_f("nonce", 0);
 	} else if(challenge_response.waiting_for_response) {
-		memcpy(&challenge_response.response.data, frame->data, 8);
-		memcpy(&challenge_response.response.parity, frame->parity, 1);
 		challenge_response.waiting_for_response = 0;
-		
+		if(frame->numbytes != 8) {
+			usb_print_string_f("tilt ",0);
+		}
+		challenge_response.response.len = frame->numbytes + (frame->numbits+7)/8;
+		memcpy(&challenge_response.response.data, frame->data, challenge_response.response.len);
+		memcpy(&challenge_response.response.parity, frame->parity, 1);
+
 		int old=usb_print_set_default_flush(0);
 		DumpStringToUSB("[[");
 		DumpBufferToUSB((char*)challenge_response.UID, 5);
 		DumpStringToUSB(" ");
 		DumpBufferToUSB((char*)challenge_response.nonce, 4);
 		DumpStringToUSB(" ");
-		DumpBufferToUSB((char*)challenge_response.response.data, 8);
+		DumpBufferToUSB((char*)challenge_response.response.data, challenge_response.response.len);
 		DumpStringToUSB("]]");
 		usb_print_set_default_flush(old);
 	}
@@ -241,6 +247,13 @@ int set_UID(u_int8_t *uid, size_t len)
 	return 0;
 }
 
+int get_UID(u_int8_t *uid, size_t len)
+{
+	if(len < 4 || len > 4) return -1;
+	memcpy(uid, UID, len);
+	return 0;
+}
+
 int set_nonce(u_int8_t *_nonce, size_t len)
 {
 	prepare_frame(&NONCE_FRAME, len);
@@ -253,6 +266,13 @@ int set_nonce(u_int8_t *_nonce, size_t len)
 	int ret = manchester_encode(NONCE_BUFFER.data,  sizeof(NONCE_BUFFER.data),  &NONCE_FRAME);
 	if(ret < 0) return ret;
 	else NONCE_BUFFER.len = ret;
+	return 0;
+}
+
+int get_nonce(u_int8_t *_nonce, size_t len)
+{
+	if(len < 4 || len > 4) return -1;
+	memcpy(_nonce, nonce, len);
 	return 0;
 }
 
