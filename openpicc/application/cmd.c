@@ -23,6 +23,7 @@
 #include "usb_print.h"
 #include "load_modulation.h"
 #include "tc_sniffer.h"
+#include "iso14443a_pretender.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -132,6 +133,37 @@ int atoiEx(const char * nptr, char * * eptr)
 	out:
 	if(eptr != NULL) *eptr = (char*)nptr+i;
 	return sign * curval;
+}
+
+/* Common code between increment/decrement UID/nonce */
+static int change_value( int(* const getter)(u_int8_t*, size_t), int(* const setter)(u_int8_t*, size_t), 
+		const s_int32_t increment, const char *name )
+{
+	u_int8_t uid[4];
+	int ret;
+	if( getter(uid, sizeof(uid)) >= 0) {
+		(*((u_int32_t*)uid)) += increment;
+		taskENTER_CRITICAL();
+		ret = setter(uid, sizeof(uid));
+		taskEXIT_CRITICAL();
+		if(ret < 0) {
+			DumpStringToUSB("Failed to set the ");
+			DumpStringToUSB(name);
+			DumpStringToUSB("\n\r");
+		} else {
+			DumpStringToUSB("Successfully set ");
+			DumpStringToUSB(name);
+			DumpStringToUSB(" to ");
+			DumpBufferToUSB((char*)uid, sizeof(uid));
+			DumpStringToUSB("\n\r");
+		}
+	} else {
+		DumpStringToUSB("Couldn't get ");
+		DumpStringToUSB(name);
+		DumpStringToUSB("\n\r");
+		ret = -1;
+	}
+	return ret;
 }
 
 #define DYNAMIC_PIN_PLL_LOCK 1
@@ -340,6 +372,18 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpUIntToUSB(da_get_value());		    
 		    DumpStringToUSB("\n\r");
 		    break;
+		case 'U+':
+		    i=atoiEx(args, &args);
+		    change_value(get_UID, set_UID, i==0 ? +1 : +i , "UID"); break;
+		case 'U-': 
+		    i=atoiEx(args, &args);
+		    change_value(get_UID, set_UID, i==0 ? -1 : -i , "UID"); break;
+		case 'N+':
+		    i=atoiEx(args, &args);
+			change_value(get_nonce, set_nonce, i==0 ? +1 : +i, "nonce"); break;
+		case 'N-': 
+		    i=atoiEx(args, &args);
+			change_value(get_nonce, set_nonce, i==0 ? -1 : -i, "nonce"); break;
 		case 'L':
 		    led = (led+1)%4;
 		    vLedSetRed( (led&1) );
