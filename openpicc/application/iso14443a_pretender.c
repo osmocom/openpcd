@@ -79,10 +79,19 @@ static u_int8_t UID[]   = {0x00, 0x00, 0x00, 0x00};
 static u_int8_t nonce[] = {0x00, 0x00, 0x00, 0x00};
 
 #define FRAME_SIZE(bytes) (2* (1+(9*bytes)+1) )
-#define SIZED_BUFFER(bytes) struct { int len; u_int8_t data[FRAME_SIZE(bytes)]; }
 #define BYTES_AND_BITS(bytes,bits) (bytes*9+bits)
+#define GET_BASE_SIZE(type) ((size_t) &(((type*)0)->data))
 
-static ssc_dma_tx_buffer_t ATQA_BUFFER, UID_BUFFER, ATS_BUFFER, NONCE_BUFFER;
+static ssc_dma_tx_buffer_t *ATQA_BUFFER, *UID_BUFFER, *ATS_BUFFER, *NONCE_BUFFER;
+
+static ssc_dma_tx_buffer_t *alloc_buffer_for_frame(const iso14443_frame *frame)
+{
+	int datalen = FRAME_SIZE( BYTES_AND_BITS(frame->numbytes, frame->numbits) );
+	ssc_dma_tx_buffer_t *dst = pvPortMalloc( GET_BASE_SIZE(typeof(*dst)) + datalen );
+	if(dst == NULL) return NULL;
+	dst->len = datalen;
+	return dst;
+}
 
 static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *frame, u_int8_t in_irq)
 {
@@ -109,18 +118,18 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 		switch(BYTES_AND_BITS(frame->numbytes,frame->numbits)) {
 		case BYTES_AND_BITS(0, 7): /* REQA or WUPA (7 bits) */
 			if(frame->data[0] == 0x26 || frame->data[0] == 0x52)
-				tx_buffer = &ATQA_BUFFER;
+				tx_buffer = ATQA_BUFFER;
 			fdt += 9*128;
 			break;
 		case BYTES_AND_BITS(2, 0): /* ANTICOL (2 bytes) */
 			if(frame->data[0] == 0x93 && frame->data[1] == 0x20)
-				tx_buffer = &UID_BUFFER;
+				tx_buffer = UID_BUFFER;
 			fdt += 9*128;
 			break;
 		case BYTES_AND_BITS(9, 0): /* SELECT (9 bytes) */
 			if(frame->data[0] == 0x93 && frame->data[1] == 0x70 && frame->parameters.a.crc &&
 					( *((u_int32_t*)&frame->data[2]) ==  *((u_int32_t*)&UID) ) )
-				tx_buffer = &ATS_BUFFER;
+				tx_buffer = ATS_BUFFER;
 			fdt += 9*128;
 			break;
 		}
@@ -130,11 +139,16 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 		case BYTES_AND_BITS(4, 0):
 			if( (frame->data[0] & 0xfe) == 0x60 && frame->parameters.a.crc) {
 				/* AUTH1A or AUTH1B */
-				int ret = manchester_encode(NONCE_BUFFER.data,  sizeof(NONCE_BUFFER.data),  &NONCE_FRAME);
-				if(ret < 0) {
-				} else {
-					NONCE_BUFFER.len = ret;
-					tx_buffer = &NONCE_BUFFER;
+				if(NONCE_BUFFER == NULL) {
+					NONCE_BUFFER = alloc_buffer_for_frame(&NONCE_FRAME);
+				}
+				if(NONCE_BUFFER != NULL) {
+					int ret = manchester_encode(NONCE_BUFFER->data,  NONCE_BUFFER->len,  &NONCE_FRAME);
+					if(ret < 0) {
+					} else {
+						NONCE_BUFFER->len = ret;
+						tx_buffer = NONCE_BUFFER;
+					}
 				}
 				
 				/*fdt += ((cv / 128) + 10) * 128;*/
@@ -185,10 +199,10 @@ static void fast_receive_callback(ssc_dma_rx_buffer_t *buffer, iso14443_frame *f
 	}
 	
 	if(tx_buffer) usb_print_string_f("\r\n",0);
-	if(tx_buffer == &UID_BUFFER) {
+	if(tx_buffer == UID_BUFFER) {
 		memcpy(&challenge_response.UID, UID_FRAME.data, 5);
 		usb_print_string_f("uid", 0);
-	} else if(tx_buffer == &NONCE_BUFFER) {
+	} else if(tx_buffer == NONCE_BUFFER) {
 		memcpy(&challenge_response.nonce, NONCE_FRAME.data, 4);
 		challenge_response.waiting_for_response = 1;
 		usb_print_string_f("nonce", 0);
@@ -240,10 +254,15 @@ int set_UID(u_int8_t *uid, size_t len)
 	UID_FRAME.state = FRAME_PREFILLED;
 	memcpy(UID, uid, len);
 	
-	memset(&UID_BUFFER, 0, sizeof(UID_BUFFER));
-	int ret = manchester_encode(UID_BUFFER.data,  sizeof(UID_BUFFER.data),  &UID_FRAME);
+	if(UID_BUFFER == NULL) {
+		UID_BUFFER = alloc_buffer_for_frame(&UID_FRAME);
+		if(UID_BUFFER == NULL) return -ENOMEM;
+	}
+	memset(UID_BUFFER->data, 0, UID_BUFFER->len);
+	
+	int ret = manchester_encode(UID_BUFFER->data,  UID_BUFFER->len,  &UID_FRAME);
 	if(ret < 0) return ret;
-	else UID_BUFFER.len = ret;
+	else UID_BUFFER->len = ret;
 	return 0;
 }
 
@@ -262,10 +281,15 @@ int set_nonce(u_int8_t *_nonce, size_t len)
 	NONCE_FRAME.state = FRAME_PREFILLED;
 	memcpy(nonce, _nonce, len);
 	
-	memset(&NONCE_BUFFER, 0, sizeof(NONCE_BUFFER));
-	int ret = manchester_encode(NONCE_BUFFER.data,  sizeof(NONCE_BUFFER.data),  &NONCE_FRAME);
+	if(NONCE_BUFFER == NULL) {
+		NONCE_BUFFER = alloc_buffer_for_frame(&NONCE_FRAME);
+		if(NONCE_BUFFER == NULL) return -ENOMEM;
+	}
+	memset(NONCE_BUFFER->data, 0, NONCE_BUFFER->len);
+	
+	int ret = manchester_encode(NONCE_BUFFER->data,  NONCE_BUFFER->len,  &NONCE_FRAME);
 	if(ret < 0) return ret;
-	else NONCE_BUFFER.len = ret;
+	else NONCE_BUFFER->len = ret;
 	return 0;
 }
 
@@ -295,8 +319,10 @@ void iso14443a_pretender (void *pvParameters)
 	}
 	
 	int ret;
-#define PREFILL_BUFFER(dst, src) ret = manchester_encode(dst.data,  sizeof(dst.data),  &src); \
-	if(ret < 0) goto prefill_failed; else dst.len = ret;
+#define PREFILL_BUFFER(dst, src) dst = alloc_buffer_for_frame(&src); \
+	if(dst == 0) goto prefill_failed; \
+	ret = manchester_encode(dst->data,  dst->len,  &src); \
+	if(ret < 0) goto prefill_failed; else dst->len = ret;
 	
 	PREFILL_BUFFER(ATQA_BUFFER,  ATQA_FRAME);
 	//PREFILL_BUFFER(UID_BUFFER,   UID_FRAME);
