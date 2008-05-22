@@ -255,7 +255,7 @@ static inline void end_frame(struct diffmiller_state * const state, const u_int3
 	}
 
 
-int iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_frame * const frame, 
+int __ramfunc iso14443a_decode_diffmiller(struct diffmiller_state * const state, iso14443_frame * const frame, 
 	const u_int32_t buffer[], unsigned int * const offset, const unsigned int buflen)
 {
 	if(state == NULL || !state->initialized) return -EINVAL;
