@@ -18,6 +18,7 @@
 #include "pio_irq.h"
 #include "usb_print.h"
 #include "tc_sniffer.h"
+#include "ssc.h"
 
 xQueueHandle xCmdQueue;
 xTaskHandle xCmdTask;
@@ -41,7 +42,7 @@ static const portBASE_TYPE USE_COLON_FOR_LONG_COMMANDS = 0;
 /* When not USE_COLON_FOR_LONG_COMMANDS then short commands will be recognized by including
  * their character in the string SHORT_COMMANDS
  * */
-static const char *SHORT_COMMANDS = "r!pc+-l?hq9fjkai";
+static const char *SHORT_COMMANDS = "rs!pc+-l?hq9fjkaib";
 /* Note that the long/short command distinction only applies to the USB serial console
  * */
 
@@ -157,6 +158,8 @@ void print_pio(void)
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
 #define SPI_MAX_XFER_LEN 33
 
+static const u_int8_t dummy[1024] = {'A'};
+
 void startstop_field_meter(void);
 extern volatile unsigned portLONG ulCriticalNesting;
 void prvExecCommand(u_int32_t cmd, portCHAR *args) {
@@ -206,6 +209,15 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		    DumpStringToUSB(" * TC2_CV value: ");
 		    DumpUIntToUSB(*AT91C_TC2_CV);
 		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC buffers processed: ");
+		    DumpUIntToUSB(ssc_get_buffers_processed());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC buffers empty: ");
+		    DumpUIntToUSB(ssc_get_buffers_empty());
+		    DumpStringToUSB("\n\r");
+		    DumpStringToUSB(" * SSC IRQs handled: ");
+		    DumpUIntToUSB(ssc_get_irq_count());
+		    DumpStringToUSB("\n\r");
 		    DumpStringToUSB(
 			" *\n\r"
 			" *****************************************************\n\r"
@@ -237,6 +249,16 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 		case 'F':
 		    startstop_field_meter();
 		    break;
+		case 'B':
+		{
+			int i;
+			for(i=0; i<10240; i++) {
+				usb_send_buffer_zero_copy((unsigned char*)dummy, sizeof(dummy), NULL, NULL, 200/portTICK_RATE_MS);
+				//vUSBSendBuffer_blocking((unsigned char*)dummy, 0, sizeof(dummy), 200/portTICK_RATE_MS);
+			}
+		    AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|AT91C_RSTC_PERRST|AT91C_RSTC_EXTRST);
+		}
+			break;
 		case 'I':
 			pll_inhibit(!pll_is_inhibited());
 			if(pll_is_inhibited()) DumpStringToUSB(" * PLL is now inhibited\n\r");
@@ -244,6 +266,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			break;
 		case 'R':
 			start_stop_sniffing();
+			break;
+		case 'S':
+			ssc_start_stop_sending_buffers();
 			break;
 #if ( configUSE_TRACE_FACILITY == 1 )
 		case 'T':
@@ -277,8 +302,9 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
 		    " *\n\r"
-		    " * WARNING: This command will print out binary data:\n\r"
+		    " * WARNING: These commands will print out binary data:\n\r"
 		    " * r    - start/stop receiving\n\r"
+		    " * s    - start/stop receiving through the ssc\n\r"
 			" *\n\r"
 			" *****************************************************\n\r"
 			);
@@ -375,6 +401,7 @@ static portBASE_TYPE field_meter_enabled = 0;
 #define FIELD_METER_SCALE_FACTOR (FIELD_METER_MAX_VALUE/FIELD_METER_WIDTH)
 #define FIELD_LED_NOISE_FLOOR 2
 #define FIELD_LED_MAX_VALUE 110
+#define TARGET_AD_VALUE 295
 // A task to output the field strength as led brightness and optionally as a bar graph
 void vFieldMeter(void *pvParameters) {
 	(void) pvParameters;
@@ -407,8 +434,12 @@ void vFieldMeter(void *pvParameters) {
 			usb_print_string(meter_string);
 		}
 		
+#if 0
 		vLedSetBrightness(LED_RED, ((ad_value-FIELD_LED_NOISE_FLOOR) * 1000) / FIELD_LED_MAX_VALUE);
 		vLedSetGreen(pll_is_locked());
+#else
+		vLedSetBrightness(LED_GREEN, 500 - abs(ad_value - TARGET_AD_VALUE)*50 );
+#endif
 		
 		vTaskDelay(100*portTICK_RATE_MS);
 	}

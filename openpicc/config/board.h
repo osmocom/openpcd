@@ -123,13 +123,18 @@ extern const struct openpicc_hardware *OPENPICC;
 #define TASK_CMD_PRIORITY	( tskIDLE_PRIORITY + 1 )
 #define TASK_CMD_STACK		( 512 )
 
-#define TASK_USB_PRIORITY	( tskIDLE_PRIORITY + 2 )
+#define TASK_USB_PRIORITY	( tskIDLE_PRIORITY + 3 )
 #define TASK_USB_STACK		( 512 )
 
-#define TASK_ISO_PRIORITY	( tskIDLE_PRIORITY + 3 )
+#define TASK_ISO_PRIORITY	( tskIDLE_PRIORITY + 2 )
 #define TASK_ISO_STACK		( 512 )
 
-#define TASK_NRF_PRIORITY	( tskIDLE_PRIORITY + 3 )
+#define TASK_NRF_PRIORITY	( tskIDLE_PRIORITY + 2 )
 #define TASK_NRF_STACK		( 512 )
+
+#define TASK_SSC_PRIORITY	( tskIDLE_PRIORITY + 4 )
+#define TASK_SSC_STACK		( 512 )
+
+#define TASK_WDT_PRIORITY	( tskIDLE_PRIORITY + 5 )
 
 #endif /* Board_h */

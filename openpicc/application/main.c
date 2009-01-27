@@ -46,6 +46,7 @@
 #include "tc_fdt.h"
 #include "usb_print.h"
 #include "tc_sniffer.h"
+#include "ssc.h"
 
 /**********************************************************************/
 static inline void prvSetupHardware (void)
@@ -83,7 +84,7 @@ void vMainWatchdogPinger (void *pvParameters)
 	while(1) {
 		/* Restart watchdog, has been enabled in Cstartup_SAM7.c */
     		AT91F_WDTRestart(AT91C_BASE_WDTC);
-    		vTaskDelay(500*portTICK_RATE_MS);
+    		vTaskDelay(100*portTICK_RATE_MS);
 	}
 }
 
@@ -100,6 +101,8 @@ int main (void)
     da_init();
     adc_init();
     
+    ssc_init();
+    
     xTaskCreate (tc_sniffer, (signed portCHAR *) "RFID-SNIFFER", TASK_ISO_STACK,
 	NULL, TASK_ISO_PRIORITY, NULL);
 
@@ -109,7 +112,7 @@ int main (void)
     vCmdInit();
     
     xTaskCreate (vMainWatchdogPinger, (signed portCHAR *) "WDT PINGER", 64,
-	NULL, TASK_ISO_PRIORITY -1, NULL);
+	NULL, TASK_WDT_PRIORITY, NULL);
 	
     //vLedSetGreen(1);
     

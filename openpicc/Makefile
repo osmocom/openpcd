@@ -89,6 +89,7 @@ ARM_SRC= \
   application/tc_sniffer.c \
   application/usb_print.c \
   application/load_modulation.c \
+  application/ssc.c \
   os/boot/Cstartup_SAM7.c \
   os/core/list.c \
   os/core/queue.c \

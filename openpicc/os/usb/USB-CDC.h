@@ -39,6 +39,7 @@
 #include "usb.h"
 
 #define USB_CDC_QUEUE_SIZE    1024
+#define USB_CDC_ZCOPY_TX_QUEUE_SIZE 64
 
 /* Structure used to take a snapshot of the USB status from within the ISR. */
 typedef struct X_ISR_STATUS
@@ -79,11 +80,15 @@ typedef struct
 /*-----------------------------------------------------------*/
 void vUSBCDCTask (void *pvParameters);
 
+/* For zero-copy USB send */
+typedef void(*usb_zcopy_send_complete_callback_t)(void *cookie);
+
 /* Send cByte down the USB port.  Characters are simply buffered and not
 sent unless the port is connected. */
 void vUSBSendByte (portCHAR cByte);
-void vUSBSendBuffer (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length);
-void vUSBSendBuffer_blocking (unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length, portTickType xTicksToWait);
+void vUSBSendBuffer (const unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length);
+void vUSBSendBuffer_blocking (const unsigned char *buffer, portBASE_TYPE offset, portBASE_TYPE length, portTickType xTicksToWait);
+int usb_send_buffer_zero_copy(const unsigned char *data, unsigned int len, usb_zcopy_send_complete_callback_t callback, void *cookie, portTickType xTicksToWait);
 portLONG vUSBRecvByte (portCHAR *cByte,portLONG size, portTickType xTicksToWait);
 
 #endif
