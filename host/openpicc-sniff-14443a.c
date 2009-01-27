@@ -4,7 +4,7 @@
  *
  * Copyright 2007 Milosch Meriac <meriac@bitmanufaktur.de>
  * Copyright 2007 Karsten Nohl <honk98@web.de>
- * Copyright 2007,2008 Henryk Plötz <henryk@ploetzli.ch>
+ * Copyright 2007-2009 Henryk Plötz <henryk@ploetzli.ch>
  *
  ***************************************************************
 
@@ -25,6 +25,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <limits.h>
 #include <termios.h>
@@ -33,6 +34,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include "common.h"
 
 
 //#define DEBUG
@@ -70,14 +73,13 @@ frame *current_pcd_frame  = NULL;
 unsigned long current_time = 0;
 
 void end_frame(frame **target);
-void Error(const char *message);
 
 void start_frame(frame **target, framesource src) {
   if(*target != NULL) {
     fprintf(stderr, "Warning: Starting new %i frame, but last frame never ended\n", (*target)->src);
     end_frame(target);
   }
-  
+
   *target = calloc(1, sizeof(frame));
   if(!*target) Error("calloc failed");
   (*target)->src = src;
@@ -92,7 +94,7 @@ void append_to_frame(frame *f, unsigned char byte, char parity, unsigned char va
   if(f->numbytes >= sizeof(f->data)/sizeof(f->data[0])-1) { /* -1, because the last byte may be half filled */
     Error("Frame too big");
   }
-  
+
   if(f->numbits != 0) {
     Error("Appending to a frame with incomplete byte");
   }
@@ -109,7 +111,7 @@ void append_to_frame(frame *f, unsigned char byte, char parity, unsigned char va
 void process_frame(frame *f);
 
 void end_frame(frame **target) {
-  if(*target == NULL) 
+  if(*target == NULL)
     return;
 
   if((*target)->numbytes > 0) {
@@ -125,7 +127,7 @@ void end_frame(frame **target) {
     		process_frame(*target);
     }
   }
-  
+
   free(*target);
   *target = NULL;
 }
@@ -163,6 +165,8 @@ void process_frame(frame *f) {
   }
 
   printf("\n");
+  fflush(stdout);
+  fflush(stderr);
 
 }
 
@@ -176,7 +180,7 @@ void process_frame(frame *f) {
 /* The theoretical error margin for the timing measurement is about 7 (note: that is a jitter of 7 in
  * total, e.g. +/- 3.5), but we'll round that up to +/- 8. However, the specification allows pause
  * times from 2us to 3us, e.g. 1us difference, so we'll add another 13.
- */ 
+ */
 #define BIT_LEN_ERROR_MAX (8+13)
 
 #define ALMOST_EQUAL(a,b) ( abs(a-b) <= BIT_LEN_ERROR_MAX )
@@ -184,12 +188,6 @@ void process_frame(frame *f) {
 #define ALMOST_GREATER_THAN_OR_EQUAL(a,b) (a >= (b-BIT_LEN_ERROR_MAX))
 
 int counter,byte,parity,crc;
-
-void Error(const char* message)
-{
-    fprintf(stderr,"ERROR: %s\n",message);
-    exit(1);
-}
 
 void Miller_End_Frame()
 {
@@ -200,10 +198,10 @@ void Miller_End_Frame()
 		if(!crc)
 			current_pcd_frame->CRC_OK = 1;
 		end_frame(&current_pcd_frame);
-		
+
 		if(!crc)
 			DEBUGP("%s","CRC OK");
-		DEBUGP("%s","\n"); 
+		DEBUGP("%s","\n");
 	}
 	counter=0;
 	byte=0;
@@ -216,9 +214,9 @@ void Miller_End_Frame()
  * all symbols generate modulation pauses at all. Two phases:
  *  + Old state and next edge delta to sequence of symbols (might be more than one symbol per edge)
  *  + Symbols to EOF/SOF marker and bits
- * 
+ *
  * These are the possible old-state/delta combinations and the symbols they yield:
- * 
+ *
  * old_state  delta (in bit_len/4)  symbol(s)
  * none       3                     ZZ
  * none       5                     ZX
@@ -231,10 +229,10 @@ void Miller_End_Frame()
  * Z          3                     Z
  * Z          5                     X
  * Z          >=7                   Y
- * 
+ *
  * All other combinations are invalid and likely en- or decoding errors. (Note that old_state
  * Y is exactly the same as old_state none.)
- * 
+ *
  * The mapping from symbol sequences to SOF/EOF/bit is as follows:
  *         X: 1
  * 0, then Y: EOF
@@ -285,12 +283,12 @@ void Miller_Bit(enum bit bit)
 		Miller_End_Frame();
 		break;
 	}
-	
+
 	int bit_value;
 	if(bit==BIT_0) bit_value = 0;
 	else if(bit==BIT_1) bit_value = 1;
 	else return;
-	
+
     if(counter<8) {
     	byte=byte | (bit_value<<counter);
     	if(bit_value)
@@ -309,7 +307,7 @@ void Miller_Bit(enum bit bit)
 
     	//printf(" [%04X]\n",crc);
 
-    	byte=0;        
+    	byte=0;
     	parity=0;
     }
 }
@@ -319,7 +317,7 @@ void Miller_Symbol(enum symbol symbol)
 	static enum bit last_bit = BIT_ERROR;
 	static int in_frame = 0;
 	enum bit bit = BIT_ERROR;
-	
+
 	//DEBUGP("%c ", 'X'+(symbol-1));
 	if(!in_frame) {
 		if(symbol == sym_z)
@@ -331,7 +329,7 @@ void Miller_Symbol(enum symbol symbol)
 		case sym_y:
 			if(last_bit == BIT_0)
 				bit = BIT_EOF;
-			else 
+			else
 				bit = BIT_0;
 			break;
 		case sym_x:
@@ -343,13 +341,13 @@ void Miller_Symbol(enum symbol symbol)
 		default:
 			bit = BIT_ERROR;
 			break;
-		}	
+		}
 	}
-	
+
 	if(bit != BIT_EOF && last_bit == BIT_0)
 		Miller_Bit(last_bit);
 	if(bit != BIT_0) Miller_Bit(bit);
-	
+
 	last_bit = bit;
 	if(bit==BIT_SOF) {
 		in_frame = 1;
@@ -357,7 +355,7 @@ void Miller_Symbol(enum symbol symbol)
 	} else if(bit==BIT_EOF || bit==BIT_ERROR) {
 		in_frame = 0;
 	}
-	
+
 }
 
 void Miller_Edge(unsigned int delta)
@@ -374,7 +372,7 @@ void Miller_Edge(unsigned int delta)
 	} else if( ALMOST_GREATER_THAN_OR_EQUAL(delta, BIT_LEN_9)) {
 		length = len_9_or_greater;
 	}
-	
+
 	const struct decoder_table_entry *entry;
 	entry = &decoder_table[old_state][length];
 	DEBUGP(" %c{%i}[%s]", 'X'-sym_x+old_state, delta, bit_length_descriptions[length]);
@@ -384,51 +382,11 @@ void Miller_Edge(unsigned int delta)
 	} else {
 		DEBUGP("%s","! ");
 	}
-	
+
 	if(entry->second != NO_SYM) {
 		DEBUGP("%c ", 'X'-sym_x+entry->second);
 		Miller_Symbol(old_state = entry->second);
 	}
-}
-
-void un_braindead_ify_device(int fd)
-{
-	/* For some stupid reason the default setting for a serial console
-	 * is to use XON/XOFF. This means that some of the bytes will be
-	 * dropped, making the device completely unusable for a binary protocol.
-	 * Remove that setting
-	 */
-	struct termios options;
-	
-	tcgetattr (fd, &options);
-
-	options.c_lflag = 0;
-	options.c_iflag &= IGNPAR | IGNBRK;
-	options.c_oflag &= IGNPAR | IGNBRK;
-
-	cfsetispeed (&options, B115200);
-	cfsetospeed (&options, B115200);
-
-	if (tcsetattr (fd, TCSANOW, &options))
-	{
-		Error("Can't set device attributes");
-	}
-}
-
-void cleanup(int fd)
-{
-	int i;
-	char d;
-	if(write(fd, "r", 1) != 1) fprintf(stderr, "Warning: Couldn't write command to end reception mode\n");
-    i=0; d=0;
-    while(i<4) {
-    	if(read(fd, &d, sizeof(d)) == 0) break;
-    	if(d == '-')
-    		i++;
-    	else 
-    		i=0;
-    }
-	close(fd);
 }
 
 static int f=-1;
@@ -436,7 +394,7 @@ void exit_handler(int signum)
 {
 	if(signum == SIGINT && f!=-1) {
 		fprintf(stderr, "\nReceived SIGINT, clearing up\n");
-		cleanup(f);
+		cleanup(f, "r", '-');
 		exit(0);
 	}
 }
@@ -456,7 +414,7 @@ void receive_openpicc(char *devicenode)
 	int i, len, samples=0;
 	char d;
 	u_int32_t buffer[1024];
-	
+
 	if((f=open(devicenode, O_RDWR))==-1) {
 		perror("Can't open devicenode");
 		exit(1);
@@ -471,19 +429,21 @@ void receive_openpicc(char *devicenode)
 	signal(SIGINT, exit_handler);
 	i=0; d=0;
 	while(i<4) {
-		if(read(f, &d, sizeof(d)) == 0) 
+		if(read(f, &d, sizeof(d)) == 0)
 			Error("Unexpected EOF");
 		if(d == '-')
 			i++;
-		else 
+		else
 			i=0;
 	}
 
 	int do_exit=0;
-	while( (len=read(f, buffer, sizeof(buffer))) > 0 && !do_exit) {
-		if( len % sizeof(buffer[0]) != 0) Error("Wahh");
-		len = len/sizeof(buffer[0]);
-		for(i=0; i<len && !do_exit; i++) {
+	int offset = 0, next_offset;
+	while( (len=read(f, (char*)buffer+offset, sizeof(buffer)-offset)) > 0 && !do_exit) {
+		len = len + offset;
+		next_offset = len % sizeof(buffer[0]);
+		int count = (len - next_offset)/sizeof(buffer[0]);
+		for(i=0; i<count && !do_exit; i++) {
 			if(buffer[i] == '____') {
 				DEBUGP("%s","____");
 				if(print_timings) printf("\n");
@@ -500,7 +460,7 @@ void receive_openpicc(char *devicenode)
 					i=0;
 					fprintf(stderr,"\nResyncing (Warning: this is a communications problem and shouldn't happen).\n");
 					while(i<4) {
-						if(read(f, &d, sizeof(d)) == 0) 
+						if(read(f, &d, sizeof(d)) == 0)
 							Error("EOF");
 						else if(d == '_' || d == '/')
 							i++;
@@ -518,20 +478,26 @@ void receive_openpicc(char *devicenode)
 				}
 			}
 		}
+		if(next_offset > 0) {
+			memcpy(buffer, (char*)buffer+len-next_offset, next_offset);
+			offset = next_offset;
+		} else offset =0;
+		fflush(stdout);
+		fflush(stderr);
 	}
 
-	cleanup(f);
+	cleanup(f, "r", '-');
 	printf("\n\n");
 }
 
 void receive_file(FILE *stream)
 {
 	int sample;
-	
+
 	while(!feof(stream)) {
 		if(fscanf(stream, "%i", &sample) != 1) {
 			fgetc(stream);
-		} else 
+		} else
 			process_data(sample);
 	}
 }
@@ -541,7 +507,7 @@ void print_help(const char* message)
 	if(message != NULL) {
 		fprintf(stderr, "Error: %s\n", message);
 	}
-	
+
 	fprintf(stderr, "Usage: openpicc-sniff-14443a [OPTIONS] devicenode\n"
 					"   or  openpicc-sniff-14443a -r|--read-file [filename]\n"
 			        "   or  openpicc-sniff-14443a --help|-h|-?  to print this help\n"
@@ -562,9 +528,9 @@ void print_help(const char* message)
 int main(int argc, char *argv[])
 {
 	int option;
-	
+
 	Miller_End_Frame();
-	
+
 	while( (option=getopt_long(argc, argv, shortopts, options, NULL)) != 1) {
 		if(option==-1) break;
 		switch(option) {
@@ -587,7 +553,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 	}
-	
+
 	if(optind == argc && !read_file) {
 		print_help("No devicenode specified");
 		exit(1);
