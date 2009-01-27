@@ -192,7 +192,6 @@ static int __ramfunc __attribute__((unused)) check_nonempty(struct ssc_buffer *b
 }
 
 static unsigned long buffers_processed = 0;
-static unsigned long buffers_empty = 0;
 unsigned int buffer_index = 0;
 
 static void zero_copy_cb(void *cookie)
@@ -283,7 +282,7 @@ static void ssc_receive_task(void *params)
 }
 
 unsigned long ssc_get_buffers_processed(void) { return buffers_processed; }
-unsigned long ssc_get_buffers_empty(void) { return buffers_empty; }
+unsigned long ssc_get_buffers_empty(void) { int i=0,j=0; taskENTER_CRITICAL(); do{j+=!!(rx_buffer[i].state==0);}while(++i<SSC_BUFNUM); taskEXIT_CRITICAL(); return j; }
 unsigned long ssc_get_irq_count(void) { return ssc_irq_count; }
 
 int ssc_init(void)
