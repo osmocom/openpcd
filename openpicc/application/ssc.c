@@ -175,18 +175,19 @@ void ssc_start_stop_sending_buffers(void) {
 	}
 }
 
-static int __ramfunc __attribute__((unused)) check_nonempty(struct ssc_buffer *buf)
+static int __ramfunc check_nonempty(volatile struct ssc_buffer *buf)
 {
 	unsigned int i;
 #ifdef DEBUG_MARKERS
 	u_int32_t *buf32 = ((u_int32_t*)&(buf->data))+3;
 	for(i=3; i<(sizeof(buf->data)/4); i++) {
 #else
-		u_int32_t *buf32 = ((u_int32_t*)&(buf->data));
+		u_int32_t *buf32 = ((u_int32_t*)&(buf->data[0]));
 		for(i=0; i<(sizeof(buf->data)/4); i++) {
 #endif
-		if(*(buf32) != 0 && *(buf32++) != 0xffffffff)
+		if(*(buf32) != 0 && *(buf32) != 0xffffffff)
 			return 1;
+		buf32++;
 	}
 	return 0;
 }
@@ -202,9 +203,13 @@ static void zero_copy_cb(void *cookie)
 
 static void process_buffer(volatile struct ssc_buffer *buf)
 {
-	buf->state = BUFFER_PROCESSING_USB;
-	if(!usb_send_buffer_zero_copy((void*)(buf->data), sizeof(buf->data), zero_copy_cb, (void*)buf, 200/portTICK_RATE_MS))
+	if( check_nonempty(buf) ) {
+		buf->state = BUFFER_PROCESSING_USB;
+		if(!usb_send_buffer_zero_copy((void*)(buf->data), sizeof(buf->data), zero_copy_cb, (void*)buf, 200/portTICK_RATE_MS))
+			buf->state = BUFFER_IDLE;
+	} else {
 		buf->state = BUFFER_IDLE;
+	}
 	buffers_processed++;
 }
 
