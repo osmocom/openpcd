@@ -20,8 +20,6 @@ static const AT91PS_PDC pdc = (AT91PS_PDC) &(AT91C_BASE_SSC->SSC_RPR);
 #define SSC_BUFSIZE (SSC_BUFNUM*1*1024)
 #define SSC_DATALEN 32
 
-#define DO_ZEROCOPY
-
 struct ssc_buffer {
 	enum { BUFFER_IDLE=0, BUFFER_FILLING, BUFFER_PROCESSING, BUFFER_PROCESSING_USB } state;
 	unsigned char __attribute__((aligned(4))) data[SSC_BUFSIZE/SSC_BUFNUM];
@@ -195,55 +193,24 @@ static int __ramfunc __attribute__((unused)) check_nonempty(struct ssc_buffer *b
 
 static unsigned long buffers_processed = 0;
 static unsigned long buffers_empty = 0;
-#if 0
-static void process_buffer(struct ssc_buffer *buf)
-{
-	if(buffers_processed % 10 == 0) {
-		compression_buffer.len = sizeof(compression_buffer.data);
-		int r = lzo1x_1_compress(buf->data, sizeof(buf->data), compression_buffer.data,
-				&compression_buffer.len, NULL);
-		if(r == LZO_E_OK) {
-			usb_print_string("Ok ");
-			DumpUIntToUSB(compression_buffer.len);
-			usb_print_string("\r\n");
-		} else {
-			usb_print_string("fail\r\n");
-		}
-	}
-	buffers_processed++;
-}
-#else
 unsigned int buffer_index = 0;
 
-#ifdef DO_ZEROCOPY
 static void zero_copy_cb(void *cookie)
 {
 	volatile struct ssc_buffer *buf = cookie;
 	buf->state = BUFFER_IDLE;
 }
-#endif
 
 static void process_buffer(volatile struct ssc_buffer *buf)
 {
-#ifndef DO_ZEROCOPY
-	if(check_nonempty((struct ssc_buffer*)buf)) {
-		vUSBSendBuffer_blocking((unsigned char*)(buf->data), 0,
-				sizeof(buf->data), 200/portTICK_RATE_MS);
-	} else buffers_empty++;
-#else
 	buf->state = BUFFER_PROCESSING_USB;
 	if(!usb_send_buffer_zero_copy((void*)(buf->data), sizeof(buf->data), zero_copy_cb, (void*)buf, 200/portTICK_RATE_MS))
 		buf->state = BUFFER_IDLE;
-#endif
 	buffers_processed++;
 }
-#endif
 
 static void ssc_recover_from_overflow(void)
 {
-#ifndef DO_ZEROCOPY
-#error Resume-from-overflow code is not capable of !DO_ZEROCOPY operation
-#endif
 	/* Step 1: Make sure that the SSC is disabled */
 	ssc->SSC_IDR = SSC_RX_IRQ_MASK;
 
@@ -301,10 +268,6 @@ static void ssc_receive_task(void *params)
 				/* Process */
 				if(sending_buffers) {
 					process_buffer(buf);
-#ifndef DO_ZEROCOPY
-					/* Free */
-					buf->state = BUFFER_IDLE;
-#endif
 				} else {
 					/* Free */
 					buf->state = BUFFER_IDLE;
