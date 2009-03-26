@@ -167,13 +167,15 @@ void process_frame(frame *f) {
 
   switch(last_state) {
   case LAST_STATE_NONE:
+  case LAST_STATE_SELECTED:
 	  if(f->src == SRC_PCD && f->numbytes == 9 && f->numbits == 0 && f->CRC_OK && (f->data[0] & 0xff) == 0x93) {
 		  printf(INTERPRETATION "SELECT %02X%02X%02X%02X", f->data[2] & 0xff, f->data[3] & 0xff, f->data[4] & 0xff, f->data[5] & 0xff);
 		  last_state = LAST_STATE_SELECTED;
-	  }
-	  break;
-  case LAST_STATE_SELECTED:
-	  if(f->src == SRC_PCD && f->numbytes == 4 && f->numbits == 0 && f->CRC_OK && (f->data[0]&0xfe) == 0x60) {
+	  } else if( (f->src == SRC_PCD && !( (f->numbytes == 0 && f->numbits == 7) || (f->numbytes >= 2) ))  ||
+			  (f->src == SRC_PICC && (f->numbytes < 4 || f->numbits != 0) ) ||
+			  (f->numbytes > 18) ) {
+		  printf(INTERPRETATION "LIKELY FALSE");
+	  } else if(f->src == SRC_PCD && f->numbytes == 4 && f->numbits == 0 && f->CRC_OK && (f->data[0]&0xfe) == 0x60) {
 		  printf(INTERPRETATION "AUTH1%s %02X ", ((f->data[0] & 1) == 0) ? "A" : "B", f->data[1] & 0xff);
 		  last_state = LAST_STATE_AUTH1;
 	  } else if( !(f->src == SRC_PICC && f->numbytes == 3 && f->numbits == 0) )
