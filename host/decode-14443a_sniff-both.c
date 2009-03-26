@@ -139,16 +139,71 @@ void process_frame(frame *f) {
     printf("         ");
   }
 
+  int parity_error = 0;
   for(i=0; i<f->numbytes; i++) {
     printf(" %02X %i", f->data[i]&0xff, (f->data[i]>>8) & 1);
     p = 0;
     /* j from 0 to 8 (inclusive) in order to also get the parity bit */
     for(j=0; j<9; j++) p^=( f->data[i] >> j) & 1;
-    if(p!=1) printf("!"); else printf(" ");
+    if(p!=1) {
+    	printf("!");
+    	parity_error = 1;
+    } else printf(" ");
   }
 
   if(f->numbits > 0) {
     printf(" %02X", f->data[f->numbytes]&0xff);
+  }
+
+#define INTERPRETATION " : "
+  static enum {
+	  LAST_STATE_NONE,
+	  LAST_STATE_SELECTED,
+	  LAST_STATE_AUTH1,
+	  LAST_STATE_PRNG,
+	  LAST_STATE_AUTH2,
+	  LAST_STATE_ENC
+  } last_state = LAST_STATE_NONE;
+
+  switch(last_state) {
+  case LAST_STATE_NONE:
+	  if(f->src == SRC_PCD && f->numbytes == 9 && f->numbits == 0 && f->CRC_OK && (f->data[0] & 0xff) == 0x93) {
+		  printf(INTERPRETATION "SELECT %02X%02X%02X%02X", f->data[2] & 0xff, f->data[3] & 0xff, f->data[4] & 0xff, f->data[5] & 0xff);
+		  last_state = LAST_STATE_SELECTED;
+	  }
+	  break;
+  case LAST_STATE_SELECTED:
+	  if(f->src == SRC_PCD && f->numbytes == 4 && f->numbits == 0 && f->CRC_OK && (f->data[0]&0xfe) == 0x60) {
+		  printf(INTERPRETATION "AUTH1%s %02X ", ((f->data[0] & 1) == 0) ? "A" : "B", f->data[1] & 0xff);
+		  last_state = LAST_STATE_AUTH1;
+	  } else if( !(f->src == SRC_PICC && f->numbytes == 3 && f->numbits == 0) )
+		  last_state = LAST_STATE_NONE;
+	  break;
+  case LAST_STATE_AUTH1:
+	  if(f->src == SRC_PICC && f->numbytes == 4 && f->numbits == 0 && parity_error == 0) {
+		  printf(INTERPRETATION "PRNG1 %02X%02X%02X%02X", f->data[0] & 0xff, f->data[1] & 0xff, f->data[2] & 0xff, f->data[3] & 0xff);
+		  last_state = LAST_STATE_PRNG;
+	  } else last_state = LAST_STATE_NONE;
+	  break;
+  case LAST_STATE_PRNG:
+	  if(f->src == SRC_PCD && f->numbytes == 8 && f->numbits == 0) {
+		  printf(INTERPRETATION "AUTH2 %02X%02X%02X%02X %02X%02X%02X%02X", f->data[0] & 0xff, f->data[1] & 0xff, f->data[2] & 0xff, f->data[3] & 0xff,
+				  f->data[4] & 0xff, f->data[5] & 0xff, f->data[6] & 0xff, f->data[7] & 0xff);
+		  last_state = LAST_STATE_AUTH2;
+	  } else last_state = LAST_STATE_NONE;
+	  break;
+  case LAST_STATE_AUTH2:
+	  if(f->src == SRC_PICC && f->numbytes == 4 && f->numbits == 0) {
+		  printf(INTERPRETATION "PRNG2 %02X%02X%02X%02X", f->data[0] & 0xff, f->data[1] & 0xff, f->data[2] & 0xff, f->data[3] & 0xff);
+		  last_state = LAST_STATE_ENC;
+	  } else last_state = LAST_STATE_NONE;
+	  break;
+  case LAST_STATE_ENC:
+	  if(f->numbits == 0) {
+		  printf(INTERPRETATION "ENC");
+	  } else last_state = LAST_STATE_NONE;
+  default:
+	  break;
   }
 
   printf("\n");
