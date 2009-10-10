@@ -244,7 +244,7 @@ static void ssc_recover_from_overflow(void)
 	/* Step 4: Mark all buffers as clear */
 	taskENTER_CRITICAL();
 	for(i=0; i<SSC_BUFNUM; i++) {
-		rx_buffer[i].state == BUFFER_IDLE;
+		rx_buffer[i].state = BUFFER_IDLE;
 	}
 	taskEXIT_CRITICAL();
 
