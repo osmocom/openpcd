@@ -65,6 +65,11 @@ void tc_frame_end_set(u_int16_t count)
 	tcfdt->TC_RB = count;
 }
 
+int tc_fdt_get_current_value(void)
+{
+	return tcfdt->TC_CV;
+}
+
 static void __ramfunc tc_fdt_irq(void) __attribute__ ((naked));
 static void __ramfunc tc_fdt_irq(void)
 {
