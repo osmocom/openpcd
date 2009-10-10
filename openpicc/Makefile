@@ -87,6 +87,7 @@ ARM_SRC= \
   application/tc_fdt.c \
   application/tc_cdiv.c \
   application/tc_sniffer.c \
+  application/tc_legic.c \
   application/usb_print.c \
   application/load_modulation.c \
   application/ssc.c \

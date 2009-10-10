@@ -264,12 +264,14 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			if(pll_is_inhibited()) DumpStringToUSB(" * PLL is now inhibited\n\r");
 			else DumpStringToUSB(" * PLL is now running\n\r");
 			break;
+#if 0
 		case 'R':
 			start_stop_sniffing();
 			break;
 		case 'S':
 			ssc_start_stop_sending_buffers();
 			break;
+#endif
 #if ( configUSE_TRACE_FACILITY == 1 )
 		case 'T':
 		    memset(pcWriteBuffer, 0, sizeof(pcWriteBuffer));
@@ -301,11 +303,13 @@ void prvExecCommand(u_int32_t cmd, portCHAR *args) {
 			" * f    - start/stop field meter\n\r"
 			" * 9    - reset CPU\n\r"
 			" * ?,h  - display this help screen\n\r"
+#if 0
 		    " *\n\r"
 		    " * WARNING: These commands will print out binary data:\n\r"
 		    " * r    - start/stop receiving\n\r"
 		    " * s    - start/stop receiving through the ssc\n\r"
 			" *\n\r"
+#endif
 			" *****************************************************\n\r"
 			);
 		    break;

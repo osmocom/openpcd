@@ -46,6 +46,7 @@
 #include "tc_fdt.h"
 #include "usb_print.h"
 #include "tc_sniffer.h"
+#include "tc_legic.h"
 #include "ssc.h"
 
 /**********************************************************************/
@@ -101,9 +102,9 @@ int main (void)
     da_init();
     adc_init();
     
-    ssc_init();
+    //ssc_init();
     
-    xTaskCreate (tc_sniffer, (signed portCHAR *) "RFID-SNIFFER", TASK_ISO_STACK,
+    xTaskCreate (tc_legic, (signed portCHAR *) "LEGIC EMULATOR", TASK_ISO_STACK,
 	NULL, TASK_ISO_PRIORITY, NULL);
 
     xTaskCreate (vUSBCDCTask, (signed portCHAR *) "USB", TASK_USB_STACK,
