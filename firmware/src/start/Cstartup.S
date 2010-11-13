@@ -95,9 +95,11 @@
 #elif defined(PICC)
 	.equ PIO_BOOTLDR,     (1 << 6)
 #elif defined(OLIMEX)
+	/* Olimex SAM7-Pxxx boards have a button B1 on PA19 that is low-active */
 	.equ PIO_BOOTLDR,     (1 << 19)
+#define CONFIG_DFU_SWITCH_INV
 #else
-#error please define PIO_BOOTLDR
+#error please define PIO_BOOTLDR for your board
 #endif
 
 
@@ -373,7 +375,11 @@ LoopZI:         CMP     R1, R2
 		ldr 	r1, =AT91C_BASE_PIOA
 		ldr	r2, [r1, #PIOA_PDSR]
 		tst	r2, #PIO_BOOTLDR
+#ifdef CONFIG_DFU_SWITCH_INV
+		beq	_reloc_dfu
+#else
 		bne	_reloc_dfu
+#endif /* SWITCH_INV */
 #endif
 
 		bx	r10
