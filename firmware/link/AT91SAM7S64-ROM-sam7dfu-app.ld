@@ -5,7 +5,7 @@ MEMORY
   /* reserve 1K config area on top  of flash */
   FLASH  (rx) : ORIGIN = 0x00104000, LENGTH = (0x00010000 - 0x4000 - 0x400)
   DATA   (rw) : ORIGIN = 0x00200028, LENGTH = (0x00004000 - 0x28)
-  STACK  (rw) : ORIGIN = 0x00208000, LENGTH = 0x00000000
+  STACK  (rw) : ORIGIN = 0x00204000, LENGTH = 0x00000000
 }
 
 
