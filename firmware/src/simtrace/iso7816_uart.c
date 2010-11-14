@@ -11,6 +11,7 @@
 
 #include <os/usb_handler.h>
 #include <os/dbgu.h>
+#include <os/pio_irq.h>
 
 #include "../simtrace.h"
 #include "../openpcd.h"
@@ -111,14 +112,18 @@ static void set_atr_state(struct iso7816_3_handle *ih, enum atr_state new_atrs)
 
 static void set_state(struct iso7816_3_handle *ih, enum iso7816_3_state new_state)
 {
-	if (new_state == ISO7816_S_WAIT_ATR) {
+	if (new_state == ISO7816_S_RESET) {
+		usart->US_CR |= AT91C_US_RXDIS | AT91C_US_RSTRX;
+	} else if (new_state == ISO7816_S_WAIT_ATR) {
 		int rc;
 		/* Initial Fi / Di ratio */
 		ih->fi = 1;
 		ih->di = 1;
 		rc = compute_fidi_ratio(ih->fi, ih->di);
 		DEBUGPCRF("computed Fi(%u) Di(%u) ratio: %d", ih->fi, ih->di, rc);
+		usart->US_CR |= AT91C_US_RXDIS | AT91C_US_RSTRX;
 		usart->US_FIDI = rc & 0x3ff;
+		usart->US_CR |= AT91C_US_RXEN;
 		set_atr_state(ih, ATR_S_WAIT_TS);
 	} else if (new_state == ISO7816_S_WAIT_READER) {
 		/* CLA INS P1 P2 LEN */
@@ -157,10 +162,10 @@ static enum atr_state next_intb_state(struct iso7816_3_handle *ih, u_int8_t ch)
 			DEBUGPCR("found Fi=%u Di=%u", ih->fi, ih->di);
 		}
 		goto from_ta;
+	default:
+		DEBUGPCR("something wrong, old_state != TA");
+		return ATR_S_WAIT_TCK;
 	}
-
-	DEBUGPCR("something wrong, old_state != TA");
-	return ATR_S_WAIT_TCK;
 
 from_td:
 	if (ih->atr_last_td & 0x10)
@@ -278,7 +283,7 @@ void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 		new_state = process_byte_reader(ih, byte);
 		break;
 	case ISO7816_S_WAIT_CARD:
-		//new_state = process_byte_card(ih, byte);
+		new_state = process_byte_card(ih, byte);
 		break;
 	}
 
@@ -286,7 +291,7 @@ void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 		set_state(ih, new_state);
 }
 
-static int __ramfunc usart_irq(void)
+static __ramfunc void usart_irq(void)
 {
 	u_int32_t csr = usart->US_CSR;
 	u_int8_t octet;
@@ -309,6 +314,18 @@ static int __ramfunc usart_irq(void)
 	}
 }
 
+/* handler for the RST input pin state change */
+static void reset_pin_irq(u_int32_t pio)
+{
+	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, pio)) {
+		DEBUGPCR("nRST");
+		set_state(&isoh, ISO7816_S_RESET);
+	} else {
+		DEBUGPCR("RST");
+		set_state(&isoh, ISO7816_S_WAIT_ATR);
+	}
+}
+
 void iso_uart_dump(void)
 {
 	u_int32_t csr = usart->US_CSR;
@@ -318,7 +335,7 @@ void iso_uart_dump(void)
 
 void iso_uart_rst(unsigned int state)
 {
-	DEBUGPCR("USART nRST set state=%u", state);
+	DEBUGPCR("USART set nRST set state=%u", state);
 	switch (state) {
 	case 0:
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_nRST);
@@ -341,10 +358,9 @@ void iso_uart_rx_mode(void)
 	usart->US_IER = AT91C_US_RXRDY | AT91C_US_OVRE | AT91C_US_FRAME |
 			AT91C_US_PARE | AT91C_US_NACK | AT91C_US_ITERATION;
 
-	/* Enable the receiver */
-	usart->US_CR = AT91C_US_RXEN;
 
-	set_state(&isoh, ISO7816_S_WAIT_ATR);
+	/* call interrupt handler once to set initial state RESET / ATR */
+	reset_pin_irq(SIMTRACE_PIO_nRST);
 }
 
 void iso_uart_clk_master(unsigned int master)
@@ -367,23 +383,23 @@ void iso_uart_init(void)
 {
 	DEBUGPCR("USART Initializing");
 
+	/* make sure we get clock from the power management controller */
 	AT91F_US0_CfgPMC();
 
 	/* configure all 3 signals as input */
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, SIMTRACE_PIO_IO, SIMTRACE_PIO_CLK);
-
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, SIMTRACE_PIO_nRST);
 
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_US0,
 			      OPENPCD_IRQ_PRIO_USART,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &usart_irq);
-
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_US0);
 
 	usart->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS | (AT91C_US_RSTRX | AT91C_US_RSTTX);
 	/* FIXME: wait for some time */
 	usart->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS;
 
+	/* ISO7816 T=0 mode with external clock input */
 	usart->US_MR = AT91C_US_USMODE_ISO7816_0 | AT91C_US_CLKS_EXT | 
 			AT91C_US_CHRL_8_BITS | AT91C_US_NBSTOP_1_BIT |
 			AT91C_US_CKLO;
@@ -396,4 +412,8 @@ void iso_uart_init(void)
 	usart->US_RTOR = 0;
 	/* Disable Transmitter Timeguard */
 	usart->US_TTGR = 0;
+
+	pio_irq_register(SIMTRACE_PIO_nRST, &reset_pin_irq);
+	AT91F_PIO_CfgInputFilter(AT91C_BASE_PIOA, SIMTRACE_PIO_nRST);
+	pio_irq_enable(SIMTRACE_PIO_nRST);
 }
