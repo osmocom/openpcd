@@ -1,4 +1,4 @@
 #ifndef _CONFIG_H
-//#define CONFIG_USB_STRING
+#define CONFIG_USB_STRING
 
 #endif
