@@ -47,7 +47,7 @@
 //#define DEBUG_UDP_IRQ
 //#define DEBUG_UDP_IRQ_IN
 //#define DEBUG_UDP_IRQ_OUT
-#define DEBUG_UDP_EP0
+//#define DEBUG_UDP_EP0
 
 #ifdef DEBUG_UDP_IRQ
 #define DEBUGI(x, args ...)	DEBUGP(x, ## args)
