@@ -33,7 +33,7 @@ static void int_cb(struct usbdevfs_urb *uurb)
 {
 	struct ausb_dev_handle *ah = uurb->usercontext;
 
-	fprintf(stdout, __FUNCTION__ " called, ");
+	fprintf(stdout, "int_cb() called, ");
 
 	ausb_dump_urb(uurb);
 
