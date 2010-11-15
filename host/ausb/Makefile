@@ -14,7 +14,7 @@ libausb.so: $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-ausb_test: ausb_test.o ausb.o
+ausb_test: ausb_test.o libausb.a
 	$(CC) $(CFLAGS) -lusb -o $@ $^
 
 clean:
