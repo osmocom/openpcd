@@ -2,7 +2,7 @@
 #define _REQ_CTX_H
 
 #define RCTX_SIZE_LARGE	2048
-#define RCTX_SIZE_SMALL	64
+#define RCTX_SIZE_SMALL	128
 
 #define MAX_HDRSIZE	sizeof(struct openpcd_hdr)
 #define MAX_REQSIZE	(64-MAX_HDRSIZE)

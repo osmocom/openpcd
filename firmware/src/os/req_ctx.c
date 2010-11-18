@@ -29,8 +29,8 @@
 /* FIXME: locking, FIFO order processing */
 
 #ifdef __AT91SAM7S64__
-#define NUM_RCTX_SMALL 4
-#define NUM_RCTX_LARGE 2
+#define NUM_RCTX_SMALL 16
+#define NUM_RCTX_LARGE 1
 #else
 #define NUM_RCTX_SMALL 8
 #define NUM_RCTX_LARGE 4
