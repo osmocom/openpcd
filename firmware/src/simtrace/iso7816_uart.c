@@ -43,6 +43,7 @@ enum iso7816_3_state {
 	ISO7816_S_IN_ATR,	/* while we are receiving the ATR */
 	ISO7816_S_WAIT_APDU,	/* waiting for start of new APDU */
 	ISO7816_S_IN_APDU,	/* inside a single APDU */
+	ISO7816_S_IN_PTS,	/* while we are inside the PTS / PSS */
 };
 
 /* detailed sub-states of ISO7816_S_IN_ATR */
@@ -58,6 +59,29 @@ enum atr_state {
 	ATR_S_DONE,
 };
 
+/* detailed sub-states of ISO7816_S_IN_PTS */
+enum pts_state {
+	PTS_S_WAIT_REQ_PTSS,
+	PTS_S_WAIT_REQ_PTS0,
+	PTS_S_WAIT_REQ_PTS1,
+	PTS_S_WAIT_REQ_PTS2,
+	PTS_S_WAIT_REQ_PTS3,
+	PTS_S_WAIT_REQ_PCK,
+	PTS_S_WAIT_RESP_PTSS = PTS_S_WAIT_REQ_PTSS | 0x10,
+	PTS_S_WAIT_RESP_PTS0 = PTS_S_WAIT_REQ_PTS0 | 0x10,
+	PTS_S_WAIT_RESP_PTS1 = PTS_S_WAIT_REQ_PTS1 | 0x10,
+	PTS_S_WAIT_RESP_PTS2 = PTS_S_WAIT_REQ_PTS2 | 0x10,
+	PTS_S_WAIT_RESP_PTS3 = PTS_S_WAIT_REQ_PTS3 | 0x10,
+	PTS_S_WAIT_RESP_PCK = PTS_S_WAIT_REQ_PCK | 0x10,
+};
+
+#define _PTSS	0
+#define _PTS0	1
+#define _PTS1	2
+#define _PTS2	3
+#define _PTS3	4
+#define _PCK	5
+
 struct iso7816_3_handle {
 	enum iso7816_3_state state;
 
@@ -66,11 +90,15 @@ struct iso7816_3_handle {
 	u_int8_t wi;
 	u_int32_t waiting_time;
 
+	enum atr_state atr_state;
 	u_int8_t atr_idx;
 	u_int8_t atr_hist_len;
 	u_int8_t atr_last_td;
-	enum atr_state atr_state;
 	u_int8_t atr[64];
+
+	enum pts_state pts_state;
+	u_int8_t pts_req[6];
+	u_int8_t pts_resp[6];
 
 	struct simtrace_hdr sh;
 
@@ -215,7 +243,7 @@ static void set_state(struct iso7816_3_handle *ih, enum iso7816_3_state new_stat
 	if (ih->state == new_state)
 		return;
 
-	DEBUGPCR("7816 state %u -> %u", ih->state, new_state);
+	//DEBUGPCR("7816 state %u -> %u", ih->state, new_state);
 	ih->state = new_state;
 }
 
@@ -236,12 +264,6 @@ static enum atr_state next_intb_state(struct iso7816_3_handle *ih, u_int8_t ch)
 	case ATR_S_WAIT_TB:
 		goto from_tb;
 	case ATR_S_WAIT_TA:
-		if ((ih->atr_last_td & 0x0f) == 0) {
-			/* This must be TA1 */
-			ih->fi = ch >> 4;
-			ih->di = ch & 0xf;
-			DEBUGPCR("found Fi=%u Di=%u", ih->fi, ih->di);
-		}
 		goto from_ta;
 	default:
 		DEBUGPCR("something wrong, old_state != TA");
@@ -268,8 +290,6 @@ from_tc:
 static enum iso7816_3_state
 process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 {
-	int rc;
-
 	/* add byte to ATR buffer */
 	ih->atr[ih->atr_idx] = byte;
 	ih->atr_idx++;
@@ -305,8 +325,6 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 	case ATR_S_WAIT_TCK:
 		/* FIXME: process and verify the TCK */
 		set_atr_state(ih, ATR_S_DONE);
-		/* update baud rate generator with Fi/Di */
-		update_fidi(ih);
 		/* update the waiting time */
 		ih->waiting_time = 960 * di_table[ih->di] * ih->wi;
 		tc_etu_set_wtime(ih->waiting_time);
@@ -314,6 +332,113 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 	}
 
 	return ISO7816_S_IN_ATR;
+}
+
+/* Update the ATR sub-state */
+static void set_pts_state(struct iso7816_3_handle *ih, enum pts_state new_ptss)
+{
+	//DEBUGPCR("PTS state %u -> %u", ih->pts_state, new_ptss);
+	ih->pts_state = new_ptss;
+}
+
+/* Determine the next PTS state */
+static enum pts_state next_pts_state(struct iso7816_3_handle *ih)
+{
+	u_int8_t is_resp = ih->pts_state & 0x10;
+	u_int8_t sstate = ih->pts_state & 0x0f;
+	u_int8_t *pts_ptr;
+
+	if (!is_resp)
+		pts_ptr = ih->pts_req;
+	else
+		pts_ptr = ih->pts_resp;
+
+	switch (sstate) {
+	case PTS_S_WAIT_REQ_PTSS:
+		goto from_ptss;
+	case PTS_S_WAIT_REQ_PTS0:
+		goto from_pts0;
+	case PTS_S_WAIT_REQ_PTS1:
+		goto from_pts1;
+	case PTS_S_WAIT_REQ_PTS2:
+		goto from_pts2;
+	case PTS_S_WAIT_REQ_PTS3:
+		goto from_pts3;
+	}
+
+	if (ih->pts_state == PTS_S_WAIT_REQ_PCK)
+		return PTS_S_WAIT_RESP_PTSS;
+
+from_ptss:
+	return PTS_S_WAIT_REQ_PTS0 | is_resp;
+from_pts0:
+	if (pts_ptr[_PTS0] & (1 << 4))
+		return PTS_S_WAIT_REQ_PTS1 | is_resp;
+from_pts1:
+	if (pts_ptr[_PTS0] & (1 << 5))
+		return PTS_S_WAIT_REQ_PTS2 | is_resp;
+from_pts2:
+	if (pts_ptr[_PTS0] & (1 << 6))
+		return PTS_S_WAIT_REQ_PTS3 | is_resp;
+from_pts3:
+	return PTS_S_WAIT_REQ_PCK | is_resp;
+}
+
+static enum iso7816_3_state
+process_byte_pts(struct iso7816_3_handle *ih, u_int8_t byte)
+{
+	switch (ih->pts_state) {
+	case PTS_S_WAIT_REQ_PTSS:
+		ih->pts_req[_PTSS] = byte;
+		break;
+	case PTS_S_WAIT_REQ_PTS0:
+		ih->pts_req[_PTS0] = byte;
+		break;
+	case PTS_S_WAIT_REQ_PTS1:
+		ih->pts_req[_PTS1] = byte;
+		break;
+	case PTS_S_WAIT_REQ_PTS2:
+		ih->pts_req[_PTS2] = byte;
+		break;
+	case PTS_S_WAIT_REQ_PTS3:
+		ih->pts_req[_PTS3] = byte;
+		break;
+	case PTS_S_WAIT_REQ_PCK:
+		/* FIXME: check PCK */
+		ih->pts_req[_PCK] = byte;
+		break;
+	case PTS_S_WAIT_RESP_PTSS:
+		ih->pts_resp[_PTSS] = byte;
+		break;
+	case PTS_S_WAIT_RESP_PTS0:
+		ih->pts_resp[_PTS0] = byte;
+		break;
+	case PTS_S_WAIT_RESP_PTS1:
+		/* This must be TA1 */
+		ih->fi = byte >> 4;
+		ih->di = byte & 0xf;
+		DEBUGPCR("found Fi=%u Di=%u", ih->fi, ih->di);
+		ih->pts_resp[_PTS1] = byte;
+		break;
+	case PTS_S_WAIT_RESP_PTS2:
+		ih->pts_resp[_PTS2] = byte;
+		break;
+	case PTS_S_WAIT_RESP_PTS3:
+		ih->pts_resp[_PTS3] = byte;
+		break;
+	case PTS_S_WAIT_RESP_PCK:
+		ih->pts_resp[_PCK] = byte;
+		/* FIXME: check PCK */
+		set_pts_state(ih, PTS_S_WAIT_REQ_PTSS);
+		/* update baud rate generator with Fi/Di */
+		update_fidi(ih);
+		/* Wait for the next APDU */
+		return ISO7816_S_WAIT_APDU;
+	}
+	/* calculate the next state and set it */
+	set_pts_state(ih, next_pts_state(ih));
+
+	return ISO7816_S_IN_PTS;
 }
 
 static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
@@ -332,9 +457,16 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 		new_state = process_byte_atr(ih, byte);
 		break;
 	case ISO7816_S_WAIT_APDU:
+		if (byte == 0xff) {
+			new_state = process_byte_pts(ih, byte);
+			goto out_silent;
+		}
 	case ISO7816_S_IN_APDU:
 		new_state = ISO7816_S_IN_APDU;
 		break;
+	case ISO7816_S_IN_PTS:
+		new_state = process_byte_pts(ih, byte);
+		goto out_silent;
 	}
 
 	rctx = ih->rctx;
@@ -350,6 +482,7 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 	if (rctx->tot_len >= rctx->size)
 		send_rctx(ih);
 
+out_silent:
 	if (new_state != -1)
 		set_state(ih, new_state);
 }
@@ -361,6 +494,9 @@ void iso7816_wtime_expired(void)
 	if (isoh.rctx) {
 		isoh.sh.flags |= SIMTRACE_FLAG_WTIME_EXP;
 		send_rctx(&isoh);
+	}
+	if (isoh.state == ISO7816_S_IN_PTS) {
+		/* Timout during PTS: Card does not support PTS */
 	}
 	set_state(&isoh, ISO7816_S_WAIT_APDU);
 }
