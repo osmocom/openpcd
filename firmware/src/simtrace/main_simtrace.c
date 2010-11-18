@@ -27,22 +27,26 @@
 #include <os/usb_handler.h>
 #include "../openpcd.h"
 #include <os/main.h>
-#include <os/pwm.h>
-#include <os/tc_cdiv.h>
 #include <os/pio_irq.h>
 
-//#include <simtrace/iso7816_uart.h>
+#include <simtrace/tc_etu.h>
+#include <simtrace/iso7816_uart.h>
 
 void _init_func(void)
 {
 	/* low-level hardware initialization */
 	pio_irq_init();
 	iso_uart_init();
+	tc_etu_init();
+
+	usbtest_init();
 
 	/* high-level protocol */
 	//opicc_usbapi_init();
 	led_switch(1, 0);
 	led_switch(2, 1);
+
+	iso_uart_rx_mode();
 }
 
 static void help(void)

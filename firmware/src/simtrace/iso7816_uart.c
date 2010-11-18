@@ -1,5 +1,20 @@
-/* Driver for AT91SAM7 USART0 in ISO7816-3 mode
+/* Driver for AT91SAM7 USART0 in ISO7816-3 mode for passive sniffing
  * (C) 2010 by Harald Welte <hwelte@hmw-consulting.de>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
  */
 
 #include <errno.h>
@@ -8,6 +23,8 @@
 #include <AT91SAM7.h>
 #include <lib_AT91SAM7.h>
 #include <openpcd.h>
+
+#include <simtrace_usb.h>
 
 #include <os/usb_handler.h>
 #include <os/dbgu.h>
@@ -23,11 +40,12 @@ static const AT91PS_USART usart = AT91C_BASE_US0;
 enum iso7816_3_state {
 	ISO7816_S_RESET,	/* in Reset */
 	ISO7816_S_WAIT_ATR,	/* waiting for ATR to start */
-	ISO7816_S_IN_ATR,
-	ISO7816_S_WAIT_READER,	/* waiting for data from reader */
-	ISO7816_S_WAIT_CARD,	/* waiting for data from card */
+	ISO7816_S_IN_ATR,	/* while we are receiving the ATR */
+	ISO7816_S_WAIT_APDU,	/* waiting for start of new APDU */
+	ISO7816_S_IN_APDU,	/* inside a single APDU */
 };
 
+/* detailed sub-states of ISO7816_S_IN_ATR */
 enum atr_state {
 	ATR_S_WAIT_TS,
 	ATR_S_WAIT_T0,
@@ -45,6 +63,8 @@ struct iso7816_3_handle {
 
 	u_int8_t fi;
 	u_int8_t di;
+	u_int8_t wi;
+	u_int32_t waiting_time;
 
 	u_int8_t atr_idx;
 	u_int8_t atr_hist_len;
@@ -52,8 +72,9 @@ struct iso7816_3_handle {
 	enum atr_state atr_state;
 	u_int8_t atr[64];
 
-	u_int16_t apdu_len;
-	u_int16_t apdu_idx;
+	struct simtrace_hdr sh;
+
+	struct req_ctx *rctx;
 };
 
 struct iso7816_3_handle isoh;
@@ -71,6 +92,7 @@ static const u_int8_t di_table[] = {
 	0, 0, 2, 4, 8, 16, 32, 64,
 };
 
+/* compute the F/D ratio based on Fi and Di values */
 static int compute_fidi_ratio(u_int8_t fi, u_int8_t di)
 {
 	u_int16_t f, d;
@@ -96,6 +118,43 @@ static int compute_fidi_ratio(u_int8_t fi, u_int8_t di)
 	return ret;
 }
 
+static void refill_rctx(struct iso7816_3_handle *ih)
+{
+	struct req_ctx *rctx;
+
+	rctx = req_ctx_find_get(0, RCTX_STATE_FREE,
+				    RCTX_STATE_LIBRFID_BUSY);
+	if (!rctx) {
+		ih->rctx = NULL;
+		return;
+	}
+
+	ih->sh.cmd = SIMTRACE_MSGT_DATA;
+
+	/* reserve spece at start of rctx */
+	rctx->tot_len = sizeof(struct simtrace_hdr);
+
+	ih->rctx = rctx;
+}
+
+static void send_rctx(struct iso7816_3_handle *ih)
+{
+	struct req_ctx *rctx = ih->rctx;
+
+	if (!rctx)
+		return;
+
+	/* copy the simtrace header */
+	memcpy(rctx->data, &ih->sh, sizeof(ih->sh));
+
+	req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+
+	memset(&ih->sh, 0, sizeof(ih->sh));
+	ih->rctx = NULL;
+}
+
+
+/* Update the ATR sub-state */
 static void set_atr_state(struct iso7816_3_handle *ih, enum atr_state new_atrs)
 {
 	if (new_atrs == ATR_S_WAIT_TS) {
@@ -110,30 +169,48 @@ static void set_atr_state(struct iso7816_3_handle *ih, enum atr_state new_atrs)
 	ih->atr_state = new_atrs;
 }
 
+#define ISO7816_3_INIT_WTIME		9600
+#define ISO7816_3_DEFAULT_WI		10
+
+static void update_fidi(struct iso7816_3_handle *ih)
+{
+	int rc;
+
+	rc = compute_fidi_ratio(ih->fi, ih->di);
+	if (rc > 0 && rc < 0x400) {
+		DEBUGPCR("computed Fi(%u) Di(%u) ratio: %d", ih->fi, ih->di, rc);
+		/* make sure UART uses new F/D ratio */
+		usart->US_CR |= AT91C_US_RXDIS | AT91C_US_RSTRX;
+		usart->US_FIDI = rc & 0x3ff;
+		usart->US_CR |= AT91C_US_RXEN | AT91C_US_STTTO;
+		/* notify ETU timer about this */
+		tc_etu_set_etu(rc);
+	} else
+		DEBUGPCRF("computed FiDi ratio %d unsupported", rc);
+}
+
+/* Update the ISO 7816-3 APDU receiver state */
 static void set_state(struct iso7816_3_handle *ih, enum iso7816_3_state new_state)
 {
 	if (new_state == ISO7816_S_RESET) {
 		usart->US_CR |= AT91C_US_RXDIS | AT91C_US_RSTRX;
 	} else if (new_state == ISO7816_S_WAIT_ATR) {
-		int rc;
-		/* Initial Fi / Di ratio */
+		/* Reset to initial Fi / Di ratio */
 		ih->fi = 1;
 		ih->di = 1;
-		rc = compute_fidi_ratio(ih->fi, ih->di);
-		DEBUGPCRF("computed Fi(%u) Di(%u) ratio: %d", ih->fi, ih->di, rc);
-		usart->US_CR |= AT91C_US_RXDIS | AT91C_US_RSTRX;
-		usart->US_FIDI = rc & 0x3ff;
-		usart->US_CR |= AT91C_US_RXEN;
+		update_fidi(ih);
+		/* initialize todefault WI, this will be overwritten if we
+		 * receive TC2, and it will be programmed into hardware after
+		 * ATR is finished */
+		ih->wi = ISO7816_3_DEFAULT_WI;
+		/* update waiting time to initial waiting time */
+		ih->waiting_time = ISO7816_3_INIT_WTIME;
+		tc_etu_set_wtime(ih->waiting_time);
+		/* Set ATR sub-state to initial state */
 		set_atr_state(ih, ATR_S_WAIT_TS);
-	} else if (new_state == ISO7816_S_WAIT_READER) {
-		/* CLA INS P1 P2 LEN */
-		ih->apdu_len = 5;
-		ih->apdu_idx = 0;
-	} else if (new_state == ISO7816_S_WAIT_CARD) {
-		/* 8.2.2 procedure bytes sent by the card */
-		/* FIXME: NULL byte and similar oddities */
-		ih->apdu_len += 2;
-	} 
+		/* Notice that we are just coming out of reset */
+		ih->sh.flags |= SIMTRACE_FLAG_ATR;
+	}
 
 	if (ih->state == new_state)
 		return;
@@ -151,6 +228,10 @@ static enum atr_state next_intb_state(struct iso7816_3_handle *ih, u_int8_t ch)
 		ih->atr_last_td = ch;
 		goto from_td;
 	case ATR_S_WAIT_TC:
+		if ((ih->atr_last_td & 0x0f) == 0x02) {
+			/* TC2 contains WI */
+			ih->wi = ch;
+		}
 		goto from_tc;
 	case ATR_S_WAIT_TB:
 		goto from_tb;
@@ -204,7 +285,9 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 		set_atr_state(ih, ATR_S_WAIT_T0);
 		break;
 	case ATR_S_WAIT_T0:
+		/* obtain the number of historical bytes */
 		ih->atr_hist_len = byte & 0xf;
+		/* Mask out the hist-byte-length to indiicate T=0 */
 		set_atr_state(ih, next_intb_state(ih, byte & 0xf0));
 		break;
 	case ATR_S_WAIT_TA:
@@ -215,62 +298,31 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 		break;
 	case ATR_S_WAIT_HIST:
 		ih->atr_hist_len--;
+		/* after all historical bytes are recieved, go to TCK */
 		if (ih->atr_hist_len == 0)
 			set_atr_state(ih, ATR_S_WAIT_TCK);
 		break;
 	case ATR_S_WAIT_TCK:
-		/* FIXME: process TCK */
+		/* FIXME: process and verify the TCK */
 		set_atr_state(ih, ATR_S_DONE);
-		/* FIXME: update Fi/Di */
-		rc = compute_fidi_ratio(ih->fi, ih->di);
-		if (rc > 0 && rc < 0x400) {
-			DEBUGPCR("computed FiDi ratio %d", rc);
-			/* update baud rate generator in UART */
-			usart->US_CR |= AT91C_US_RXDIS| AT91C_US_RSTRX;
-			usart->US_FIDI = rc & 0x3ff;
-			usart->US_CR |= AT91C_US_RXEN;
-		} else
-			DEBUGPCRF("computed FiDi ratio %d unsupported", rc);
-		return ISO7816_S_WAIT_READER;
+		/* update baud rate generator with Fi/Di */
+		update_fidi(ih);
+		/* update the waiting time */
+		ih->waiting_time = 960 * di_table[ih->di] * ih->wi;
+		tc_etu_set_wtime(ih->waiting_time);
+		return ISO7816_S_WAIT_APDU;
 	}
 
 	return ISO7816_S_IN_ATR;
 }
 
-/* process an incomng byte from the reader */
-static enum iso7816_3_state
-process_byte_reader(struct iso7816_3_handle *ih, u_int8_t byte)
-{
-	/* add response length to total number of expected bytes */
-	if (ih->apdu_idx == 4)
-		ih->apdu_len += byte;
-
-	ih->apdu_idx++;
-	
-	/* once we have received all bytes, transition to card response */
-	if (ih->apdu_idx == ih->apdu_len)
-		return ISO7816_S_WAIT_CARD;
-
-	return ISO7816_S_WAIT_READER;
-}
-
-/* process an incomng byte from the card */
-static enum iso7816_3_state
-process_byte_card(struct iso7816_3_handle *ih, u_int8_t byte)
-{
-	ih->apdu_idx++;
-	
-	/* once we have received all bytes, apdu is finished */
-	if (ih->apdu_idx == ih->apdu_len)
-		return ISO7816_S_WAIT_READER;
-
-	return ISO7816_S_WAIT_CARD;
-}
-
-
-void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
+static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 {
 	int new_state = -1;
+	struct req_ctx *rctx;
+
+	if (!ih->rctx)
+		refill_rctx(ih);
 
 	switch (ih->state) {
 	case ISO7816_S_RESET:
@@ -279,16 +331,38 @@ void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 	case ISO7816_S_IN_ATR:
 		new_state = process_byte_atr(ih, byte);
 		break;
-	case ISO7816_S_WAIT_READER:
-		new_state = process_byte_reader(ih, byte);
-		break;
-	case ISO7816_S_WAIT_CARD:
-		new_state = process_byte_card(ih, byte);
+	case ISO7816_S_WAIT_APDU:
+	case ISO7816_S_IN_APDU:
+		new_state = ISO7816_S_IN_APDU;
 		break;
 	}
 
+	rctx = ih->rctx;
+	if (!rctx) {
+		DEBUGPCR("==> Lost byte, missing rctx");
+		return;
+	}
+
+	/* store the byte in the USB request context */
+	rctx->data[rctx->tot_len] = byte;
+	rctx->tot_len++;
+
+	if (rctx->tot_len >= rctx->size)
+		send_rctx(ih);
+
 	if (new_state != -1)
 		set_state(ih, new_state);
+}
+
+/* timeout of work waiting time during receive */
+void iso7816_wtime_expired(void)
+{
+	/* Always flush the URB at Rx timeout as this indicates end of APDU */
+	if (isoh.rctx) {
+		isoh.sh.flags |= SIMTRACE_FLAG_WTIME_EXP;
+		send_rctx(&isoh);
+	}
+	set_state(&isoh, ISO7816_S_WAIT_APDU);
 }
 
 static __ramfunc void usart_irq(void)
@@ -301,7 +375,7 @@ static __ramfunc void usart_irq(void)
 	if (csr & AT91C_US_RXRDY) {
 		/* at least one character received */
 		octet = usart->US_RHR & 0xff;
-		DEBUGP("%02x ", octet);
+		//DEBUGP("%02x ", octet);
 		process_byte(&isoh, octet);
 	}
 
@@ -310,7 +384,7 @@ static __ramfunc void usart_irq(void)
 	}
 
 	if (csr & (AT91C_US_PARE|AT91C_US_FRAME|AT91C_US_OVRE)) {
-		/* some error has occurrerd */
+		/* FIXME: some error has occurrerd */
 	}
 }
 
@@ -358,7 +432,6 @@ void iso_uart_rx_mode(void)
 	usart->US_IER = AT91C_US_RXRDY | AT91C_US_OVRE | AT91C_US_FRAME |
 			AT91C_US_PARE | AT91C_US_NACK | AT91C_US_ITERATION;
 
-
 	/* call interrupt handler once to set initial state RESET / ATR */
 	reset_pin_irq(SIMTRACE_PIO_nRST);
 }
@@ -383,6 +456,8 @@ void iso_uart_init(void)
 {
 	DEBUGPCR("USART Initializing");
 
+	refill_rctx(&isoh);
+
 	/* make sure we get clock from the power management controller */
 	AT91F_US0_CfgPMC();
 
@@ -395,7 +470,8 @@ void iso_uart_init(void)
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &usart_irq);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_US0);
 
-	usart->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS | (AT91C_US_RSTRX | AT91C_US_RSTTX);
+	usart->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS |
+					(AT91C_US_RSTRX | AT91C_US_RSTTX);
 	/* FIXME: wait for some time */
 	usart->US_CR = AT91C_US_RXDIS | AT91C_US_TXDIS;
 
