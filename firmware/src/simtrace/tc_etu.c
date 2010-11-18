@@ -40,7 +40,10 @@ static __ramfunc void tc_etu_irq(void)
 		//DEBUGPCR("tE");
 		nr_events = 0;
 		/* Make sure we don't accept any additional external trigger */
-		tcetu->TC_CMR &= ~AT91C_TC_ENETRG;
+		/* Enabling the line below will cause race conditions.  We
+		 * thus re-trigger at all zero-bits in the byte and thus wait
+		 * up to 12 etu longer than required */
+		//tcetu->TC_CMR &= ~AT91C_TC_ENETRG;
 	}
 
 	if (sr & AT91C_TC_CPCS) {
@@ -74,6 +77,7 @@ void tc_etu_set_wtime(u_int16_t wtime)
 {
 	waiting_time = wtime;
 	recalc_nr_events();
+	//DEBUGPCR("wtime=%u, actually waiting %u", wtime, wait_events * 12);
 }
 
 void tc_etu_set_etu(u_int16_t etu)
