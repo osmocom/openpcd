@@ -41,8 +41,8 @@ FLASH_TOOL = AT91FLASH
 
 # MCU name and submodel
 MCU      = arm7tdmi
-#SUBMDL   = AT91SAM7S64
-SUBMDL   = AT91SAM7S256
+SUBMDL   = AT91SAM7S64
+#SUBMDL   = AT91SAM7S256
 
 USE_THUMB_MODE = NO
 #USE_THUMB_MODE = YES
@@ -69,7 +69,7 @@ PATH_TO_LINKSCRIPTS=link/
 # Target file name (without extension).
 TARGET:=dfu
 
-USBSTRINGS=src/picc/usb_strings_dfu.h src/pcd/usb_strings_dfu.h
+USBSTRINGS=src/picc/usb_strings_dfu.h src/pcd/usb_strings_dfu.h src/simtrace/usb_strings_dfu.h
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -158,6 +158,7 @@ endif
 ifeq ($(BOARD),OLIMEX)
 CDEFS += -DOLIMEX
 ADEFS += -DOLIMEX
+CINCS  = -Isrc/simtrace
 endif
 
 ifeq ($(BOARD),PICC)

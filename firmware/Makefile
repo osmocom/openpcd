@@ -42,8 +42,8 @@ FLASH_TOOL = AT91FLASH
 
 # MCU name and submodel
 MCU      = arm7tdmi
-#SUBMDL   = AT91SAM7S64
-SUBMDL   = AT91SAM7S128
+SUBMDL   = AT91SAM7S64
+#SUBMDL   = AT91SAM7S128
 
 USE_THUMB_MODE = NO
 #USE_THUMB_MODE = YES
@@ -70,7 +70,7 @@ PATH_TO_LINKSCRIPTS=link/
 # Target file name (without extension).
 TARGET:=main_reqa
 
-USBSTRINGS=src/picc/usb_strings_app.h src/pcd/usb_strings_app.h
+USBSTRINGS=src/picc/usb_strings_app.h src/pcd/usb_strings_app.h src/simtrace/usb_strings_app.h
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -110,6 +110,11 @@ SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
 	  src/picc/openpicc.c
 # finally, the actual main application 
 SRCARM += src/picc/$(TARGET).c 
+endif
+
+ifeq ($(BOARD), SIMTRACE)
+SRCARM += src/simtrace/iso7816_uart.c src/simtrace/tc_etu.c
+SRCARM += src/simtrace/$(TARGET).c 
 endif
 
 
@@ -201,6 +206,12 @@ ifeq ($(BOARD),PCD)
 CDEFS += -DPCD
 CINCS = -Isrc/pcd
 endif
+
+ifeq ($(BOARD),SIMTRACE)
+CDEFS += -DSIMTRACE
+CINCS = -Isrc/simtrace
+endif
+
 
 # Place -I options here
 CINCS += -Iinclude -Isrc
