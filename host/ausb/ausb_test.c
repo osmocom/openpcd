@@ -29,16 +29,26 @@ static struct usb_device *find_cj_usbdev(int num)
 	return NULL;
 }
 
-static void int_cb(struct usbdevfs_urb *uurb)
+static void int_cb(struct usbdevfs_urb *uurb, void *data)
 {
 	struct ausb_dev_handle *ah = uurb->usercontext;
+	unsigned char *buffer = uurb->buffer;
+	int i;
 
 	fprintf(stdout, "int_cb() called, ");
 
 	ausb_dump_urb(uurb);
 
-	if (ausb_submit_urb(ah, uurb))
+	for (i = 0; i < uurb->actual_length; i++)
+		printf("%02x ", buffer[i]);
+
+	if (ausb_submit_urb(ah, uurb)) {
 		fprintf(stderr, "unable to resubmit urb\n");
+		ausb_close(ah);
+		exit(1);
+	}
+
+	fflush(stdout);
 }
 
 int main(int argc, char **argv)
@@ -75,6 +85,8 @@ int main(int argc, char **argv)
 		ausb_close(ah);
 		exit(1);
 	}
+
+	ausb_register_callback(ah, USBDEVFS_URB_TYPE_INTERRUPT, &int_cb, ah);
 
 #if 1
 	ausb_fill_int_urb(uurb, 0x81, buffer, sizeof(buffer));
