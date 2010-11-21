@@ -102,6 +102,7 @@ struct iso7816_3_handle {
 
 	struct simtrace_hdr sh;
 
+	int rctx_must_be_sent;
 	struct req_ctx *rctx;
 };
 
@@ -325,6 +326,8 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 	case ATR_S_WAIT_TCK:
 		/* FIXME: process and verify the TCK */
 		set_atr_state(ih, ATR_S_DONE);
+		/* send off the USB context */
+		ih->rctx_must_be_sent = 1;
 		/* update the waiting time */
 		ih->waiting_time = 960 * di_table[ih->di] * ih->wi;
 		tc_etu_set_wtime(ih->waiting_time);
@@ -469,6 +472,11 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 		goto out_silent;
 	}
 
+	/* The USB buffer could be gone in case the timer expired or code above
+	 * this line explicitly sent it off */
+	if (!ih->rctx)
+		refill_rctx(ih);
+
 	rctx = ih->rctx;
 	if (!rctx) {
 		DEBUGPCR("==> Lost byte, missing rctx");
@@ -479,8 +487,10 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 	rctx->data[rctx->tot_len] = byte;
 	rctx->tot_len++;
 
-	if (rctx->tot_len >= rctx->size)
+	if (rctx->tot_len >= rctx->size || ih->rctx_must_be_sent) {
+		ih->rctx_must_be_sent = 0;
 		send_rctx(ih);
+	}
 
 out_silent:
 	if (new_state != -1)
