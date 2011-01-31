@@ -35,7 +35,7 @@ void _main_func(void)
 	/* first we try to get rid of pending to-be-sent stuff */
 	usb_out_process();
 
-	/* next we deal with incoming reqyests from USB EP1 (OUT) */
+	/* next we deal with incoming requests from USB EP1 (OUT) */
 	usb_in_process();
 
 	/* try unthrottling sources since we now are [more] likely to
