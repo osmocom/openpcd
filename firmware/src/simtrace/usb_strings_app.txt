@@ -1,6 +1,6 @@
 SimTrace DFU Interface - Application Partition
 SimTrace DFU Interface - Bootloader Partition
-hmw-consulting.de
+sysmocom - systems for mobile communications GmbH
 SimTrace SIM Sniffer - Runtime Mode
 SimTrace Runtime Configuration
 SimTrace Runtime Interface
