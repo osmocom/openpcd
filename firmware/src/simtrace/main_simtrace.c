@@ -31,6 +31,7 @@
 
 #include <simtrace/tc_etu.h>
 #include <simtrace/iso7816_uart.h>
+#include <simtrace/sim_switch.h>
 
 void _init_func(void)
 {
@@ -38,6 +39,7 @@ void _init_func(void)
 	pio_irq_init();
 	iso_uart_init();
 	tc_etu_init();
+	sim_switch_init();
 
 	usbtest_init();
 
@@ -55,7 +57,9 @@ static void help(void)
 		 "c: toggle clock master/slave\r\n"
 		 "l: set nRST to low (active)\r\n"
 		 "h: set nRST to high (inactive)\r\n"
-		 "o: set nRST to input\r\n");
+		 "o: set nRST to input\r\n"
+		 "s: disconnect SIM bus switch\r\n"
+		 "S: connect SIM bus switch\r\n");
 }
 
 int _main_dbgu(char key)
@@ -64,6 +68,11 @@ int _main_dbgu(char key)
 	DEBUGPCRF("main_dbgu");
 
 	switch (key) {
+	case 's':
+		sim_switch_mode(0, 0);
+		break;
+	case 'S':
+		sim_switch_mode(1, 1);
 	case 'r':
 		iso_uart_rx_mode();
 		break;

@@ -147,7 +147,7 @@ void AT91F_DBGU_Init(void)
 	sysirq_register(AT91SAM7_SYSIRQ_DBGU, &DBGU_irq_handler);
 
 	AT91F_DBGU_Printk("\n\r");
-	AT91F_DBGU_Printk("(C) 2006 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
+	AT91F_DBGU_Printk("(C) 2006-2011 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
 			  "This software is FREE SOFTWARE licensed under GNU GPL\n\r");
 	AT91F_DBGU_Printk("Version " COMPILE_SVNREV
 			  " compiled " COMPILE_DATE
