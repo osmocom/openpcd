@@ -26,6 +26,7 @@
 #include <os/pcd_enumerate.h>
 #include <os/usb_handler.h>
 #include "../openpcd.h"
+#include "../simtrace.h"
 #include <os/main.h>
 #include <os/pio_irq.h>
 
@@ -51,6 +52,49 @@ void _init_func(void)
 	iso_uart_rx_mode();
 }
 
+enum simtrace_md {
+	SIMTRACE_MD_OFF,
+	SIMTRACE_MD_SNIFFER,
+	SIMTRACE_MD_MITM,
+};
+
+#define UART1_PINS (SIMTRACE_PIO_nRST_PH |		\
+		    SIMTRACE_PIO_CLK_PH |		\
+		    SIMTRACE_PIO_CLK_PH_T |		\
+		    SIMTRACE_PIO_IO_PH_RX |		\
+		    SIMTRACE_PIO_IO_PH_TX)
+
+#define UART0_PINS (SIMTRACE_PIO_nRST |			\
+		    SIMTRACE_PIO_CLK |			\
+		    SIMTRACE_PIO_CLK_T |		\
+		    SIMTRACE_PIO_IO |			\
+		    SIMTRACE_PIO_IO_T)
+
+static void simtrace_set_mode(enum simtrace_md mode)
+{
+	switch (mode) {
+	case SIMTRACE_MD_SNIFFER:
+		DEBUGPCR("MODE: SNIFFER\n");
+		/* switch UART1 pins to input, no pull-up */
+		AT91F_PIO_CfgInput(AT91C_BASE_PIOA, UART1_PINS);
+		AT91F_PIO_CfgPullupDis(AT91C_BASE_PIOA, UART1_PINS);
+		AT91F_PIO_CfgInput(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_SIM);
+		AT91F_PIO_CfgPullupDis(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_SIM);
+		/* switch UART0 pins to 'ISO7816 card mode' */
+		AT91F_PIO_CfgInput(AT91C_BASE_PIOA, UART0_PINS);
+		AT91F_PIO_CfgPullupDis(AT91C_BASE_PIOA, UART0_PINS);
+		AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, SIMTRACE_PIO_IO, SIMTRACE_PIO_CLK);
+		sim_switch_mode(1, 1);
+		break;
+	case SIMTRACE_MD_MITM:
+		DEBUGPCR("MODE: MITM\n");
+		/* switch UART1 pins to 'ISO7816 card mode' */
+		/* switch UART0 pins to 'ISO7816 reader mode' */
+		sim_switch_mode(0, 0);
+		break;
+	}
+}
+
 static void help(void)
 {
 	DEBUGPCR("r: iso uart Rx mode\r\n"
@@ -69,10 +113,10 @@ int _main_dbgu(char key)
 
 	switch (key) {
 	case 's':
-		sim_switch_mode(0, 0);
+		simtrace_set_mode(SIMTRACE_MD_MITM);
 		break;
 	case 'S':
-		sim_switch_mode(1, 1);
+		simtrace_set_mode(SIMTRACE_MD_SNIFFER);
 	case 'r':
 		iso_uart_rx_mode();
 		break;

@@ -38,14 +38,14 @@
 void sim_switch_mode(int connect_io, int connect_misc)
 {
 	if (connect_io)
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_IO_SW);
-	else
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_IO_SW);
+	else
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_IO_SW);
 
 	if (connect_misc)
-		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SC_SW);
-	else
 		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SC_SW);
+	else
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SC_SW);
 }
 
 static void sw_sim_irq(u_int32_t pio)
