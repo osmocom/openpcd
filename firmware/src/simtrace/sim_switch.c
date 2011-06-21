@@ -57,6 +57,14 @@ static void sw_sim_irq(u_int32_t pio)
 		DEBUGPCR("SIM card removed");
 }
 
+static void vcc_phone_irq(u_int32_t pio)
+{
+	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, pio))
+		DEBUGPCR("VCC_PHONE off");
+	else
+		DEBUGPCR("VCC_PHONE on");
+}
+
 void sim_switch_init(void)
 {
 	DEBUGPCR("ISO_SW Initializing");
@@ -73,4 +81,15 @@ void sim_switch_init(void)
 	AT91F_PIO_CfgInputFilter(AT91C_BASE_PIOA, SIMTRACE_PIO_SW_SIM);
 	pio_irq_register(SIMTRACE_PIO_SW_SIM, &sw_sim_irq);
 	pio_irq_enable(SIMTRACE_PIO_SW_SIM);
+	/* configure VCC_PHONE detection */
+	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_PHONE);
+	AT91F_PIO_CfgPullupDis(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_PHONE);
+	AT91F_PIO_CfgInputFilter(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_PHONE);
+	pio_irq_register(SIMTRACE_PIO_VCC_PHONE, &vcc_phone_irq);
+	pio_irq_enable(SIMTRACE_PIO_VCC_PHONE);
+
+#if 0
+	AT91F_ADC_CfgPMC();
+	AT91F_ADC_EnableChannel(AT91C_BASE_ADC, AT91C_ADC_CH7);
+#endif
 }
