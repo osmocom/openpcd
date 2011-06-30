@@ -34,24 +34,6 @@
 #include <simtrace/iso7816_uart.h>
 #include <simtrace/sim_switch.h>
 
-void _init_func(void)
-{
-	/* low-level hardware initialization */
-	pio_irq_init();
-	iso_uart_init();
-	tc_etu_init();
-	sim_switch_init();
-
-	usbtest_init();
-
-	/* high-level protocol */
-	//opicc_usbapi_init();
-	led_switch(1, 0);
-	led_switch(2, 1);
-
-	iso_uart_rx_mode();
-}
-
 enum simtrace_md {
 	SIMTRACE_MD_OFF,
 	SIMTRACE_MD_SNIFFER,
@@ -101,6 +83,26 @@ static void simtrace_set_mode(enum simtrace_md mode)
 	}
 }
 
+void _init_func(void)
+{
+	/* low-level hardware initialization */
+	pio_irq_init();
+	iso_uart_init();
+	tc_etu_init();
+	sim_switch_init();
+
+	usbtest_init();
+
+	/* high-level protocol */
+	//opicc_usbapi_init();
+	led_switch(1, 0);
+	led_switch(2, 1);
+
+	iso_uart_rx_mode();
+	simtrace_set_mode(SIMTRACE_MD_SNIFFER);
+}
+
+
 static void help(void)
 {
 	DEBUGPCR("r: iso uart Rx mode\r\n"
@@ -108,6 +110,7 @@ static void help(void)
 		 "l: set nRST to low (active)\r\n"
 		 "h: set nRST to high (inactive)\r\n"
 		 "o: set nRST to input\r\n"
+		 "r: set Rx mode for UART\r\n"
 		 "s: disconnect SIM bus switch\r\n"
 		 "S: connect SIM bus switch\r\n");
 }
@@ -123,6 +126,7 @@ int _main_dbgu(char key)
 		break;
 	case 'S':
 		simtrace_set_mode(SIMTRACE_MD_SNIFFER);
+		break;
 	case 'r':
 		iso_uart_rx_mode();
 		break;
