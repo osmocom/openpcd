@@ -86,18 +86,20 @@ static void __dfufunc udp_init(void)
 	AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, OPENPCD_PIO_UDP_PUPv4);
 }
 
+static void __dfufunc udp_ep0_send_zlp(void);
+
 /* Send Data through the control endpoint */
 static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 {
 	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	u_int32_t cpt = 0;
+	u_int32_t cpt = 0, len_remain = length;
 	AT91_REG csr;
 
 	DEBUGE("send_data: %u bytes ", length);
 
 	do {
-		cpt = MIN(length, 8);
-		length -= cpt;
+		cpt = MIN(len_remain, 8);
+		len_remain -= cpt;
 
 		while (cpt--)
 			pUdp->UDP_FDR[0] = *pData++;
@@ -119,11 +121,19 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 			}
 		} while (!(csr & AT91C_UDP_TXCOMP));
 
-	} while (length);
+	} while (len_remain);
 
 	if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
 		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
 		while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
+	}
+
+	if ((length % 8) == 0) {
+		/* if the length is a multiple of the EP size, we need
+		 * to send another ZLP (zero-length packet) to tell the
+		 * host the transfer has completed.  */
+		DEBUGE("set_txpktrdy_zlp ");
+		udp_ep0_send_zlp();
 	}
 }
 
