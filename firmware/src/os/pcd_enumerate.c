@@ -78,7 +78,7 @@
 #ifdef CONFIG_DFU
 static const struct dfuapi *dfu = DFU_API_LOCATION;
 #define udp_init		dfu->udp_init
-//#define udp_ep0_send_data	dfu->ep0_send_data
+#define udp_ep0_send_data	dfu->ep0_send_data
 #define udp_ep0_send_zlp	dfu->ep0_send_zlp
 #define udp_ep0_send_stall	dfu->ep0_send_stall
 #else
@@ -106,53 +106,6 @@ static const struct epstate epstate[] = {
 	[3] =	{ .state_busy = RCTX_STATE_UDP_EP3_BUSY,
 		  .state_pending = RCTX_STATE_UDP_EP3_PENDING },
 };
-
-/* Send Data through the control endpoint */
-static void udp_ep0_send_data(const char *pData, u_int32_t length)
-{
-	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	u_int32_t cpt = 0;
-	AT91_REG csr;
-
-	DEBUGE("send_data: %u bytes ", length);
-
-	do {
-		cpt = MIN(length, 8);
-		length -= cpt;
-
-		DEBUGE("fifo_fill ");
-		while (cpt--)
-			pUdp->UDP_FDR[0] = *pData++;
-
-		if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
-			DEBUGE("wait_txcomp_clear ");
-			pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
-			while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
-		}
-
-		DEBUGE("set_txpktrdy ");
-		pUdp->UDP_CSR[0] |= AT91C_UDP_TXPKTRDY;
-		DEBUGE("wait_txcomp ");
-		do {
-			csr = pUdp->UDP_CSR[0];
-
-			/* Data IN stage has been stopped by a status OUT */
-			if (csr & AT91C_UDP_RX_DATA_BK0) {
-				pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
-				DEBUGE("stopped by status out ");
-				return;
-			}
-		} while (!(csr & AT91C_UDP_TXCOMP));
-
-	} while (length);
-
-	DEBUGE("clear_txcomp ");
-	if (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) {
-		pUdp->UDP_CSR[0] &= ~(AT91C_UDP_TXCOMP);
-		while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
-	}
-	DEBUGE("done ");
-}
 
 static void reset_ep(unsigned int ep)
 {
