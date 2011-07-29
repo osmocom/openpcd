@@ -249,7 +249,7 @@ CFLAGS += -Wredundant-decls -Wreturn-type -Wshadow
 CFLAGS += -Wbad-function-cast -Wsign-compare -Waggregate-return 
 CFLAGS += -Wa,-adhlns=$(subst $(suffix $<),.lst,$<) 
 CFLAGS += $(patsubst %,-I%,$(EXTRAINCDIRS))
-#CFLAGS += -ffunction-sections -fdata-sections       
+CFLAGS += -ffunction-sections -fdata-sections
 
 # flags only for C
 CONLYFLAGS += -Wnested-externs 
@@ -315,7 +315,7 @@ LDFLAGS += -lc -lgcc
 LDFLAGS += $(CPLUSPLUS_LIB)
 LDFLAGS += $(patsubst %,-L%,$(EXTRA_LIBDIRS))
 LDFLAGS += $(patsubst %,-l%,$(EXTRA_LIBS))
-#LDFLAGS += --gc-sections
+LDFLAGS += -Wl,--gc-sections -Wl,--entry=_startup
 
 # Set Linker-Script Depending On Selected Memory and Controller
 ifeq ($(RUN_MODE),RUN_FROM_RAM)
