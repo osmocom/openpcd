@@ -113,7 +113,7 @@ SRCARM += src/picc/$(TARGET).c
 endif
 
 ifeq ($(BOARD), SIMTRACE)
-SUBMDL   = AT91SAM7S256
+SUBMDL   = AT91SAM7S128
 TARGET := main_simtrace
 SRCARM += src/simtrace/iso7816_uart.c src/simtrace/tc_etu.c \
 	  src/simtrace/sim_switch.c
