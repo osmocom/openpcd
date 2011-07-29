@@ -49,7 +49,7 @@ USE_THUMB_MODE = NO
 #USE_THUMB_MODE = YES
 
 ## Create ROM-Image (final)
-RUN_MODE=RUN_FROM_ROM
+RUN_MODE:=RUN_FROM_ROM
 ## Create RAM-Image (debugging) - not used in this example
 #RUN_MODE=RUN_FROM_RAM
 
@@ -319,7 +319,7 @@ LDFLAGS += -Wl,--gc-sections -Wl,--entry=_startup
 
 # Set Linker-Script Depending On Selected Memory and Controller
 ifeq ($(RUN_MODE),RUN_FROM_RAM)
-LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-RAM.ld
+LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-RAM$(IMGTYPE).ld
 else 
 LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-ROM$(IMGTYPE).ld
 endif

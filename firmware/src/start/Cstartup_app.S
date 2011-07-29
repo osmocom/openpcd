@@ -79,6 +79,7 @@
 	.global	_startup
 	.func _startup
 _startup:
+#ifndef RUN_FROM_RAM
 	/* Relocate .data section (copy from Flash to RAM) */
 	ldr	r1, =_etext
 	ldr	r2, =_data
@@ -87,6 +88,7 @@ loop_r:	cmp	r2, r3
 	ldrlo	r0, [r1], #4
 	strlo	r0, [r2], #4
 	blo	loop_r
+#endif
 
 	/* Clear .bss section (Zero init) */
 	mov	r0, #0
