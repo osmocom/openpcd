@@ -914,7 +914,7 @@ void __dfufunc dfu_main(void)
 
 	AT91F_DBGU_Init();
 	AT91F_DBGU_Printk("\n\r\n\rsam7dfu - AT91SAM7 USB DFU bootloader\n\r"
-		 "(C) 2006-2008 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
+		 "(C) 2006-2011 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
 		 "This software is FREE SOFTWARE licensed under GNU GPL\n\r");
 	AT91F_DBGU_Printk("Version " COMPILE_SVNREV 
 			  " compiled " COMPILE_DATE 
