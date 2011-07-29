@@ -116,7 +116,7 @@ ifeq ($(BOARD), SIMTRACE)
 SUBMDL   = AT91SAM7S128
 TARGET := main_simtrace
 SRCARM += src/simtrace/iso7816_uart.c src/simtrace/tc_etu.c \
-	  src/simtrace/sim_switch.c
+	  src/simtrace/sim_switch.c src/simtrace/spi_flash.c
 SRCARM += src/simtrace/$(TARGET).c 
 endif
 
