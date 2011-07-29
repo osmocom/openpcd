@@ -69,6 +69,8 @@
 #define led2on()	AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2)
 #define led2off()	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2)
 
+static int past_manifest = 0;
+
 static void __dfufunc udp_init(void)
 {
 	/* Set the PLL USB Divider */
@@ -486,7 +488,16 @@ int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
 	case DFU_STATE_dfuMANIFEST:
 		switch (req) {
 		case USB_REQ_DFU_GETSTATUS:
+			/* we don't want to change to WAIT_RST, as it
+			 * would mean that we can not support another
+			 * DFU transaction before doing the actual
+			 * reset.  Instead, we switch to idle and note
+			 * that we've already been through MANIFST in
+			 * the global variable 'past_manifest'.
+			 */
+			//dfu_state = DFU_STATE_dfuMANIFEST_WAIT_RST;
 			dfu_state = DFU_STATE_dfuIDLE;
+			past_manifest = 1;
 			handle_getstatus();
 			break;
 		case USB_REQ_DFU_GETSTATE:
@@ -858,12 +869,13 @@ static __dfufunc void dfu_udp_irq(void)
 		cur_config = 0;
 
 		if (dfu_state == DFU_STATE_dfuMANIFEST_WAIT_RST ||
-		    dfu_state == DFU_STATE_dfuMANIFEST) {
+		    dfu_state == DFU_STATE_dfuMANIFEST ||
+		    past_manifest) {
+			/* reset back into the main application */
 			AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
 					   		    AT91C_RSTC_PERRST|
 							    AT91C_RSTC_EXTRST);
 		}
-			
 	}
 
 	if (isr & AT91C_UDP_EPINT0)
