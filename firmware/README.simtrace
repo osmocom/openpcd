@@ -1,0 +1,9 @@
+
+You will probably need the followign commants:
+
+make -f Makefile.dfu BOARD=SIMTRACE 
+make BOARD=SIMTRACE DEBUG=1 TARGET=main_simtrace
+
+as well as possibly
+
+cat dfu.bin main_simtrace.bin > main_simtrace.samba
