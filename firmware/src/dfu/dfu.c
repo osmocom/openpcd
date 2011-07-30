@@ -1,5 +1,5 @@
 /* USB Device Firmware Update Implementation for OpenPCD
- * (C) 2006 by Harald Welte <hwelte@hmw-consulting.de>
+ * (C) 2006-2011 by Harald Welte <hwelte@hmw-consulting.de>
  *
  * This ought to be compliant to the USB DFU Spec 1.0 as available from
  * http://www.usb.org/developers/devclass_docs/usbdfu10.pdf
@@ -37,6 +37,7 @@
 #include <compile.h>
 
 #define SAM7DFU_SIZE	0x4000
+#define SAM7DFU_RAM_SIZE	0x2000
 
 /* If debug is enabled, we need to access debug functions from flash
  * and therefore have to omit flashing */
@@ -70,6 +71,8 @@
 #define led2off()	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2)
 
 static int past_manifest = 0;
+static u_int16_t usb_if_nr = 0;
+static u_int16_t usb_if_alt_nr = 0;
 
 static void __dfufunc udp_init(void)
 {
@@ -212,14 +215,37 @@ static void __dfufunc udp_ep0_send_stall(void)
 }
 
 
-static u_int8_t *ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
+static int first_download = 1;
+static u_int8_t *ptr, *ptr_max;
 static __dfudata u_int8_t dfu_status;
 __dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
 static u_int32_t pagebuf32[AT91C_IFLASH_PAGE_SIZE/4];
 
-static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
+static void chk_first_dnload_set_ptr(void)
 {
-	volatile u_int32_t *p = (volatile u_int32_t *)ptr;
+	if (!first_download)
+		return;
+
+	switch (usb_if_alt_nr) {
+	case 0:
+		ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
+		ptr_max = AT91C_IFLASH + AT91C_IFLASH_SIZE - ENVIRONMENT_SIZE;
+		break;
+	case 1:
+		ptr = (u_int8_t *) AT91C_IFLASH;
+		ptr_max = AT91C_IFLASH + SAM7DFU_SIZE;
+		break;
+	case 2:
+		ptr = (u_int8_t *) AT91C_ISRAM + SAM7DFU_RAM_SIZE;
+		ptr_max = AT91C_ISRAM + AT91C_ISRAM_SIZE;
+		break;
+	}
+	first_download = 0;
+}
+
+static int __dfufunc handle_dnload_flash(u_int16_t val, u_int16_t len)
+{
+	volatile u_int32_t *p;
 	u_int8_t *pagebuf = (u_int8_t *) pagebuf32;
 	int i;
 
@@ -240,13 +266,20 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 		dfu_status = DFU_STATUS_errADDRESS;
 		return RET_STALL;
 	}
+	chk_first_dnload_set_ptr();
+	p = (volatile u_int32_t *)ptr;
+
 	if (len == 0) {
 		DEBUGP("zero-size write -> MANIFEST_SYNC ");
-		flash_page(p);
+		if (((unsigned long)p % AT91C_IFLASH_PAGE_SIZE) != 0)
+			flash_page(p);
 		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
+		first_download = 1;
 		return RET_ZLP;
 	}
-	if (ptr + len >= (u_int8_t *) AT91C_IFLASH + AT91C_IFLASH_SIZE - ENVIRONMENT_SIZE ) {
+
+	/* check if we would exceed end of memory */
+	if (ptr + len > ptr_max) {
 		DEBUGP("end of write exceeds flash end ");
 		dfu_state = DFU_STATE_dfuERROR;
 		dfu_status = DFU_STATUS_errADDRESS;
@@ -258,10 +291,10 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 
 	DEBUGR(hexdump(pagebuf, len));
 
-	/* we can only access the write buffer with correctly aligned
-	 * 32bit writes ! */
 #ifndef DEBUG_DFU_NOFLASH
 	DEBUGP("copying ");
+	/* we can only access the write buffer with correctly aligned
+	 * 32bit writes ! */
 	for (i = 0; i < len/4; i++) {
 		*p++ = pagebuf32[i];
 		/* If we have filled a page buffer, flash it */
@@ -276,6 +309,56 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 	return RET_ZLP;
 }
 
+static int __dfufunc handle_dnload_ram(u_int16_t val, u_int16_t len)
+{
+	DEBUGE("download ");
+
+	if (len > AT91C_IFLASH_PAGE_SIZE) {
+		/* Too big. Not that we'd really care, but it's a
+		 * DFU protocol violation */
+		DEBUGP("length exceeds flash page size ");
+		dfu_state = DFU_STATE_dfuERROR;
+		dfu_status = DFU_STATUS_errADDRESS;
+		return RET_STALL;
+	}
+	chk_first_dnload_set_ptr();
+
+	if (len == 0) {
+		DEBUGP("zero-size write -> MANIFEST_SYNC ");
+		dfu_state = DFU_STATE_dfuMANIFEST_SYNC;
+		first_download = 1;
+		return RET_ZLP;
+	}
+
+	/* check if we would exceed end of memory */
+	if (ptr + len >= ptr_max) {
+		DEBUGP("end of write exceeds RAM end ");
+		dfu_state = DFU_STATE_dfuERROR;
+		dfu_status = DFU_STATUS_errADDRESS;
+		return RET_STALL;
+	}
+
+	/* drectly copy into RAM */
+	DEBUGP("try_to_recv=%u ", len);
+	udp_ep0_recv_data(ptr, len);
+
+	DEBUGR(hexdump(ptr, len));
+
+	ptr += len;
+
+	return RET_ZLP;
+}
+
+static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
+{
+	switch (usb_if_alt_nr) {
+	case 2:
+		return handle_dnload_ram(val, len);
+	default:
+		return handle_dnload_flash(val, len);
+	}
+}
+
 #define AT91C_IFLASH_END ((u_int8_t *)AT91C_IFLASH + AT91C_IFLASH_SIZE)
 static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 {
@@ -287,9 +370,12 @@ static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
 		udp_ep0_send_stall();
 		return -EINVAL;
 	}
+	chk_first_dnload_set_ptr();
 
-	if (ptr + len > AT91C_IFLASH_END)
+	if (ptr + len > AT91C_IFLASH_END) {
 		len = AT91C_IFLASH_END - (u_int8_t *)ptr;
+		first_download = 1;
+	}
 
 	udp_ep0_send_data((char *)ptr, len);
 	ptr+= len;
@@ -606,7 +692,7 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 		.bLength = USB_DT_CONFIG_SIZE,
 		.bDescriptorType = USB_DT_CONFIG,
 		.wTotalLength = USB_DT_CONFIG_SIZE + 
-				2* USB_DT_INTERFACE_SIZE +
+				3* USB_DT_INTERFACE_SIZE +
 				USB_DT_DFU_SIZE,
 		.bNumInterfaces = 1,
 		.bConfigurationValue = 1,
@@ -648,6 +734,21 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 		.iInterface		= 0,
 #endif
 		}, 
+	.uif[2] = {
+		.bLength		= USB_DT_INTERFACE_SIZE,
+		.bDescriptorType	= USB_DT_INTERFACE,
+		.bInterfaceNumber	= 0x00,
+		.bAlternateSetting	= 0x02,
+		.bNumEndpoints		= 0x00,
+		.bInterfaceClass	= 0xfe,
+		.bInterfaceSubClass	= 0x01,
+		.bInterfaceProtocol	= 0x02,
+#ifdef CONFIG_USB_STRING
+		.iInterface		= 6,
+#else
+		.iInterface		= 0,
+#endif
+		},
 
 	.func_dfu = DFU_FUNC_DESC,
 };
@@ -831,9 +932,11 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 		udp_ep0_send_stall();
 		break;
 	case STD_SET_INTERFACE:
-		DEBUGE("SET INTERFACE ");
-		/* FIXME: store the interface number somewhere, once
+		DEBUGE("SET INTERFACE(if=%d, alt=%d) ", wIndex, wValue);
+		/* store the interface number somewhere, once
 		 * we need to support DFU flashing DFU */
+		usb_if_alt_nr = wValue;
+		usb_if_nr = wIndex;
 		udp_ep0_send_zlp();
 		break;
 	default:
@@ -848,6 +951,8 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 	}
 	DEBUGE("\r\n");
 }
+
+const void (*ram_app_entry)(void) = AT91C_ISRAM + SAM7DFU_RAM_SIZE;
 
 /* minimal USB IRQ handler in DFU mode */
 static __dfufunc void dfu_udp_irq(void)
@@ -871,10 +976,21 @@ static __dfufunc void dfu_udp_irq(void)
 		if (dfu_state == DFU_STATE_dfuMANIFEST_WAIT_RST ||
 		    dfu_state == DFU_STATE_dfuMANIFEST ||
 		    past_manifest) {
-			/* reset back into the main application */
-			AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
-					   		    AT91C_RSTC_PERRST|
-							    AT91C_RSTC_EXTRST);
+			AT91F_DBGU_Printk("sam7dfu: switching to APP mode\r\n");
+			switch (usb_if_alt_nr) {
+			case 2:
+				/* jump into RAM */
+				DEBUGP("JUMP TO RAM ENTRY %p\r\n", ram_app_entry);
+				ram_app_entry();
+				break;
+			default:
+				/* reset back into the main application */
+				AT91F_RSTSoftReset(AT91C_BASE_RSTC,
+							  AT91C_RSTC_PROCRST|
+					   		  AT91C_RSTC_PERRST|
+							  AT91C_RSTC_EXTRST);
+				break;
+			}
 		}
 	}
 

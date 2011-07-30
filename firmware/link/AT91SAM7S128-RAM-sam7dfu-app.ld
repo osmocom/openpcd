@@ -5,7 +5,7 @@ MEMORY
   /* reserve 16K DFU area on top  of flash */
   /* FLASH  (rx) : ORIGIN = 0x00104000, LENGTH = (0x00020000 - 0x4000 - 0x400) */
   /* reserve 1k DFU area on top of RAM */
-  DATA   (rw) : ORIGIN = 0x00200400, LENGTH = (0x00008000 - 0x400)
+  DATA   (rw) : ORIGIN = 0x00202000, LENGTH = (0x00008000 - 0x2000)
   STACK  (rw) : ORIGIN = 0x00208000, LENGTH = 0x00000000
 }
 
@@ -16,7 +16,7 @@ SECTIONS
 {
 	. = 0x00000000;
 	/* first section is .text which is used for code */
-	.text 0x00200400: AT ( 0x00000000 ) { 
+	.text 0x00202000: AT ( 0x00000000 ) { 
   		src/start/Cstartup_app.o (.text)
 		* (.text)
 		* (.rodata*)
