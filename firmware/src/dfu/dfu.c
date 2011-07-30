@@ -71,8 +71,10 @@
 #define led2off()	AT91F_PIO_SetOutput(AT91C_BASE_PIOA, OPENPCD_PIO_LED2)
 
 static int past_manifest = 0;
-static u_int16_t usb_if_nr = 0;
-static u_int16_t usb_if_alt_nr = 0;
+static int switch_to_ram = 0; /* IRQ handler requests main to jump to RAM */
+static u_int16_t usb_if_nr = 0;	/* last SET_INTERFACE */
+static u_int16_t usb_if_alt_nr = 0; /* last SET_INTERFACE AltSetting */
+static u_int16_t usb_if_alt_nr_dnload = 0; /* AltSetting during last dnload */
 
 static void __dfufunc udp_init(void)
 {
@@ -351,6 +353,7 @@ static int __dfufunc handle_dnload_ram(u_int16_t val, u_int16_t len)
 
 static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 {
+	usb_if_alt_nr_dnload = usb_if_alt_nr;
 	switch (usb_if_alt_nr) {
 	case 2:
 		return handle_dnload_ram(val, len);
@@ -952,8 +955,6 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 	DEBUGE("\r\n");
 }
 
-const void (*ram_app_entry)(void) = AT91C_ISRAM + SAM7DFU_RAM_SIZE;
-
 /* minimal USB IRQ handler in DFU mode */
 static __dfufunc void dfu_udp_irq(void)
 {
@@ -977,11 +978,9 @@ static __dfufunc void dfu_udp_irq(void)
 		    dfu_state == DFU_STATE_dfuMANIFEST ||
 		    past_manifest) {
 			AT91F_DBGU_Printk("sam7dfu: switching to APP mode\r\n");
-			switch (usb_if_alt_nr) {
+			switch (usb_if_alt_nr_dnload) {
 			case 2:
-				/* jump into RAM */
-				DEBUGP("JUMP TO RAM ENTRY %p\r\n", ram_app_entry);
-				ram_app_entry();
+				switch_to_ram = 1;
 				break;
 			default:
 				/* reset back into the main application */
@@ -1072,6 +1071,16 @@ void __dfufunc dfu_main(void)
 	    i = (i+1) % 10000;
 	    if( i== 0) {
 		AT91F_WDTRestart(AT91C_BASE_WDTC);
+	    }
+	    if (switch_to_ram) {
+		void (*ram_app_entry)(void);
+		int i;
+		for (i = 0; i < 32; i++)
+			AT91F_AIC_DisableIt(AT91C_BASE_AIC, i);
+		/* jump into RAM */
+		AT91F_DBGU_Printk("JUMP TO RAM\r\n");
+		ram_app_entry = AT91C_ISRAM + SAM7DFU_RAM_SIZE;
+		ram_app_entry();
 	    }
 	}
 }
