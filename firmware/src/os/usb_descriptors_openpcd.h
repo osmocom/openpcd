@@ -20,8 +20,8 @@ const struct usb_device_descriptor dev_descriptor = {
 	.idProduct = USB_PRODUCT_ID,
 	.bcdDevice = 0x0030,	/* Version 0.3 */
 #ifdef CONFIG_USB_STRING
-	.iManufacturer = 3,
-	.iProduct = 4,
+	.iManufacturer = 4,
+	.iProduct = 5,
 	.iSerialNumber = 0,
 #else
 	.iManufacturer = 0,
@@ -36,7 +36,7 @@ struct _desc {
 	struct usb_interface_descriptor uif;
 	struct usb_endpoint_descriptor ep[3];
 #ifdef CONFIG_DFU
-	struct usb_interface_descriptor uif_dfu[2];
+	struct usb_interface_descriptor uif_dfu[3];
 #endif
 };
 
@@ -46,9 +46,9 @@ const struct _desc cfg_descriptor = {
 		 .bDescriptorType = USB_DT_CONFIG,
 		 .wTotalLength = USB_DT_CONFIG_SIZE +
 #ifdef CONFIG_DFU
-		 		 3 * USB_DT_INTERFACE_SIZE + 
+		 		 4 * USB_DT_INTERFACE_SIZE + 
 				 3 * USB_DT_ENDPOINT_SIZE,
-		 .bNumInterfaces = 3,
+		 .bNumInterfaces = 4,
 #else
 		 		 1 * USB_DT_INTERFACE_SIZE + 
 				 3 * USB_DT_ENDPOINT_SIZE,
@@ -56,7 +56,7 @@ const struct _desc cfg_descriptor = {
 #endif
 		 .bConfigurationValue = 1,
 #ifdef CONFIG_USB_STRING
-		 .iConfiguration = 5,
+		 .iConfiguration = 6,
 #else
 		 .iConfiguration = 0,
 #endif
@@ -73,7 +73,7 @@ const struct _desc cfg_descriptor = {
 		.bInterfaceSubClass = 0,
 		.bInterfaceProtocol = 0xff,
 #ifdef CONFIG_USB_STRING
-		.iInterface = 6,
+		.iInterface = 7,
 #else
 		.iInterface = 0,
 #endif

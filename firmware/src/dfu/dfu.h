@@ -61,6 +61,16 @@
 	.bInterfaceSubClass	= 0x01,					\
 	.bInterfaceProtocol	= 0x01,					\
 	.iInterface		= 2,					\
+	}, {								\
+	.bLength		= USB_DT_INTERFACE_SIZE,		\
+	.bDescriptorType	= USB_DT_INTERFACE,			\
+	.bInterfaceNumber	= 0x03,					\
+	.bAlternateSetting	= 0x00,					\
+	.bNumEndpoints		= 0x00,					\
+	.bInterfaceClass	= 0xfe,					\
+	.bInterfaceSubClass	= 0x01,					\
+	.bInterfaceProtocol	= 0x01,					\
+	.iInterface		= 3,					\
 	},								\
 }
 #else
@@ -78,8 +88,18 @@
 	}, {								\
 	.bLength		= USB_DT_INTERFACE_SIZE,		\
 	.bDescriptorType	= USB_DT_INTERFACE,			\
-	.bInterfaceNumber	= 0x02,					\
-	.bAlternateSetting	= 0x00,					\
+	.bInterfaceNumber	= 0x01,					\
+	.bAlternateSetting	= 0x01,					\
+	.bNumEndpoints		= 0x00,					\
+	.bInterfaceClass	= 0xfe,					\
+	.bInterfaceSubClass	= 0x01,					\
+	.bInterfaceProtocol	= 0x01,					\
+	.iInterface		= 0,					\
+	}, {								\
+	.bLength		= USB_DT_INTERFACE_SIZE,		\
+	.bDescriptorType	= USB_DT_INTERFACE,			\
+	.bInterfaceNumber	= 0x01,					\
+	.bAlternateSetting	= 0x02,					\
 	.bNumEndpoints		= 0x00,					\
 	.bInterfaceClass	= 0xfe,					\
 	.bInterfaceSubClass	= 0x01,					\
@@ -98,7 +118,7 @@
 
 struct _dfu_desc {
 	struct usb_config_descriptor ucfg;
-	struct usb_interface_descriptor uif[2];
+	struct usb_interface_descriptor uif[3];
 	struct usb_dfu_func_descriptor func_dfu;
 };
 

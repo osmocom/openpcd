@@ -3,3 +3,4 @@ OpenPICC RFID Simulator - DFU Mode
 OpenPIIC DFU Configuration
 OpenPICC DFU Interface - Application Partition
 OpenPICC DFU Interface - Bootloader Partition
+OpenPICC DFU Interface - RAM
