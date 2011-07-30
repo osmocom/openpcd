@@ -17,6 +17,7 @@
  */
 
 #include <stdarg.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <string.h>
 #include <asm/ctype.h>

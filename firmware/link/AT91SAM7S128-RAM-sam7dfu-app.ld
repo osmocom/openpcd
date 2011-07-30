@@ -2,9 +2,10 @@
 
 MEMORY
 {
-  /* reserve 1K config area on top  of flash */
-  FLASH  (rx) : ORIGIN = 0x00104000, LENGTH = (0x00020000 - 0x4000 - 0x400)
-  DATA   (rw) : ORIGIN = 0x00200028, LENGTH = (0x00008000 - 0x28)
+  /* reserve 16K DFU area on top  of flash */
+  /* FLASH  (rx) : ORIGIN = 0x00104000, LENGTH = (0x00020000 - 0x4000 - 0x400) */
+  /* reserve 1k DFU area on top of RAM */
+  DATA   (rw) : ORIGIN = 0x00202000, LENGTH = (0x00008000 - 0x2000)
   STACK  (rw) : ORIGIN = 0x00208000, LENGTH = 0x00000000
 }
 
@@ -15,32 +16,29 @@ SECTIONS
 {
 	. = 0x00000000;
 	/* first section is .text which is used for code */
-	.text 0x00104000: AT ( 0x00000000 ) { 
-  		src/start/Cstartup_app.o (.text*)
-		* (.text*)
+	.text 0x00202000: AT ( 0x00000000 ) { 
+  		src/start/Cstartup_app.o (.text)
+		* (.text)
 		* (.rodata*)
   		. = ALIGN(4);
-  	} >FLASH
 
   	_etext = . ;
 	PROVIDE (etext = .);
 
-	/* 0x00200000 ... */
-	.data 0x00200028: AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.text) ) {
   		_data = . ;
-		* (.fastrun*)
-  		* (.data*)
+		* (.fastrun)
+  		* (.data)
   		. = ALIGN(4);
   	} >DATA
 
   	_edata = . ;
 	PROVIDE (edata = .);
-	
+
 	/* .bss section which is used for uninitialized data */
 	.bss : {
 		__bss_start = . ;
 		__bss_start__ = . ;
-		*(.bss*)
+		*(.bss)
 		*(COMMON)
 	} >DATA
 

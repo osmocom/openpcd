@@ -3,3 +3,4 @@ OpenPCD RFID Reader - DFU Mode
 OpenPCD DFU Configuration
 OpenPCD DFU Interface - Application Partition
 OpenPCD DFU Interface - Bootloader Partition
+OpenPCD DFU Interface - RAM

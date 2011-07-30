@@ -1,5 +1,6 @@
 OpenPICC DFU Interface - Application Partition
 OpenPICC DFU Interface - Bootloader Partition
+OpenPICC DFU Interface - RAM
 bitmanufaktur.de IT Solutions and hmw-consulting.de
 OpenPICC RFID Simulator - Runtime Mode
 OpenPICC Runtime Configuration

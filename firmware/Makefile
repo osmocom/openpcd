@@ -42,14 +42,14 @@ FLASH_TOOL = AT91FLASH
 
 # MCU name and submodel
 MCU      = arm7tdmi
-#SUBMDL   = AT91SAM7S64
-SUBMDL   = AT91SAM7S128
+SUBMDL   = AT91SAM7S64
+#SUBMDL   = AT91SAM7S128
 
 USE_THUMB_MODE = NO
 #USE_THUMB_MODE = YES
 
 ## Create ROM-Image (final)
-RUN_MODE=RUN_FROM_ROM
+RUN_MODE:=RUN_FROM_ROM
 ## Create RAM-Image (debugging) - not used in this example
 #RUN_MODE=RUN_FROM_RAM
 
@@ -70,7 +70,7 @@ PATH_TO_LINKSCRIPTS=link/
 # Target file name (without extension).
 TARGET:=main_reqa
 
-USBSTRINGS=src/picc/usb_strings_app.h src/pcd/usb_strings_app.h
+USBSTRINGS=src/picc/usb_strings_app.h src/pcd/usb_strings_app.h src/simtrace/usb_strings_app.h
 
 # List C source files here. (C dependencies are automatically generated.)
 # use file-extension c for "c-only"-files
@@ -110,6 +110,14 @@ SRCARM += src/picc/tc_fdt.c src/picc/ssc_picc.c src/picc/adc.c \
 	  src/picc/openpicc.c
 # finally, the actual main application 
 SRCARM += src/picc/$(TARGET).c 
+endif
+
+ifeq ($(BOARD), SIMTRACE)
+SUBMDL   = AT91SAM7S128
+TARGET := main_simtrace
+SRCARM += src/simtrace/iso7816_uart.c src/simtrace/tc_etu.c \
+	  src/simtrace/sim_switch.c src/simtrace/spi_flash.c
+SRCARM += src/simtrace/$(TARGET).c 
 endif
 
 
@@ -202,6 +210,12 @@ CDEFS += -DPCD
 CINCS = -Isrc/pcd
 endif
 
+ifeq ($(BOARD),SIMTRACE)
+CDEFS += -DSIMTRACE
+CINCS = -Isrc/simtrace
+endif
+
+
 # Place -I options here
 CINCS += -Iinclude -Isrc
 
@@ -235,7 +249,7 @@ CFLAGS += -Wredundant-decls -Wreturn-type -Wshadow
 CFLAGS += -Wbad-function-cast -Wsign-compare -Waggregate-return 
 CFLAGS += -Wa,-adhlns=$(subst $(suffix $<),.lst,$<) 
 CFLAGS += $(patsubst %,-I%,$(EXTRAINCDIRS))
-#CFLAGS += -ffunction-sections -fdata-sections       
+CFLAGS += -ffunction-sections -fdata-sections
 
 # flags only for C
 CONLYFLAGS += -Wnested-externs 
@@ -301,11 +315,11 @@ LDFLAGS += -lc -lgcc
 LDFLAGS += $(CPLUSPLUS_LIB)
 LDFLAGS += $(patsubst %,-L%,$(EXTRA_LIBDIRS))
 LDFLAGS += $(patsubst %,-l%,$(EXTRA_LIBS))
-#LDFLAGS += --gc-sections
+LDFLAGS += -Wl,--gc-sections -Wl,--entry=_startup
 
 # Set Linker-Script Depending On Selected Memory and Controller
 ifeq ($(RUN_MODE),RUN_FROM_RAM)
-LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-RAM.ld
+LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-RAM$(IMGTYPE).ld
 else 
 LDFLAGS +=-T$(PATH_TO_LINKSCRIPTS)$(SUBMDL)-ROM$(IMGTYPE).ld
 endif

@@ -444,6 +444,22 @@ static inline void AT91F_PIO_CfgPullup(
 	pPio->PIO_PPUER = pullupEnable;
 }
 
+static inline void AT91F_PIO_CfgPullupEn(
+	AT91PS_PIO pPio,             // \arg pointer to a PIO controller
+	unsigned int pullupEnable)   // \arg enable pullup on PIO
+{
+		// Connect or not Pullup
+	pPio->PIO_PPUER = pullupEnable;
+}
+
+static inline void AT91F_PIO_CfgPullupDis(
+	AT91PS_PIO pPio,             // \arg pointer to a PIO controller
+	unsigned int pullupEnable)   // \arg enable pullup on PIO
+{
+		// Connect or not Pullup
+	pPio->PIO_PPUDR = pullupEnable;
+}
+
 //*----------------------------------------------------------------------------
 //* \fn    AT91F_PIO_CfgDirectDrive
 //* \brief Enable direct drive on PIO

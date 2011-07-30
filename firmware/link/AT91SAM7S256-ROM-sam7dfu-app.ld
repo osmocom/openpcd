@@ -16,8 +16,8 @@ SECTIONS
 	. = 0x00000000;
 	/* first section is .text which is used for code */
 	.text 0x00104000: AT ( 0x00000000 ) { 
-  		src/start/Cstartup_app.o (.text)
-		* (.text)
+  		src/start/Cstartup_app.o (.text*)
+		* (.text*)
 		* (.rodata*)
   		. = ALIGN(4);
   	} >FLASH
@@ -28,8 +28,8 @@ SECTIONS
 	/* 0x00200000 ... */
 	.data 0x00200028: AT ( ADDR(.text) + SIZEOF(.text) - ADDR(.text) ) {
   		_data = . ;
-		* (.fastrun)
-  		* (.data)
+		* (.fastrun*)
+  		* (.data*)
   		. = ALIGN(4);
   	} >DATA
 
@@ -40,7 +40,7 @@ SECTIONS
 	.bss : {
 		__bss_start = . ;
 		__bss_start__ = . ;
-		*(.bss)
+		*(.bss*)
 		*(COMMON)
 	} >DATA
 

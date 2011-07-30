@@ -34,6 +34,8 @@ enum openpcd_cmd_class {
 	OPENPCD_CMD_CLS_ADC		= 0x5,
 	OPENPCD_CMD_CLS_LIBRFID		= 0x6,
         OPENPCD_CMD_CLS_PRESENCE        = 0x7,
+	/* SIM SCAN */
+	OPENPCD_CMD_CLS_SIM		= 0x8,
 	/* PICC (transponder) side */
 	OPENPCD_CMD_CLS_PICC		= 0xe,
 
@@ -102,6 +104,7 @@ enum openpcd_cmd_class {
 
 
 #define OPENPCD_VENDOR_ID	0x16c0
+#define SIMTRACE_PRODUCT_ID	0x0762
 #define OPENPCD_PRODUCT_ID	0x076b
 #define OPENPICC_PRODUCT_ID	0x076c
 #define OPENPCD_OUT_EP		0x01

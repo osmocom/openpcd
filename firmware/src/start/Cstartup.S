@@ -98,6 +98,9 @@
 	/* Olimex SAM7-Pxxx boards have a button B1 on PA19 that is low-active */
 	.equ PIO_BOOTLDR,     (1 << 19)
 #define CONFIG_DFU_SWITCH_INV
+#elif defined(SIMTRACE)
+	.equ PIO_BOOTLDR,     (1 << 31)
+#define CONFIG_DFU_SWITCH_INV
 #else
 #error please define PIO_BOOTLDR for your board
 #endif

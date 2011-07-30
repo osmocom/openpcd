@@ -1,0 +1,6 @@
+sysmocom - systems for mobile communications GmbH
+SimTrace SIM Sniffer - DFU Mode
+SimTrace DFU Configuration
+SimTrace DFU Interface - Application Partition
+SimTrace DFU Interface - Bootloader Partition
+SimTrace DFU Interface - RAM
