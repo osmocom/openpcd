@@ -530,7 +530,16 @@ static __ramfunc void usart_irq(void)
 	}
 
 	if (csr & (AT91C_US_PARE|AT91C_US_FRAME|AT91C_US_OVRE)) {
+		u_int8_t nb_err = usart->US_NER;
 		/* FIXME: some error has occurrerd */
+		//DEBUGP("NER=%02x ", nb_err);
+		/* clear the status */
+		usart->US_CR |= AT91C_US_RSTSTA;
+	}
+
+	if (csr & AT91C_US_INACK) {
+		/* we would have sent a NACK if INACK was not set */
+		usart->US_CR |= AT91C_US_RSTNACK;
 	}
 }
 
