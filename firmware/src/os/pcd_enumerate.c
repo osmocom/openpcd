@@ -594,6 +594,12 @@ static void udp_ep0_handler(void)
 						MIN(sizeof(cfg_descriptor.uif_dfu[1]),
 						    wLength));
 				break;
+			case 3:
+				udp_ep0_send_data((const char *)
+						&cfg_descriptor.uif_dfu[2],
+						MIN(sizeof(cfg_descriptor.uif_dfu[2]),
+						    wLength));
+				break;
 	#endif
 			default:
 				goto out_stall;
