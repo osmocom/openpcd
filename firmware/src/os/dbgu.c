@@ -123,6 +123,8 @@ void dbgu_rb_init(void);
 //*----------------------------------------------------------------------------
 void AT91F_DBGU_Init(void)
 {
+	unsigned int rst_status = AT91F_RSTGetStatus(AT91C_BASE_RSTC);
+
 	dbgu_rb_init();
 
 	//* Open PIO for DBGU
@@ -155,6 +157,8 @@ void AT91F_DBGU_Init(void)
 	AT91F_DBGU_Printk("\n\rDEBUG Interface:\n\r"
 			  "0) Set Pull-up 1) Clear Pull-up 2) Toggle LED1 3) "
 			  "Toggle LED2\r\n9) Reset\n\r");
+
+	debugp("RSTC_SR=0x%08x\n", rst_status);
 }
 
 /*
