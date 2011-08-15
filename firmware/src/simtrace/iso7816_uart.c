@@ -588,12 +588,12 @@ void iso_uart_clk_master(unsigned int master)
 	if (master) {
 		usart->US_MR = AT91C_US_USMODE_ISO7816_0 | AT91C_US_CLKS_CLOCK |
 				AT91C_US_CHRL_8_BITS | AT91C_US_NBSTOP_1_BIT |
-				AT91C_US_CKLO;
+				AT91C_US_CKLO | AT91C_US_INACK;
 		usart->US_BRGR = (0x0000 << 16) | 16;
 	} else {
 		usart->US_MR = AT91C_US_USMODE_ISO7816_0 | AT91C_US_CLKS_EXT |
 				AT91C_US_CHRL_8_BITS | AT91C_US_NBSTOP_1_BIT |
-				AT91C_US_CKLO;
+				AT91C_US_CKLO | AT91C_US_INACK;
 		usart->US_BRGR = (0x0000 << 16) | 0x0001;
 	}
 }
@@ -624,7 +624,7 @@ void iso_uart_init(void)
 	/* ISO7816 T=0 mode with external clock input */
 	usart->US_MR = AT91C_US_USMODE_ISO7816_0 | AT91C_US_CLKS_EXT | 
 			AT91C_US_CHRL_8_BITS | AT91C_US_NBSTOP_1_BIT |
-			AT91C_US_CKLO;
+			AT91C_US_CKLO | AT91C_US_INACK;
 
 	/* Disable all interrupts */
 	usart->US_IDR = 0xff;
