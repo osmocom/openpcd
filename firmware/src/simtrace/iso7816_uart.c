@@ -251,6 +251,20 @@ static void set_state(struct iso7816_3_handle *ih, enum iso7816_3_state new_stat
 	ih->state = new_state;
 }
 
+static enum iso7816_3_state
+transition_to_tck(struct iso7816_3_handle *ih)
+{
+	if (ih->prot_t_supported == 0x01) {
+		/* If only T=0 supported, there is no TCK but we
+		 * immediately transition to APDUs */
+		set_atr_state(ih, ATR_S_DONE);
+		return ISO7816_S_WAIT_APDU;
+	} else {
+		set_atr_state(ih, ATR_S_WAIT_TCK);
+		return ISO7816_S_IN_ATR;
+	}
+}
+
 /* determine the next ATR state based on received interface byte */
 static enum atr_state next_intb_state(struct iso7816_3_handle *ih, u_int8_t ch)
 {
@@ -288,7 +302,11 @@ from_tc:
 	if (ih->atr_last_td & 0x80)
 		return ATR_S_WAIT_TD;
 
-	return ATR_S_WAIT_HIST;
+	/* Historical bytes are common, but optional! */
+	if (ih->atr_hist_len)
+		return ATR_S_WAIT_HIST;
+	else
+		return transition_to_tck(ih);
 }
 
 /* process an incomng ATR byte */
@@ -324,16 +342,8 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 	case ATR_S_WAIT_HIST:
 		ih->atr_hist_len--;
 		/* after all historical bytes are recieved, go to TCK */
-		if (ih->atr_hist_len == 0) {
-			if (ih->prot_t_supported == 0x01) {
-				/* If only T=0 supported, there is no
-				 * TCK but we immediately transition to
-				 * APDUs */
-				set_atr_state(ih, ATR_S_DONE);
-				return ISO7816_S_WAIT_APDU;
-			}
-			set_atr_state(ih, ATR_S_WAIT_TCK);
-		}
+		if (ih->atr_hist_len == 0)
+			return transition_to_tck(ih);
 		break;
 	case ATR_S_WAIT_TCK:
 		/* FIXME: process and verify the TCK */
