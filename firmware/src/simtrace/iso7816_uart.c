@@ -96,6 +96,8 @@ struct iso7816_3_handle {
 	u_int8_t atr_last_td;
 	u_int8_t atr[64];
 
+	u_int16_t prot_t_supported;
+
 	enum pts_state pts_state;
 	u_int8_t pts_req[6];
 	u_int8_t pts_resp[6];
@@ -190,6 +192,7 @@ static void set_atr_state(struct iso7816_3_handle *ih, enum atr_state new_atrs)
 		ih->atr_idx = 0;
 		ih->atr_hist_len = 0;
 		ih->atr_last_td = 0;
+		ih->prot_t_supported = (1 << 0);
 		memset(ih->atr, 0, sizeof(ih->atr));
 	} else if (ih->atr_state == new_atrs)
 		return;
@@ -253,6 +256,7 @@ static enum atr_state next_intb_state(struct iso7816_3_handle *ih, u_int8_t ch)
 {
 	switch (ih->atr_state) {
 	case ATR_S_WAIT_TD:
+		ih->prot_t_supported |= (1 << (ch & 0xf));
 	case ATR_S_WAIT_T0:
 		ih->atr_last_td = ch;
 		goto from_td;
@@ -320,8 +324,16 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 	case ATR_S_WAIT_HIST:
 		ih->atr_hist_len--;
 		/* after all historical bytes are recieved, go to TCK */
-		if (ih->atr_hist_len == 0)
+		if (ih->atr_hist_len == 0) {
+			if (ih->prot_t_supported == 0x01) {
+				/* If only T=0 supported, there is no
+				 * TCK but we immediately transition to
+				 * APDUs */
+				set_atr_state(ih, ATR_S_DONE);
+				return ISO7816_S_WAIT_APDU;
+			}
 			set_atr_state(ih, ATR_S_WAIT_TCK);
+		}
 		break;
 	case ATR_S_WAIT_TCK:
 		/* FIXME: process and verify the TCK */
