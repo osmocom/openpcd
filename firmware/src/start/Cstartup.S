@@ -417,7 +417,7 @@ loop_rel_t:	cmp	r2, r3
 		ldr	r4, =_remap_call_dfu
 		bx	r4
 		
-        .size   _startup, . - _startup
+	.size InitReset,.-InitReset
         .endfunc
 
 /* "exit" dummy to avoid sbrk write read etc. needed by the newlib default "exit" */
