@@ -96,13 +96,15 @@ static void __dfufunc udp_init(void)
 static void __dfufunc udp_ep0_send_zlp(void);
 
 /* Send Data through the control endpoint */
-static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
+static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length,
+					u_int32_t window_length)
 {
 	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	u_int32_t cpt = 0, len_remain = length;
+	u_int32_t cpt = 0, len_remain;
 	AT91_REG csr;
 
-	DEBUGE("send_data: %u bytes ", length);
+	len_remain = MIN(length, window_length);
+	DEBUGE("send_data: %u/%u bytes ", length, window_length);
 
 	do {
 		cpt = MIN(len_remain, 8);
@@ -135,7 +137,7 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 		while (pUdp->UDP_CSR[0] & AT91C_UDP_TXCOMP) ;
 	}
 
-	if ((length % 8) == 0) {
+	if ((length % 8) == 0 && length < window_length) {
 		/* if the length is a multiple of the EP size, we need
 		 * to send another ZLP (zero-length packet) to tell the
 		 * host the transfer has completed.  */
@@ -366,7 +368,7 @@ static __dfufunc int handle_upload(u_int16_t __unused val, u_int16_t len)
 		first_download = 1;
 	}
 
-	udp_ep0_send_data((char *)ptr, len);
+	udp_ep0_send_data((char *)ptr, len, len);
 	ptr+= len;
 
 	return len;
@@ -409,7 +411,7 @@ static __dfufunc void handle_getstatus(void)
 	dstat.iString = 0;
 	/* FIXME: set dstat.bwPollTimeout */
 
-	udp_ep0_send_data((char *)&dstat, sizeof(dstat));
+	udp_ep0_send_data((char *)&dstat, sizeof(dstat), sizeof(dstat));
 }
 
 static void __dfufunc handle_getstate(void)
@@ -417,7 +419,7 @@ static void __dfufunc handle_getstate(void)
 	u_int8_t u8 = dfu_state;
 	DEBUGE("getstate ");
 
-	udp_ep0_send_data((char *)&u8, sizeof(u8));
+	udp_ep0_send_data((char *)&u8, sizeof(u8), sizeof(u8));
 }
 
 /* callback function for DFU requests */
@@ -806,15 +808,13 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 			/* Return Device Descriptor */
 			udp_ep0_send_data((const char *) 
 					  &dfu_dev_descriptor,
-					  MIN(sizeof(dfu_dev_descriptor),
-					      wLength));
+					  sizeof(dfu_dev_descriptor), wLength);
 			break;
 		case USB_DT_CONFIG:
 			/* Return Configuration Descriptor */
 			udp_ep0_send_data((const char *)
 					  &dfu_cfg_descriptor,
-					  MIN(sizeof(dfu_cfg_descriptor),
-					      wLength));
+					  sizeof(dfu_cfg_descriptor), wLength);
 			break;
 		case USB_DT_STRING:
 			/* Return String Descriptor */
@@ -825,14 +825,12 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 			DEBUGE("bLength=%u, wLength=%u ", 
 				usb_strings[desc_index]->bLength, wLength);
 			udp_ep0_send_data((const char *) usb_strings[desc_index],
-					  MIN(usb_strings[desc_index]->bLength, 
-					      wLength));
+					  usb_strings[desc_index]->bLength, wLength);
 			break;
 		case USB_DT_CS_DEVICE:
 			/* Return Function descriptor */
 			udp_ep0_send_data((const char *) &dfu_cfg_descriptor.func_dfu,
-					  MIN(sizeof(dfu_cfg_descriptor.func_dfu),
-					      wLength));
+					  sizeof(dfu_cfg_descriptor.func_dfu), wLength);
 			break;
 		default:
 			udp_ep0_send_stall();
@@ -867,18 +865,20 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 		break;
 	case STD_GET_CONFIGURATION:
 		DEBUGE("GET_CONFIG ");
-		udp_ep0_send_data((char *)&(cur_config),
-				   sizeof(cur_config));
+		/* Table 9.4 wLength One */
+		udp_ep0_send_data((char *)&(cur_config), sizeof(cur_config), 1);
 		break;
 	case STD_GET_STATUS_ZERO:
 		DEBUGE("GET_STATUS_ZERO ");
 		wStatus = 0;
-		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus));
+		/* Table 9.4 wLength Two */
+		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus), 2);
 		break;
 	case STD_GET_STATUS_INTERFACE:
 		DEBUGE("GET_STATUS_INTERFACE ");
 		wStatus = 0;
-		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus));
+		/* Table 9.4 wLength Two */
+		udp_ep0_send_data((char *)&wStatus, sizeof(wStatus), 2);
 		break;
 	case STD_GET_STATUS_ENDPOINT:
 		DEBUGE("GET_STATUS_ENDPOINT(EPidx=%u) ", wIndex&0x0f);
@@ -887,14 +887,14 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 		if ((pUDP->UDP_GLBSTATE & AT91C_UDP_CONFG) && (wIndex == 0)) {
 			wStatus =
 			    (pUDP->UDP_CSR[wIndex] & AT91C_UDP_EPEDS) ? 0 : 1;
-			udp_ep0_send_data((char *)&wStatus,
-					   sizeof(wStatus));
+			/* Table 9.4 wLength Two */
+			udp_ep0_send_data((char *)&wStatus, sizeof(wStatus), 2);
 		} else if ((pUDP->UDP_GLBSTATE & AT91C_UDP_FADDEN)
 			   && (wIndex == 0)) {
 			wStatus =
 			    (pUDP->UDP_CSR[wIndex] & AT91C_UDP_EPEDS) ? 0 : 1;
-			udp_ep0_send_data((char *)&wStatus,
-					   sizeof(wStatus));
+			/* Table 9.4 wLength Two */
+			udp_ep0_send_data((char *)&wStatus, sizeof(wStatus), 2);
 		} else
 			udp_ep0_send_stall();
 		break;

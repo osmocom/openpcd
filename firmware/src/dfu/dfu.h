@@ -124,7 +124,7 @@ struct _dfu_desc {
 
 struct dfuapi {
 	void (*udp_init)(void);
-	void (*ep0_send_data)(const char *data, u_int32_t len);
+	void (*ep0_send_data)(const char *data, u_int32_t len, u_int32_t wlen);
 	void (*ep0_send_zlp)(void);
 	void (*ep0_send_stall)(void);
 	int  (*dfu_ep0_handler)(u_int8_t req_type, u_int8_t req,
