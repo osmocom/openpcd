@@ -993,10 +993,8 @@ static __dfufunc void dfu_udp_irq(void)
 }
 
 /* this is only called once before DFU mode, no __dfufunc required */
-static void dfu_switch(void)
+static __noreturn void dfu_switch(void)
 {
-	AT91PS_AIC pAic = AT91C_BASE_AIC;
-
 	DEBUGE("\r\nsam7dfu: switching to DFU mode\r\n");
 
 	dfu_state = DFU_STATE_appDETACH;
