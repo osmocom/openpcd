@@ -231,7 +231,7 @@ static void chk_first_dnload_set_ptr(void)
 	first_download = 0;
 }
 
-static int __dfufunc handle_dnload_flash(u_int16_t val, u_int16_t len)
+static int __dfufunc handle_dnload_flash(u_int16_t __unused val, u_int16_t len)
 {
 	volatile u_int32_t *p;
 	u_int8_t *pagebuf = (u_int8_t *) pagebuf32;
@@ -297,7 +297,7 @@ static int __dfufunc handle_dnload_flash(u_int16_t val, u_int16_t len)
 	return RET_ZLP;
 }
 
-static int __dfufunc handle_dnload_ram(u_int16_t val, u_int16_t len)
+static int __dfufunc handle_dnload_ram(u_int16_t __unused val, u_int16_t len)
 {
 	DEBUGE("download ");
 
@@ -349,7 +349,7 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 }
 
 #define AT91C_IFLASH_END ((u_int8_t *)AT91C_IFLASH + AT91C_IFLASH_SIZE)
-static __dfufunc int handle_upload(u_int16_t val, u_int16_t len)
+static __dfufunc int handle_upload(u_int16_t __unused val, u_int16_t len)
 {
 	DEBUGE("upload ");
 	if (len > AT91C_IFLASH_PAGE_SIZE) {
@@ -421,7 +421,7 @@ static void __dfufunc handle_getstate(void)
 }
 
 /* callback function for DFU requests */
-int __dfufunc dfu_ep0_handler(u_int8_t req_type, u_int8_t req,
+int __dfufunc dfu_ep0_handler(u_int8_t __unused req_type, u_int8_t req,
 		    u_int16_t val, u_int16_t len)
 {
 	int rc, ret = RET_NOTHING;
