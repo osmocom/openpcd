@@ -144,20 +144,6 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length)
 	}
 }
 
-static void udp_ep0_recv_clean(void)
-{
-	unsigned int i;
-	u_int8_t dummy;
-	const AT91PS_UDP pUdp = AT91C_BASE_UDP;
-
-	while (!(pUdp->UDP_CSR[0] & AT91C_UDP_RX_DATA_BK0)) ;
-
-	for (i = 0; i < (pUdp->UDP_CSR[0] >> 16); i++)
-		dummy = pUdp->UDP_FDR[0];
-
-	pUdp->UDP_CSR[0] &= ~(AT91C_UDP_RX_DATA_BK0);
-}
-
 /* receive data from EP0 */
 static int __dfufunc udp_ep0_recv_data(u_int8_t *data, u_int16_t len)
 {
