@@ -847,8 +847,10 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 		break;
 	case STD_SET_CONFIGURATION:
 		DEBUGE("SET_CONFIG ");
-		if (wValue)
+		if (wValue) {
 			DEBUGE("VALUE!=0 ");
+		}
+	
 		cur_config = wValue;
 		udp_ep0_send_zlp();
 		pUDP->UDP_GLBSTATE =
