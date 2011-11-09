@@ -1074,9 +1074,9 @@ void __dfufunc dfu_main(void)
 	    }
 	    if (switch_to_ram) {
 		void (*ram_app_entry)(void);
-		int i;
-		for (i = 0; i < 32; i++)
-			AT91F_AIC_DisableIt(AT91C_BASE_AIC, i);
+		int j;
+		for (j = 0; j < 32; j++)
+			AT91F_AIC_DisableIt(AT91C_BASE_AIC, j);
 		/* jump into RAM */
 		AT91F_DBGU_Printk("JUMP TO RAM\r\n");
 		ram_app_entry = AT91C_ISRAM + SAM7DFU_RAM_SIZE;
