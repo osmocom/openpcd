@@ -30,8 +30,17 @@
 #define SIMTRACE_PIO_SC_SW	AT91C_PIO_PA20
 #define SIMTRACE_PIO_IO_SW	AT91C_PIO_PA19
 
+/* to set power for VCC_SIM for early prototype
+ * unused pin in v1.0p
+ */
 #define SIMTRACE_PIO_VCC_SIM	AT91C_PIO_PA5
-#define SIMTRACE_PIO_VCC_PHONE	AT91C_PIO_PA30
+
+/* to set power source for VCC_SIM for v1.0(p) */
+#define SIMTRACE_PIO_SIM_PWREN	AT91C_PIO_PA5
+#define SIMTRACE_PIO_SIM_PWRFWD	AT91C_PIO_PA26
+
+/* VCC_PHONE detection */
+#define SIMTRACE_PIO_VCC_PHONE	AT91C_PIO_PA25
 
 /* SPI flash */
 #define PIO_SPIF_nWP	AT91C_PIO_PA15

@@ -65,8 +65,18 @@ static void simtrace_set_mode(enum simtrace_md mode)
 		/* switch VCC_SIM pin into output mode, as in the first
 		 * generation prototype we use it directly to supply Vcc
 		 * to the SIM */
+
+		/* pin unused in v1.0(p) and v1.1p */
 		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_SIM);
 		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_SIM);
+		/* for v1.0(p) and v1.1p, VCC_SIM can either be powered by
+		 * VCC_PHONE using SIM_PWRFWD, or by the LDO using
+		 * SIM_PWREN. they should be set exclusive. per default
+		 * use VCC_PHONE */
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SIM_PWRFWD);
+		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SIM_PWRFWD);
+		AT91F_PIO_CfgOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SIM_PWREN);
+		AT91F_PIO_ClearOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SIM_PWREN);
 
 		/* switch UART0 pins to 'ISO7816 card mode' */
 		AT91F_PIO_CfgInput(AT91C_BASE_PIOA, UART0_PINS);
