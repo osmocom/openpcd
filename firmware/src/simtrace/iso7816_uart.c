@@ -119,7 +119,7 @@ static const u_int16_t fi_table[] = {
 
 /* Table 7 from ISO 7816-3 */
 static const u_int8_t di_table[] = {
-	0, 1, 2, 4, 8, 16, 32, 0,
+	0, 1, 2, 4, 8, 16, 32, 64,
 	12, 20, 2, 4, 8, 16, 32, 64,
 };
 
