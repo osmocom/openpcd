@@ -175,6 +175,10 @@ static void send_rctx(struct iso7816_3_handle *ih)
 	if (!rctx)
 		return;
 
+	/* Put Fi and Di into res[2] array */
+	ih->sh.res[0] = ih->fi;
+	ih->sh.res[1] = ih->di;
+
 	/* copy the simtrace header */
 	memcpy(rctx->data, &ih->sh, sizeof(ih->sh));
 
@@ -443,6 +447,7 @@ process_byte_pts(struct iso7816_3_handle *ih, u_int8_t byte)
 		ih->fi = byte >> 4;
 		ih->di = byte & 0xf;
 		DEBUGPCR("found Fi=%u Di=%u", ih->fi, ih->di);
+		ih->sh.flags |= SIMTRACE_FLAG_PPS_FIDI;
 		ih->pts_resp[_PTS1] = byte;
 		break;
 	case PTS_S_WAIT_RESP_PTS2:
