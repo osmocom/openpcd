@@ -40,7 +40,7 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 	u_int8_t send_usb = 0;
 	int i;
 
-	DEBUGPCRF("PIO_ISR_STATUS = 0x%08x", pio);
+	//DEBUGPCRF("PIO_ISR_STATUS = 0x%08x", pio);
 
 	for (i = 0; i < NR_PIO; i++) {
 		if (pio & (1 << i) && pirqs.handlers[i])
