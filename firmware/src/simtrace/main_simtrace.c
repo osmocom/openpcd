@@ -33,6 +33,7 @@
 #include <simtrace/tc_etu.h>
 #include <simtrace/iso7816_uart.h>
 #include <simtrace/sim_switch.h>
+#include <simtrace_usb.h>
 
 enum simtrace_md {
 	SIMTRACE_MD_OFF,
@@ -117,6 +118,24 @@ static void simtrace_set_mode(enum simtrace_md mode)
 	}
 }
 
+static int simtrace_usb_in(struct req_ctx *rctx)
+{
+	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->data[0];
+	struct simtrace_stats *stats_in;
+	struct simtrace_stats *stats = (struct simtrace_stats *) poh->data;
+
+	switch (poh->cmd) {
+	case SIMTRACE_MSGT_STATS:
+		stats_in = iso_uart_stats_get();
+		memcpy(stats, stats_in, sizeof(*stats));
+		req_ctx_set_state(rctx, RCTX_STATE_UDP_EP2_PENDING);
+		break;
+	default:
+		req_ctx_set_state(rctx, RCTX_STATE_FREE);
+		break;
+	}
+}
+
 void _init_func(void)
 {
 	/* low-level hardware initialization */
@@ -126,6 +145,7 @@ void _init_func(void)
 	sim_switch_init();
 
 	usbtest_init();
+	usb_hdlr_register(&simtrace_usb_in, OPENPCD_CMD_CLS_ADC);
 
 	/* high-level protocol */
 	//opicc_usbapi_init();
@@ -150,7 +170,7 @@ static void help(void)
 		 "l: set nRST to low (active)\r\n"
 		 "h: set nRST to high (inactive)\r\n"
 		 "o: set nRST to input\r\n"
-		 "r: set Rx mode for UART\r\n"
+		 "t: ISO UART statistics\r\n"
 		 "s: disconnect SIM bus switch\r\n"
 		 "S: connect SIM bus switch\r\n");
 }
@@ -166,6 +186,9 @@ int _main_dbgu(char key)
 		break;
 	case 'S':
 		simtrace_set_mode(SIMTRACE_MD_SNIFFER);
+		break;
+	case 't':
+		iso_uart_stats_dump();
 		break;
 	case 'r':
 		iso_uart_rx_mode();

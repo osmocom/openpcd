@@ -106,6 +106,8 @@ struct iso7816_3_handle {
 
 	int rctx_must_be_sent;
 	struct req_ctx *rctx;
+
+	struct simtrace_stats stats;
 };
 
 struct iso7816_3_handle isoh;
@@ -122,6 +124,20 @@ static const u_int8_t di_table[] = {
 	0, 1, 2, 4, 8, 16, 32, 64,
 	12, 20, 2, 4, 8, 16, 32, 64,
 };
+
+void iso_uart_stats_dump(void)
+{
+	DEBUGPCRF("no_rctx: %u, rctx_sent: %u, rst: %u, pps: %u, bytes: %u, "
+		"parity_err: %u, frame_err: %u, overrun:%u",
+		isoh.stats.no_rctx, isoh.stats.rctx_sent, isoh.stats.rst,
+		isoh.stats.pps, isoh.stats.bytes, isoh.stats.parity_err,
+		isoh.stats.frame_err, isoh.stats.overrun);
+}
+
+struct simtrace_stats *iso_uart_stats_get(void)
+{
+	return &isoh.stats;
+}
 
 /* compute the F/D ratio based on Fi and Di values */
 static int compute_fidi_ratio(u_int8_t fi, u_int8_t di)
@@ -186,6 +202,8 @@ static void send_rctx(struct iso7816_3_handle *ih)
 
 	memset(&ih->sh, 0, sizeof(ih->sh));
 	ih->rctx = NULL;
+
+	ih->stats.rctx_sent++;
 }
 
 
@@ -476,6 +494,8 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 	int new_state = -1;
 	struct req_ctx *rctx;
 
+	ih->stats.bytes++;
+
 	if (!ih->rctx)
 		refill_rctx(ih);
 
@@ -489,6 +509,7 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 	case ISO7816_S_WAIT_APDU:
 		if (byte == 0xff) {
 			new_state = process_byte_pts(ih, byte);
+			ih->stats.pps++;
 			goto out_silent;
 		}
 	case ISO7816_S_IN_APDU:
@@ -506,7 +527,8 @@ static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
 
 	rctx = ih->rctx;
 	if (!rctx) {
-		DEBUGPCR("==> Lost byte, missing rctx");
+		//DEBUGPCR("==> Lost byte, missing rctx");
+		ih->stats.no_rctx++;
 		return;
 	}
 
@@ -562,6 +584,13 @@ static __ramfunc void usart_irq(void)
 		//DEBUGP("NER=%02x ", nb_err);
 		/* clear the status */
 		usart->US_CR |= AT91C_US_RSTSTA;
+
+		if (csr & AT91C_US_PARE)
+			isoh.stats.parity_err++;
+		if (csr & AT91C_US_FRAME)
+			isoh.stats.frame_err++;
+		if (csr & AT91C_US_OVRE)
+			isoh.stats.overrun++;
 	}
 
 	if (csr & AT91C_US_INACK) {
@@ -579,6 +608,7 @@ static void reset_pin_irq(u_int32_t pio)
 	} else {
 		DEBUGPCR("RST");
 		set_state(&isoh, ISO7816_S_WAIT_ATR);
+		isoh.stats.rst++;
 	}
 }
 
@@ -647,6 +677,7 @@ void iso_uart_init(void)
 	AT91F_PIO_CfgPeriph(AT91C_BASE_PIOA, SIMTRACE_PIO_IO, SIMTRACE_PIO_CLK);
 	AT91F_PIO_CfgInput(AT91C_BASE_PIOA, SIMTRACE_PIO_nRST);
 
+	/* Configure Interrupt */
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_US0,
 			      OPENPCD_IRQ_PRIO_USART,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL, &usart_irq);
