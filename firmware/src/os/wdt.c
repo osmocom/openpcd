@@ -23,13 +23,19 @@
 #include <os/dbgu.h>
 #include <os/system_irq.h>
 
+#define WDT_WDD		0xFF
+#define WDT_WDV		0xFF
+
 #ifdef  WDT_DEBUG
 #undef  WDT_DEBUG
 #endif/*WDT_DEBUG*/
- 
+
 static void wdt_irq(u_int32_t sr)
 {
-	DEBUGPCRF("================> WATCHDOG EXPIRED !!!!!");
+	if (sr & 1)
+		DEBUGPCRF("================> WATCHDOG EXPIRED !!!!!");
+	if (sr & 2)
+		DEBUGPCRF("================> WATCHDOG ERROR !!!!!");
 }
 
 void wdt_restart(void)
@@ -41,11 +47,12 @@ void wdt_init(void)
 {
 	sysirq_register(AT91SAM7_SYSIRQ_WDT, &wdt_irq);
 #ifdef WDT_DEBUG
-	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0xff << 16) |
+	AT91F_WDTSetMode(AT91C_BASE_WDTC, (WDT_WDD << 16) |
 			 AT91C_WDTC_WDDBGHLT | AT91C_WDTC_WDIDLEHLT |
-			 AT91C_WDTC_WDFIEN);
+			 AT91C_WDTC_WDFIEN | WDT_WDV);
 #else
-	AT91F_WDTSetMode(AT91C_BASE_WDTC, (0x80 << 16) |
-			 AT91C_WDTC_WDRSTEN | 0x80);
+	AT91F_WDTSetMode(AT91C_BASE_WDTC, (WDT_WDD << 16) |
+			 AT91C_WDTC_WDDBGHLT | AT91C_WDTC_WDIDLEHLT |
+			 AT91C_WDTC_WDRSTEN | WDT_WDV);
 #endif
 }
