@@ -275,13 +275,23 @@ static void set_state(struct iso7816_3_handle *ih, enum iso7816_3_state new_stat
 	ih->state = new_state;
 }
 
+static void atr_done_wait_apdu(struct iso7816_3_handle *ih)
+{
+	set_atr_state(ih, ATR_S_DONE);
+	/* send off the USB context */
+	ih->rctx_must_be_sent = 1;
+	/* update the waiting time */
+	ih->waiting_time = 960 * di_table[ih->di] * ih->wi;
+	tc_etu_set_wtime(ih->waiting_time);
+}
+
 static enum iso7816_3_state
 transition_to_tck(struct iso7816_3_handle *ih)
 {
 	if (ih->prot_t_supported == 0x01) {
 		/* If only T=0 supported, there is no TCK but we
 		 * immediately transition to APDUs */
-		set_atr_state(ih, ATR_S_DONE);
+		atr_done_wait_apdu(ih);
 		return ISO7816_S_WAIT_APDU;
 	} else {
 		set_atr_state(ih, ATR_S_WAIT_TCK);
@@ -371,12 +381,7 @@ process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
 		break;
 	case ATR_S_WAIT_TCK:
 		/* FIXME: process and verify the TCK */
-		set_atr_state(ih, ATR_S_DONE);
-		/* send off the USB context */
-		ih->rctx_must_be_sent = 1;
-		/* update the waiting time */
-		ih->waiting_time = 960 * di_table[ih->di] * ih->wi;
-		tc_etu_set_wtime(ih->waiting_time);
+		atr_done_wait_apdu(ih);
 		return ISO7816_S_WAIT_APDU;
 	}
 
