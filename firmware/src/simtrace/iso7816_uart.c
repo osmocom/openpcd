@@ -157,6 +157,8 @@ static int compute_fidi_ratio(u_int8_t fi, u_int8_t di)
 	if (d == 0)
 		return -EINVAL;
 
+	/* See table 7 of ISO 7816-3: From 1000 on we divide by 1/d,
+	 * which equals a multiplication by d */
 	if (di < 8) 
 		ret = f / d;
 	else
