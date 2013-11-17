@@ -25,7 +25,6 @@
 #include <os/led.h>
 #include <os/pcd_enumerate.h>
 #include <os/usb_handler.h>
-#include "../openpcd.h"
 #include "../simtrace.h"
 #include <os/main.h>
 #include <os/pio_irq.h>
@@ -33,6 +32,11 @@
 #include <simtrace/tc_etu.h>
 #include <simtrace/iso7816_uart.h>
 #include <simtrace/sim_switch.h>
+#include <simtrace/prod_info.h>
+
+#include "spi_flash.h"
+#include "prod_info.h"
+
 
 void _init_func(void)
 {
@@ -57,8 +61,22 @@ int _main_dbgu(char key)
 	DEBUGPCRF("main_dbgu");
 
 	switch (key) {
-	case 'f':
-		spiflash_id();
+	case 'g':
+		for (i = 1; i <= 16; i++) {
+			int s = spiflash_otp_get_lock(i);
+			DEBUGPCR("OTP region %d locked: %d", i, s);
+		}
+		break;
+	case 'p':
+		prod_info_write(0, SIMTRACE_VER(1,3,0), 0);
+		break;
+	case 'P':
+		{
+		u_int32_t version;
+		int rc = prod_info_get(&version, NULL);
+		if (rc >= 0)
+			DEBUGPCR("Version: 0x%08x\n", version);
+		}
 		break;
 	case '?':
 		help();
