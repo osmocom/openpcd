@@ -27,7 +27,11 @@
 #include "../openpcd.h"
 
 /* FIXME: locking, FIFO order processing */
+#define NUM_RCTX_SMALL 0
+#define NUM_RCTX_LARGE 19
 
+// 8 * 128 + 4 * 2048 =>   18 * 270 + 2 * 2048
+/*
 #if defined(__AT91SAM7S64__) || defined(RUN_FROM_RAM)
 #define NUM_RCTX_SMALL 16
 #define NUM_RCTX_LARGE 1
@@ -35,7 +39,7 @@
 #define NUM_RCTX_SMALL 8
 #define NUM_RCTX_LARGE 4
 #endif
-
+*/
 #define NUM_REQ_CTX	(NUM_RCTX_SMALL+NUM_RCTX_LARGE)
 
 static u_int8_t rctx_data[NUM_RCTX_SMALL][RCTX_SIZE_SMALL];
