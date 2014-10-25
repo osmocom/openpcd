@@ -45,18 +45,18 @@
 #include <asm/system.h>
 #include <compile.h>
 
-//#define DEBUG_UNBUFFERED
+/* In case we find that while (); is non interruptible, we may need to
+ * uncommend this line: */
+// #define ALLOW_INTERRUPT_LOOP asm("nop;nop;nop;nop;nop;nop;nop;nop;")
+
+#define ALLOW_INTERRUPT_LOOP
+
+/* DEBUG_BUFFER_SIZE MUST BE A POWER OF 2 */
+#define DEBUG_BUFFER_SIZE     (1 << 10)
+#define DEBUG_BUFFER_MASK     (DEBUG_BUFFER_SIZE - 1)
 
 #define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
-//*--------------------------1--------------------------------------------------
-//* \fn    AT91F_DBGU_Printk
-//* \brief This function is used to send a string through the DBGU channel
-//*----------------------------------------------------------------------------
-void AT91F_DBGU_Ready(void)
-{
-	while (!(AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXEMPTY)) ;
-}
 
 //*----------------------------------------------------------------------------
 //* Function Name       : Send_reset
@@ -69,7 +69,7 @@ static void Send_reset(void)
 	// Acknoledge the interrupt
 	// Mark the End of Interrupt on the AIC
 	AT91C_BASE_AIC->AIC_EOICR = 0;
-	AT91F_DBGU_Ready();
+	while (!(AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXEMPTY)) ;
 	// Jump in reset
 	pfct();
 }
@@ -92,26 +92,26 @@ static void DBGU_irq_handler(u_int32_t sr)
 		break;
 	case '1':		//* info
 		udp_pullup_off();
-		AT91F_DBGU_Printk("Set Pull up\n\r");
+		AT91F_DBGU_Frame("Set Pull up\n\r");
 		// Reset Application
 		Send_reset();
 		break;
 	case '2':
-		AT91F_DBGU_Printk("Toggling LED 1\n\r");
+		AT91F_DBGU_Frame("Toggling LED 1\n\r");
 		led_toggle(1);
 		break;
 	case '3':
-		AT91F_DBGU_Printk("Toggling LED 2\n\r");
+		AT91F_DBGU_Frame("Toggling LED 2\n\r");
 		led_toggle(2);
 		break;
 	case '9':
-		AT91F_DBGU_Printk("Resetting SAM7\n\r");
+		AT91F_DBGU_Frame("Resetting SAM7\n\r");
 		AT91F_RSTSoftReset(AT91C_BASE_RSTC, AT91C_RSTC_PROCRST|
 				   AT91C_RSTC_PERRST|AT91C_RSTC_EXTRST);
 		break;
 	default:
 		if (_main_dbgu(value) < 0)
-			AT91F_DBGU_Printk("\n\r");
+			AT91F_DBGU_Frame("\n\r");
 		break;
 	}			// end switch
 }
@@ -148,17 +148,17 @@ void AT91F_DBGU_Init(void)
 	//* open interrupt
 	sysirq_register(AT91SAM7_SYSIRQ_DBGU, &DBGU_irq_handler);
 
-	AT91F_DBGU_Printk("\n\r");
-	AT91F_DBGU_Printk("(C) 2006-2011 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
+	debugp("\n\r");
+	debugp("(C) 2006-2011 by Harald Welte <hwelte@hmw-consulting.de>\n\r"
 			  "This software is FREE SOFTWARE licensed under GNU GPL\n\r");
-	AT91F_DBGU_Printk("Version " COMPILE_SVNREV
+	debugp("Version " COMPILE_SVNREV
 			  " compiled " COMPILE_DATE
 			  " by " COMPILE_BY "\n\r\n\r");
-	AT91F_DBGU_Printk("\n\rDEBUG Interface:\n\r"
+	debugp("\n\rDEBUG Interface:\n\r"
 			  "0) Set Pull-up 1) Clear Pull-up 2) Toggle LED1 3) "
 			  "Toggle LED2\r\n9) Reset\n\r");
 
-	debugp("RSTC_SR=0x%08x\n", rst_status);
+	debugp("RSTC_SR=0x%08x\n\r", rst_status);
 }
 
 /*
@@ -173,31 +173,36 @@ void AT91F_DBGU_Fini(void)
 }
 
 //*----------------------------------------------------------------------------
-//* \fn    AT91F_DBGU_Printk
-//* \brief This function is used to send a string through the DBGU channel (Very low level debugging)
-//*----------------------------------------------------------------------------
-void AT91F_DBGU_Printk(char *buffer)
-{
-	while (*buffer != '\0') {
-		while (!AT91F_US_TxReady((AT91PS_USART) AT91C_BASE_DBGU)) ;
-		AT91F_US_PutChar((AT91PS_USART) AT91C_BASE_DBGU, *buffer++);
-	}
-}
-
-//*----------------------------------------------------------------------------
 //* \fn    AT91F_DBGU_Frame
-//* \brief This function is used to send a string through the DBGU channel
+//* \brief This function is used to send a string through the DBGU channel (Very low level debugging)
 //*----------------------------------------------------------------------------
 void AT91F_DBGU_Frame(char *buffer)
 {
-	unsigned char len;
-
-	for (len = 0; buffer[len] != '\0'; len++) {
+	unsigned long intcFlags;
+	unsigned int len = 0;
+	while (buffer[len++]) ALLOW_INTERRUPT_LOOP;
+	len--;
+	local_irq_save(intcFlags);
+	AT91C_BASE_DBGU->DBGU_PTCR = 1 << 9; // Disable transfer
+	if (AT91C_BASE_DBGU->DBGU_TNCR) {
+		AT91C_BASE_DBGU->DBGU_PTCR = 1 << 8;  // Resume transfer
+		local_irq_restore(intcFlags);
+		while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0) ALLOW_INTERRUPT_LOOP;
+		local_irq_save(intcFlags);
+		AT91C_BASE_DBGU->DBGU_PTCR = 1 << 9; // Disable transfer
+		AT91C_BASE_DBGU->DBGU_TPR = (unsigned)buffer;
+		AT91C_BASE_DBGU->DBGU_TCR = len;
+	} else if (AT91C_BASE_DBGU->DBGU_TCR) {
+		AT91C_BASE_DBGU->DBGU_TNPR = (unsigned)buffer;
+		AT91C_BASE_DBGU->DBGU_TNCR = len;
+	} else {
+		AT91C_BASE_DBGU->DBGU_TPR = (unsigned)buffer;
+		AT91C_BASE_DBGU->DBGU_TCR = len;
 	}
-
-	AT91F_US_SendFrame((AT91PS_USART) AT91C_BASE_DBGU, 
-			   (unsigned char *)buffer, len, 0, 0);
-
+	AT91C_BASE_DBGU->DBGU_PTCR = 1 << 8;  // Resume transfer
+	local_irq_restore(intcFlags);
+	/* Return ONLY after we complete Transfer */
+	while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0) ALLOW_INTERRUPT_LOOP;
 }
 
 //*----------------------------------------------------------------------------
@@ -239,105 +244,177 @@ hexdump(const void *data, unsigned int len)
 }
 
 struct dbgu {
-	char buf[4096];
-	char *next_inbyte;
-	char *next_outbyte;
+	char buf[DEBUG_BUFFER_SIZE];
+	/* Since debugp appears to require to be re-entrant, we need a
+	 * bit more state variables
+	 * in_head	Position where incoming *append* characters have
+	 * 		finished copy to buffer
+	 * in_tail	Position where NEW incoming *append* characters
+	 * 		should COPY to
+	 * out_head	Position where the LAST *possibly incomplete*
+	 * 		dbgu_rb_flush started from
+	 * out_tail	Position where the NEXT dbug_rb_flush should
+	 * 		start from
+	 * The position in the RING should be in this order:
+	 * --> out_tail --> in_head --> in_tail --> out_head -->
+	 */
+	volatile unsigned int in_head, in_tail, out_head, out_tail;
+
+	/* flush_stack is to indicate rb_flush is being executed, NOT to
+	 * execute again */
+	volatile unsigned int flush_stack;
+
+	/* append_stack is to indicate the re-entrack stack order of the
+	 * current dbgu_append call */
+	volatile unsigned int append_stack;
 };
+
 static struct dbgu dbgu;
 
 void dbgu_rb_init(void)
 {
-	memset(dbgu.buf, 0, sizeof(dbgu.buf));
-	dbgu.next_inbyte = &dbgu.buf[0];
-	dbgu.next_outbyte = &dbgu.buf[0];
-}
-
-/* pull one char out of debug ring buffer */
-static int dbgu_rb_pull(char *ret)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-
-	if (dbgu.next_outbyte == dbgu.next_inbyte) {
-		local_irq_restore(flags);
-		return -1;
-	}
-
-	*ret = *dbgu.next_outbyte;
-
-	dbgu.next_outbyte++;
-	if (dbgu.next_outbyte == &dbgu.buf[0]+sizeof(dbgu.buf)) {
-		//AT91F_DBGU_Printk("WRAP DURING PULL\r\n");
-		dbgu.next_outbyte = &dbgu.buf[0];
-	} else if (dbgu.next_outbyte > &dbgu.buf[0]+sizeof(dbgu.buf)) {
-		//AT91F_DBGU_Printk("OUTBYTE > END_OF_BUF!!\r\n");
-		dbgu.next_outbyte -= sizeof(dbgu.buf);
-	}
-
-	local_irq_restore(flags);
-
-	return 0;
-}
-
-static void __rb_flush(void)
-{
-	char ch;
-	while (dbgu_rb_pull(&ch) >= 0) {
-		while (!AT91F_US_TxReady((AT91PS_USART) AT91C_BASE_DBGU)) ;
-		AT91F_US_PutChar((AT91PS_USART) AT91C_BASE_DBGU, ch);
-	}
+	dbgu.in_head = dbgu.in_tail = dbgu.out_head = dbgu.out_tail = 0;
+	dbgu.flush_stack = dbgu.append_stack = 0;
 }
 
 /* flush pending data from debug ring buffer to serial port */
-void dbgu_rb_flush(void)
-{
-	__rb_flush();
-}
 
-static void __dbgu_rb_append(char *data, int len)
+static void dbgu_rb_flush(void)
 {
-	char *pos = dbgu.next_inbyte;
+	unsigned long intcFlags;
+	unsigned int flush_stack, start, len;
+	if (dbgu.in_head == dbgu.out_tail)
+		return;
 
-	dbgu.next_inbyte += len;
-	if (dbgu.next_inbyte >= &dbgu.buf[0]+sizeof(dbgu.buf)) {
-		AT91F_DBGU_Printk("WRAP DURING APPEND\r\n");
-		dbgu.next_inbyte -= sizeof(dbgu.buf);
+	/* Transmit can ONLY be disabled when Interrupt is disabled.  We
+	 * don't want to be interrupted while Transmit is disabled. */
+	local_irq_save(intcFlags);
+	flush_stack = dbgu.flush_stack;
+	dbgu.flush_stack = 1;
+	if (flush_stack) {
+		local_irq_restore(intcFlags);
+		return;
 	}
-
-	memcpy(pos, data, len);
+	AT91C_BASE_DBGU->DBGU_PTCR = 1 << 9; // Disable transfer
+	start = (unsigned)dbgu.buf + dbgu.out_tail;
+	len = (dbgu.in_head - dbgu.out_tail) & DEBUG_BUFFER_MASK;
+	if (dbgu.in_head > dbgu.out_tail || dbgu.in_head == 0) { // Just 1 fragmentf
+		if (AT91C_BASE_DBGU->DBGU_TNCR) {
+			if (AT91C_BASE_DBGU->DBGU_TNPR + AT91C_BASE_DBGU->DBGU_TNCR == start) {
+				AT91C_BASE_DBGU->DBGU_TNCR += len;
+			} else {
+				AT91C_BASE_DBGU->DBGU_PTCR = 1 << 8;  // Resume transfer
+				local_irq_restore(intcFlags);
+				while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0) ALLOW_INTERRUPT_LOOP;
+				dbgu.out_head = dbgu.out_tail; // in case we are interrupted, they may need more space
+				/* Since the ONLY place where Transmit is started is dbgu_rb_flush and AT91F_DBGU_Frame and:
+				 * 1) AT91F_DBGU_Frame always leave the dbgu in a TX completed state
+				 * 2) dbgu_rb is non-reentrant by safeguard at the beginning of this routing
+				 * We can assume that after this INTERRUPTIBLE while loop, there are NO data to be transmitted
+				 */
+				local_irq_save(intcFlags);
+				AT91C_BASE_DBGU->DBGU_PTCR = 1 << 9; // Disable transfer
+				AT91C_BASE_DBGU->DBGU_TPR = start;
+				AT91C_BASE_DBGU->DBGU_TCR = len;
+			}
+		} else if (AT91C_BASE_DBGU->DBGU_TCR) {
+		  if (AT91C_BASE_DBGU->DBGU_TPR + AT91C_BASE_DBGU->DBGU_TCR == start) {
+		    dbgu.out_head = AT91C_BASE_DBGU->DBGU_TPR - (unsigned)dbgu.buf;
+		    AT91C_BASE_DBGU->DBGU_TCR += len;
+		  } else {
+		    AT91C_BASE_DBGU->DBGU_TNPR = start;
+		    AT91C_BASE_DBGU->DBGU_TNCR = len;
+		  }
+		} else {
+		  AT91C_BASE_DBGU->DBGU_TPR = start;
+		  AT91C_BASE_DBGU->DBGU_TCR = len;
+		  dbgu.out_head = dbgu.out_tail;
+		}
+	} else { // 2 fragments
+		if ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0) {
+			AT91C_BASE_DBGU->DBGU_PTCR = 1 << 8;  // Resume transfer
+			local_irq_restore(intcFlags);
+			while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0) ALLOW_INTERRUPT_LOOP;
+			dbgu.out_head = dbgu.out_tail; // in case we are interrupted, they may need more space
+			local_irq_save(intcFlags);
+			AT91C_BASE_DBGU->DBGU_PTCR = 1 << 9; // Disable transfer
+		}
+		AT91C_BASE_DBGU->DBGU_TPR = start;
+		AT91C_BASE_DBGU->DBGU_TCR = DEBUG_BUFFER_SIZE - dbgu.out_tail;
+		AT91C_BASE_DBGU->DBGU_TNPR = (unsigned)dbgu.buf;
+		AT91C_BASE_DBGU->DBGU_TNCR = dbgu.in_head;
+		dbgu.out_head = dbgu.out_tail;
+	}
+	AT91C_BASE_DBGU->DBGU_PTCR = 1 << 8;  // Resume transfer
+	dbgu.out_tail = dbgu.in_head;
+	dbgu.flush_stack = 0;
+	local_irq_restore(intcFlags);
 }
 
 void dbgu_rb_append(char *data, int len)
 {
-	unsigned long flags;
-	int bytes_left;
-	char *data_cur;
+	/* Rules:
+	 * 1) ONLY the LOWEST order of dbgu_rb_append CAN update in_head;
+	 * 2) WHEN updateing in_head, always set it to the current in_tail (since all higher order dbgu_rb_append have completed
+	 * 3) ONLY the LOWEST order of dbgu_rb_append MAY call dbgu_rb_flush
+	 */
+	unsigned long intcFlags;
+	unsigned int append_stack, avail, local_head;
+	if (len <= 0)
+		return;
 	
-	local_irq_save(flags);
-
-	bytes_left = &dbgu.buf[0]+sizeof(dbgu.buf)-dbgu.next_inbyte;
-	data_cur = data;
-
-	if (len > bytes_left) {
-		AT91F_DBGU_Printk("LEN > BYTES_LEFT\r\n");
-		__rb_flush();
-		__dbgu_rb_append(data_cur, bytes_left);
-		len -= bytes_left;
-		data_cur += bytes_left;
+	local_irq_save(intcFlags);
+	append_stack = dbgu.append_stack++;
+	if (AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE)
+		dbgu.out_head = dbgu.out_tail;
+	avail = (dbgu.out_head - 1 - dbgu.in_tail) & DEBUG_BUFFER_MASK;
+	local_head = (unsigned)len;
+	if (local_head > avail) {
+		while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0);
+		dbgu.out_head = dbgu.out_tail;
+		avail = (dbgu.out_head - 1 - dbgu.in_tail) & DEBUG_BUFFER_MASK;
+		if (local_head > avail) {
+			local_head -= avail;
+			AT91C_BASE_DBGU->DBGU_TPR = (unsigned)data;
+			AT91C_BASE_DBGU->DBGU_TCR = local_head;
+			data += local_head;
+			len = avail;
+		}
 	}
-	__dbgu_rb_append(data_cur, len);
-
-	local_irq_restore(flags);
+	local_head = dbgu.in_tail;
+	dbgu.in_tail += len;
+	dbgu.in_tail &= DEBUG_BUFFER_MASK;
+	local_irq_restore(intcFlags);
+	if (dbgu.out_head <= local_head) {
+		// We may have to wrap around: out_head won't change because NO call to flush will be made YET
+		avail = DEBUG_BUFFER_SIZE - local_head;
+		if (avail >= (unsigned)len) {
+			memcpy(dbgu.buf + local_head, data, (size_t)len);
+		} else {
+			memcpy(dbgu.buf + local_head, data, (size_t)avail);
+			memcpy(dbgu.buf, data + avail, (size_t)(len - avail));
+		}
+	} else {
+		memcpy(dbgu.buf + local_head, data, len);
+	}
+	local_irq_save(intcFlags);
+	dbgu.append_stack--;
+	if (!append_stack)
+		dbgu.in_head = dbgu.in_tail;
+	local_irq_restore(intcFlags);
+	if (!append_stack)
+		dbgu_rb_flush();
 }
 
 static char dbg_buf[256];
+static int line_num = 0;
 void debugp(const char *format, ...)
 {
 	va_list ap;
 
 	va_start(ap, format);
-	vsnprintf(dbg_buf, sizeof(dbg_buf)-1, format, ap);
+	sprintf(dbg_buf, "[%06X] ", line_num++);
+	vsnprintf(dbg_buf + 9, sizeof(dbg_buf)-10, format, ap);
 	va_end(ap);
 
 	dbg_buf[sizeof(dbg_buf)-1] = '\0';			
