@@ -218,6 +218,8 @@ int _main_dbgu(char key)
 
 void _main_func(void)
 {
+	static unsigned loopLow = 0, loopHigh = 0;
+
 	/* first we try to get rid of pending to-be-sent stuff */
 	usb_out_process();
 
@@ -225,4 +227,11 @@ void _main_func(void)
 	usb_in_process();
 
 	udp_unthrottle();
+
+	if ((loopLow & 0xFFFF) == 0) {
+		DEBUGPCR("Heart beat %08X", loopHigh++);
+	}
+	loopLow++;
+
+	iso_uart_report_overrun();
 }
