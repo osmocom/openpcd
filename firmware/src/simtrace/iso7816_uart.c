@@ -575,6 +575,23 @@ void iso7816_wtime_expired(void)
 	set_state(&isoh, ISO7816_S_WAIT_APDU);
 }
 
+void iso_uart_flush(void)
+{
+	send_rctx(&isoh);
+}
+
+void iso_uart_idleflush(void)
+{
+	static struct req_ctx *last_req = NULL;
+	static u_int16_t last_len = 0;
+
+	if (last_req == isoh.rctx || last_len == isoh.rctx->tot_len) {
+		send_rctx(&isoh);
+	}
+	last_req = isoh.rctx;
+	last_len = isoh.rctx->tot_len;
+}
+
 static __ramfunc void usart_irq(void)
 {
 	u_int32_t csr = usart->US_CSR;
@@ -618,9 +635,13 @@ static __ramfunc void usart_irq(void)
 static void reset_pin_irq(u_int32_t pio)
 {
 	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, pio)) {
+		/* make sure to flush pending req_ctx */
+		iso_uart_flush();
 		DEBUGPCR("nRST");
 		set_state(&isoh, ISO7816_S_RESET);
 	} else {
+		/* make sure to flush pending req_ctx */
+		iso_uart_flush();
 		DEBUGPCR("RST");
 		set_state(&isoh, ISO7816_S_WAIT_ATR);
 		isoh.stats.rst++;

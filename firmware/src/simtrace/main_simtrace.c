@@ -231,6 +231,9 @@ void _main_func(void)
 	if ((loopLow & 0xFFFF) == 0) {
 		DEBUGPCR("Heart beat %08X", loopHigh++);
 	}
+	if ((loopLow & 0x3FF) == 0) {
+		iso_uart_idleflush();
+	}
 	loopLow++;
 
 	iso_uart_report_overrun();

@@ -9,5 +9,7 @@ void iso_uart_rx_mode(void);
 void iso_uart_clk_master(unsigned int master);
 void iso_uart_init(void);
 void iso_uart_report_overrun(void);
+void iso_uart_flush(void);
+void iso_uart_idleflush(void);
 
 #endif
