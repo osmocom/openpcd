@@ -20,25 +20,26 @@ struct req_ctx {
 	u_int8_t *data;
 };
 
-#define RCTX_STATE_FREE			0xfe
-#define RCTX_STATE_UDP_RCV_BUSY		0x01
-#define RCTX_STATE_UDP_RCV_DONE		0x02
-#define RCTX_STATE_MAIN_PROCESSING	0x03
-#define RCTX_STATE_RC632IRQ_BUSY	0x04
-
-#define RCTX_STATE_UDP_EP2_PENDING	0x10
-#define RCTX_STATE_UDP_EP2_BUSY		0x11
-
-#define RCTX_STATE_UDP_EP3_PENDING	0x12
-#define RCTX_STATE_UDP_EP3_BUSY		0x13
-
-#define RCTX_STATE_SSC_RX_BUSY		0x20
-
-#define RCTX_STATE_LIBRFID_BUSY		0x30
-
-#define RCTX_STATE_PIOIRQ_BUSY		0x80
-
-#define RCTX_STATE_INVALID		0xff
+#define RCTX_STATE_FREE                 0
+#define RCTX_STATE_UDP_RCV_BUSY         1
+#define RCTX_STATE_UDP_RCV_DONE         2
+#define RCTX_STATE_MAIN_PROCESSING      3
+#define RCTX_STATE_RC632IRQ_BUSY        4
+#define RCTX_STATE_UDP_EP2_PENDING      5
+#define RCTX_STATE_UDP_EP2_BUSY         6
+#define RCTX_STATE_UDP_EP3_PENDING      7
+#define RCTX_STATE_UDP_EP3_BUSY         8
+#define RCTX_STATE_SSC_RX_BUSY          9
+#define RCTX_STATE_LIBRFID_BUSY        10
+#define RCTX_STATE_PIOIRQ_BUSY         11
+#define RCTX_STATE_INVALID             12
+// Nominally UNUSED states
+#define RCTX_STATE_UDP_EP0_PENDING     13
+#define RCTX_STATE_UDP_EP0_BUSY        14
+#define RCTX_STATE_UDP_EP1_PENDING     15
+#define RCTX_STATE_UDP_EP1_BUSY        16
+// Count of the number of STATES
+#define RCTX_STATE_COUNT               17
 
 extern struct req_ctx __ramfunc *req_ctx_find_get(int large, unsigned long old_state, unsigned long new_state);
 extern struct req_ctx *req_ctx_find_busy(void);

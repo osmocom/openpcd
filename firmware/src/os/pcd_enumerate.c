@@ -99,8 +99,10 @@ struct epstate {
 };
 
 static const struct epstate epstate[] = {
-	[0] =	{ .state_busy = RCTX_STATE_INVALID },
-	[1] =	{ .state_busy = RCTX_STATE_INVALID },
+	[0] =	{ .state_busy = RCTX_STATE_UDP_EP0_BUSY,
+		  .state_pending = RCTX_STATE_UDP_EP0_PENDING },
+	[1] =	{ .state_busy = RCTX_STATE_UDP_EP1_BUSY,
+		  .state_pending = RCTX_STATE_UDP_EP1_PENDING },
 	[2] =	{ .state_busy = RCTX_STATE_UDP_EP2_BUSY,
 		  .state_pending = RCTX_STATE_UDP_EP2_PENDING },
 	[3] =	{ .state_busy = RCTX_STATE_UDP_EP3_BUSY,
