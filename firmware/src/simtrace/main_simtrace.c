@@ -134,16 +134,30 @@ static int simtrace_usb_in(struct req_ctx *rctx)
 		req_ctx_set_state(rctx, RCTX_STATE_FREE);
 		break;
 	}
+	return 0;
 }
 
-void custom_spurious_handler(unsigned previous_pc)
+static volatile unsigned spuirq_pc, spuirq_count = 0;
+
+static void check_spurious_irq()
 {
-	char dbg_buf[100];
-	sprintf(dbg_buf, "SPURRIOUS IRQ [Old PC = %08X]\n\r", previous_pc);
-	AT91F_DBGU_Frame(dbg_buf);
+	static unsigned last_count = 0;
+	if (last_count != spuirq_count) {
+		DEBUGPCR("SPURRIOUS IRQ %i [Old PC = %08X]", spuirq_count, spuirq_pc);
+		last_count = spuirq_count;
+	}
 }
 
-void custom_spurious_entry(void)
+static void custom_spurious_handler(unsigned previous_pc)
+{
+	unsigned flags;
+	local_irq_save(flags);
+	spuirq_pc = previous_pc;
+	spuirq_count++;
+	local_irq_restore(flags);
+}
+
+static void custom_spurious_entry(void)
 {
 	register unsigned *previous_pc asm("r0");
 	asm("ADD R1, SP, #16; LDR R0, [R1]");
@@ -247,10 +261,11 @@ void _main_func(void)
 	if ((loopLow & 0xFFFF) == 0) {
 		DEBUGPCR("Heart beat %08X", loopHigh++);
 	}
-	if ((loopLow & 0x3FF) == 0) {
+	if ((loopLow & 0x3F) == 0) {
 		iso_uart_idleflush();
 	}
 	loopLow++;
 
 	iso_uart_report_errors();
+	check_spurious_irq();
 }
