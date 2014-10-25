@@ -17,17 +17,14 @@
 
 #define AT91C_DBGU_BAUD 115200
 
-//#define DEBUGP(x)	AT91F_DBGU_Printk(x)
-
 //* ----------------------- External Function Prototype -----------------------
 
 extern const char *hexdump(const void *data, unsigned int len);
 void AT91F_DBGU_Init(void);
 void AT91F_DBGU_Fini(void);
-void AT91F_DBGU_Printk(	char *buffer);
-void AT91F_DBGU_Frame(	char *buffer);
+void AT91F_DBGU_Frame(char *buffer);
+#define AT91F_DBGU_Printk(x) AT91F_DBGU_Frame(x)
 int AT91F_DBGU_Get( char *val);
-void dbgu_rb_flush(void);
 #ifndef __WinARM__
 void AT91F_DBGU_scanf(char * type,unsigned int * val);
 #endif
