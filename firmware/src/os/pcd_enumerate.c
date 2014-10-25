@@ -114,8 +114,6 @@ static void reset_ep(unsigned int ep)
 	AT91PS_UDP pUDP = upcd.pUdp;
 	struct req_ctx *rctx;
 
-	//pUDP->UDP_CSR[ep] = AT91C_UDP_EPEDS;
-
 	atomic_set(&upcd.ep[ep].pkts_in_transit, 0);
 
 	/* free all currently transmitting contexts */
@@ -127,6 +125,7 @@ static void reset_ep(unsigned int ep)
 
 	pUDP->UDP_RSTEP |= (1 << ep);
 	pUDP->UDP_RSTEP &= ~(1 << ep);
+	pUDP->UDP_CSR[ep] = AT91C_UDP_EPEDS;
 
 	upcd.ep[ep].incomplete.rctx = NULL;
 }
@@ -243,19 +242,18 @@ static void udp_irq(void)
 		DEBUGI("ENDBUSRES ");
 		pUDP->UDP_ICR = AT91C_UDP_ENDBUSRES;
 		pUDP->UDP_IER = AT91C_UDP_EPINT0;
-		/* reset all endpoints */
-		pUDP->UDP_RSTEP = (unsigned int)-1;
-		pUDP->UDP_RSTEP = 0;
+		reset_ep(0);
+		reset_ep(1);
+		reset_ep(2);
+		reset_ep(3);
+
 		/* Enable the function */
 		pUDP->UDP_FADDR = AT91C_UDP_FEN;
+
 		/* Configure endpoint 0 */
 		pUDP->UDP_CSR[0] = (AT91C_UDP_EPEDS | AT91C_UDP_EPTYPE_CTRL);
 		upcd.cur_config = 0;
 		upcd.state = USB_STATE_DEFAULT;
-
-		reset_ep(1);
-		reset_ep(2);
-		reset_ep(3);
 		
 #ifdef CONFIG_DFU
 		if (*dfu->dfu_state == DFU_STATE_appDETACH) {
