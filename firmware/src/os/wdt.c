@@ -33,9 +33,9 @@
 static void wdt_irq(u_int32_t sr)
 {
 	if (sr & 1)
-		DEBUGPCRF("================> WATCHDOG EXPIRED !!!!!");
+		AT91F_DBGU_Frame("================> WATCHDOG EXPIRED !!!!!\n\r");
 	if (sr & 2)
-		DEBUGPCRF("================> WATCHDOG ERROR !!!!!");
+		AT91F_DBGU_Frame("================> WATCHDOG ERROR !!!!!\n\r");
 }
 
 void wdt_restart(void)
