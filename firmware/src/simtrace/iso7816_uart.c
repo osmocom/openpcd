@@ -125,11 +125,17 @@ static const u_int8_t di_table[] = {
 	12, 20, 2, 4, 8, 16, 32, 64,
 };
 
-void iso_uart_report_overrun(void)
+void iso_uart_report_errors(void)
 {
-	static unsigned lastOverrun = 0;
+	static unsigned lastOverrun = 0, lastParity = 0, lastFrame = 0;
 	if (isoh.stats.overrun != lastOverrun) {
 		DEBUGPCR("UART overrun: %u", lastOverrun = isoh.stats.overrun);
+	}
+	if (isoh.stats.frame_err != lastFrame) {
+		DEBUGPCR("UART frame error: %u", lastFrame = isoh.stats.frame_err);
+	}
+	if (isoh.stats.parity_err != lastParity) {
+		DEBUGPCR("UART parity error: %u", lastParity = isoh.stats.parity_err);
 	}
 }
 
