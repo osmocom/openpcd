@@ -591,7 +591,10 @@ void iso_uart_idleflush(void)
 	static struct req_ctx *last_req = NULL;
 	static u_int16_t last_len = 0;
 
-	if (last_req == isoh.rctx || last_len == isoh.rctx->tot_len) {
+	if (last_req == isoh.rctx &&
+	    last_len == isoh.rctx->tot_len &&
+	    req_ctx_count(RCTX_STATE_UDP_EP2_PENDING) == 0 &&
+	    (isoh.sh.flags & SIMTRACE_FLAG_ATR) == 0) {
 		send_rctx(&isoh);
 	}
 	last_req = isoh.rctx;
