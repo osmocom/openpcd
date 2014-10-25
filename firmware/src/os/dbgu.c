@@ -55,7 +55,6 @@
 #define DEBUG_BUFFER_SIZE     (1 << 10)
 #define DEBUG_BUFFER_MASK     (DEBUG_BUFFER_SIZE - 1)
 
-#define USART_SYS_LEVEL 4
 /*---------------------------- Global Variable ------------------------------*/
 
 //*----------------------------------------------------------------------------
@@ -370,6 +369,9 @@ void dbgu_rb_append(char *data, int len)
 	avail = (dbgu.out_head - 1 - dbgu.in_tail) & DEBUG_BUFFER_MASK;
 	local_head = (unsigned)len;
 	if (local_head > avail) {
+		local_irq_restore(intcFlags);
+		while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0);
+		local_irq_save(intcFlags);
 		while ((AT91C_BASE_DBGU->DBGU_CSR & AT91C_US_TXBUFE) == 0);
 		dbgu.out_head = dbgu.out_tail;
 		avail = (dbgu.out_head - 1 - dbgu.in_tail) & DEBUG_BUFFER_MASK;
