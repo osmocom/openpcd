@@ -49,6 +49,7 @@ static struct req_ctx req_ctx[NUM_REQ_CTX];
 
 /* queue of RCTX indexed by their current state */
 static struct req_ctx *req_ctx_queues[RCTX_STATE_COUNT], *req_ctx_tails[RCTX_STATE_COUNT];
+static unsigned req_counts[RCTX_STATE_COUNT];
 
 struct req_ctx __ramfunc *req_ctx_find_get(int large,
 				 unsigned long old_state, 
@@ -68,6 +69,7 @@ struct req_ctx __ramfunc *req_ctx_find_get(int large,
 			toReturn->next->prev = NULL;
 		else
 			req_ctx_tails[old_state] = NULL;
+		req_counts[old_state]--;
 		if ((toReturn->prev = req_ctx_tails[new_state]))
 			toReturn->prev->next = toReturn;
 		else
@@ -75,6 +77,7 @@ struct req_ctx __ramfunc *req_ctx_find_get(int large,
 		req_ctx_tails[new_state] = toReturn;
 		toReturn->state = new_state;
 		toReturn->next = NULL;
+		req_counts[new_state]++;
 	}
 	local_irq_restore(flags);
 	return toReturn;
@@ -104,7 +107,7 @@ void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state)
 		ctx->next->prev = ctx->prev;
 	else
 		req_ctx_tails[old_state] = ctx->prev;
-
+	req_counts[old_state]--;
 	if ((ctx->prev = req_ctx_tails[new_state]))
 		ctx->prev->next = ctx;
 	else
@@ -112,6 +115,7 @@ void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state)
 	req_ctx_tails[new_state] = ctx;
 	ctx->state = new_state;
 	ctx->next = NULL;
+	req_counts[new_state]++;
 	local_irq_restore(flags);
 }
 
@@ -158,7 +162,7 @@ void req_ctx_put(struct req_ctx *ctx)
 		ctx->next->prev = ctx->prev;
 	else
 		req_ctx_tails[old_state] = ctx->prev;
-
+	req_counts[old_state]--;
 	if ((ctx->prev = req_ctx_tails[RCTX_STATE_FREE]))
 		ctx->prev->next = ctx;
 	else
@@ -166,7 +170,15 @@ void req_ctx_put(struct req_ctx *ctx)
 	req_ctx_tails[RCTX_STATE_FREE] = ctx;
 	ctx->state = RCTX_STATE_FREE;
 	ctx->next = NULL;
+	req_counts[RCTX_STATE_FREE]++;
 	local_irq_restore(intcFlags);
+}
+
+unsigned int req_ctx_count(unsigned long state)
+{
+	if (state >= RCTX_STATE_COUNT)
+		return 0;
+	return req_counts[state];
 }
 
 void req_ctx_init(void)
@@ -198,8 +210,10 @@ void req_ctx_init(void)
 
 	req_ctx_queues[RCTX_STATE_FREE] = req_ctx;
 	req_ctx_tails[RCTX_STATE_FREE] = req_ctx + NUM_REQ_CTX - 1;
+	req_counts[RCTX_STATE_FREE] = NUM_REQ_CTX;
 
 	for (i = RCTX_STATE_FREE + 1; i < RCTX_STATE_COUNT; i++) {
 		req_ctx_queues[i] = req_ctx_tails[i] = NULL;
+		req_counts[i] = 0;
 	}
 }

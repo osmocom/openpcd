@@ -47,5 +47,6 @@ extern struct req_ctx *req_ctx_find_busy(void);
 extern void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state);
 extern void req_ctx_put(struct req_ctx *ctx);
 extern u_int8_t req_ctx_num(struct req_ctx *ctx);
+unsigned int req_ctx_count(unsigned long state);
 
 #endif /* _REQ_CTX_H */

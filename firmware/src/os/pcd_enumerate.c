@@ -180,8 +180,8 @@ int udp_refill_ep(int ep)
 			req_ctx_put(rctx);
 			return 0;
 		}
-		DEBUGPCR("USBTx %08X, Len = %04u, Head 4/Tail 4 bytes: %02X %02X %02X %02X / %02X %02X %02X %02X",
-			 rctx->data, rctx->tot_len,
+		DEBUGPCR("USBT(D=%08X, L=%04u, P=$02u) H4/T4: %02X %02X %02X %02X / %02X %02X %02X %02X",
+			 rctx->data, rctx->tot_len, req_ctx_count(epstate[ep].state_pending),
 			 rctx->data[4], rctx->data[5], rctx->data[6], rctx->data[7],
 			 rctx->data[rctx->tot_len - 4], rctx->data[rctx->tot_len - 3],
 			 rctx->data[rctx->tot_len - 2], rctx->data[rctx->tot_len - 1]);
