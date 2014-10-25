@@ -236,5 +236,5 @@ void _main_func(void)
 	}
 	loopLow++;
 
-	iso_uart_report_overrun();
+	iso_uart_report_errors();
 }
