@@ -125,6 +125,14 @@ static const u_int8_t di_table[] = {
 	12, 20, 2, 4, 8, 16, 32, 64,
 };
 
+void iso_uart_report_overrun(void)
+{
+	static unsigned lastOverrun = 0;
+	if (isoh.stats.overrun != lastOverrun) {
+		DEBUGPCR("UART overrun: %u", lastOverrun = isoh.stats.overrun);
+	}
+}
+
 void iso_uart_stats_dump(void)
 {
 	DEBUGPCRF("no_rctx: %u, rctx_sent: %u, rst: %u, pps: %u, bytes: %u, "
@@ -674,6 +682,8 @@ void iso_uart_clk_master(unsigned int master)
 void iso_uart_init(void)
 {
 	DEBUGPCR("USART Initializing");
+
+	memset(&isoh, 0, sizeof(isoh));
 
 	refill_rctx(&isoh);
 
