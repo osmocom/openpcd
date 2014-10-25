@@ -15,6 +15,7 @@
 
 struct req_ctx {
 	volatile u_int32_t state;
+	volatile struct req_ctx *prev, *next;
 	u_int16_t size;
 	u_int16_t tot_len;
 	u_int8_t *data;
