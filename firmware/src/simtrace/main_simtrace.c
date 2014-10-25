@@ -136,8 +136,24 @@ static int simtrace_usb_in(struct req_ctx *rctx)
 	}
 }
 
+void custom_spurious_handler(unsigned previous_pc)
+{
+	char dbg_buf[100];
+	sprintf(dbg_buf, "SPURRIOUS IRQ [Old PC = %08X]\n\r", previous_pc);
+	AT91F_DBGU_Frame(dbg_buf);
+}
+
+void custom_spurious_entry(void)
+{
+	register unsigned *previous_pc asm("r0");
+	asm("ADD R1, SP, #16; LDR R0, [R1]");
+	custom_spurious_handler(previous_pc);
+}
+
 void _init_func(void)
 {
+	AT91C_BASE_AIC->AIC_SPU = (int)custom_spurious_entry;
+
 	/* low-level hardware initialization */
 	pio_irq_init();
 	iso_uart_init();
