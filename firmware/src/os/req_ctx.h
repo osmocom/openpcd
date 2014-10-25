@@ -1,11 +1,10 @@
 #ifndef _REQ_CTX_H
 #define _REQ_CTX_H
 
-#define RCTX_SIZE_LARGE	1000
-#define RCTX_SIZE_SMALL	270
+#define RCTX_SIZE_LARGE	960
+#define RCTX_SIZE_SMALL	320
 
 #define MAX_HDRSIZE	sizeof(struct openpcd_hdr)
-#define MAX_REQSIZE	(64-MAX_HDRSIZE)
 
 #define req_buf_payload(x)	(x->data[x->hdr_len])
 #define req_buf_hdr(x)		(x->data[0])
