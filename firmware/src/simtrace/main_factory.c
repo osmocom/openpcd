@@ -68,7 +68,7 @@ int _main_dbgu(char key)
 		}
 		break;
 	case 'p':
-		prod_info_write(0, SIMTRACE_VER(1,3,0), 0);
+		prod_info_write(0, SIMTRACE_VER(1,4,0), 0);
 		break;
 	case 'P':
 		{
