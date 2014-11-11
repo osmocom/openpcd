@@ -125,6 +125,20 @@ static const u_int8_t di_table[] = {
 	12, 20, 2, 4, 8, 16, 32, 64,
 };
 
+void iso_uart_report_errors(void)
+{
+	static unsigned lastOverrun = 0, lastParity = 0, lastFrame = 0;
+	if (isoh.stats.overrun != lastOverrun) {
+		DEBUGPCR("UART overrun: %u", lastOverrun = isoh.stats.overrun);
+	}
+	if (isoh.stats.frame_err != lastFrame) {
+		DEBUGPCR("UART frame error: %u", lastFrame = isoh.stats.frame_err);
+	}
+	if (isoh.stats.parity_err != lastParity) {
+		DEBUGPCR("UART parity error: %u", lastParity = isoh.stats.parity_err);
+	}
+}
+
 void iso_uart_stats_dump(void)
 {
 	DEBUGPCRF("no_rctx: %u, rctx_sent: %u, rst: %u, pps: %u, bytes: %u, "
@@ -567,6 +581,26 @@ void iso7816_wtime_expired(void)
 	set_state(&isoh, ISO7816_S_WAIT_APDU);
 }
 
+void iso_uart_flush(void)
+{
+	send_rctx(&isoh);
+}
+
+void iso_uart_idleflush(void)
+{
+	static struct req_ctx *last_req = NULL;
+	static u_int16_t last_len = 0;
+
+	if (last_req == isoh.rctx &&
+	    last_len == isoh.rctx->tot_len &&
+	    req_ctx_count(RCTX_STATE_UDP_EP2_PENDING) == 0 &&
+	    (isoh.sh.flags & SIMTRACE_FLAG_ATR) == 0) {
+		send_rctx(&isoh);
+	}
+	last_req = isoh.rctx;
+	last_len = isoh.rctx->tot_len;
+}
+
 static __ramfunc void usart_irq(void)
 {
 	u_int32_t csr = usart->US_CSR;
@@ -610,9 +644,13 @@ static __ramfunc void usart_irq(void)
 static void reset_pin_irq(u_int32_t pio)
 {
 	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, pio)) {
+		/* make sure to flush pending req_ctx */
+		iso_uart_flush();
 		DEBUGPCR("nRST");
 		set_state(&isoh, ISO7816_S_RESET);
 	} else {
+		/* make sure to flush pending req_ctx */
+		iso_uart_flush();
 		DEBUGPCR("RST");
 		set_state(&isoh, ISO7816_S_WAIT_ATR);
 		isoh.stats.rst++;
@@ -674,6 +712,8 @@ void iso_uart_clk_master(unsigned int master)
 void iso_uart_init(void)
 {
 	DEBUGPCR("USART Initializing");
+
+	memset(&isoh, 0, sizeof(isoh));
 
 	refill_rctx(&isoh);
 

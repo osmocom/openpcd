@@ -25,15 +25,15 @@
 
 #include <os/system_irq.h>
 #include <os/dbgu.h>
+#include <string.h>
 
 #include "../openpcd.h"
 
 static sysirq_hdlr *sysirq_hdlrs[AT91SAM7_SYSIRQ_COUNT];
 
-static void sys_irq(void)
+void sys_irq(u_int32_t previous_pc)
 {
 	u_int32_t sr;
-	DEBUGP("sys_irq ");
 
 	/* Somehow Atmel decided to do really stupid interrupt sharing
 	 * for commonly-used interrupts such as the timer irq */
@@ -139,6 +139,10 @@ static void sys_irq(void)
 	if (*AT91C_WDTC_WDMR & AT91C_WDTC_WDFIEN) {
 		sr = *AT91C_WDTC_WDSR;
 		if (sr) {
+			char dbg_buf[100];
+			sprintf(dbg_buf, "sys_irq [Old PC = %08X]\n\r", previous_pc);
+			AT91F_DBGU_Frame(dbg_buf);
+
 			DEBUGP("WDT(");
 			if (sysirq_hdlrs[AT91SAM7_SYSIRQ_WDT]) {
 				DEBUGP("handler ");
@@ -154,6 +158,14 @@ static void sys_irq(void)
 	DEBUGPCR("END");
 }
 
+static void sysirq_entry(void)
+{
+	/* DON'T MODIFY THIS SECTION AND Cstartup.S/IRQ_Handler_Entry */
+	register unsigned *previous_pc asm("r0");
+	asm("ADD R1, SP, #16; LDR R0, [R1]");
+	sys_irq(previous_pc);
+}
+
 void sysirq_register(enum sysirqs irq, sysirq_hdlr *hdlr)
 {
 	if (irq >= AT91SAM7_SYSIRQ_COUNT)
@@ -167,6 +179,6 @@ void sysirq_init(void)
 	AT91F_AIC_ConfigureIt(AT91C_BASE_AIC, AT91C_ID_SYS,
 			      OPENPCD_IRQ_PRIO_SYS,
 			      AT91C_AIC_SRCTYPE_INT_HIGH_LEVEL,
-			      &sys_irq);
+			      &sysirq_entry);
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, AT91C_ID_SYS);
 }

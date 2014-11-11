@@ -132,7 +132,7 @@ static int gen_usb_rx(struct req_ctx *rctx)
 
 void usbcmd_gen_init(void)
 {
-	DEBUGP("Inititalizing usbcmd_gen_init\n");
+	DEBUGP("Inititalizing usbcmd_gen_init\n\r");
 	/* setup FLASH write support for environment storage */
 	flash_init();
 	
