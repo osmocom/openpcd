@@ -39,7 +39,7 @@
 
 static AT91PS_TC tcfdt = AT91C_BASE_TC2;
 
-void tc_fdt_set(u_int16_t count)
+void tc_fdt_set(uint16_t count)
 {
 	tcfdt->TC_RA = count;
 }
@@ -47,14 +47,14 @@ void tc_fdt_set(u_int16_t count)
 
 /* 'count' number of carrier cycles after the last modulation pause, 
  * we deem the frame to have ended */
-void tc_frame_end_set(u_int16_t count)
+void tc_frame_end_set(uint16_t count)
 {
 	tcfdt->TC_RB = count;
 }
 
 static void tc_fdt_irq(void)
 {
-	u_int32_t sr = tcfdt->TC_SR;
+	uint32_t sr = tcfdt->TC_SR;
 	DEBUGP("tc_fdt_irq: TC2_SR=0x%08x TC2_CV=0x%08x ", 
 		sr, tcfdt->TC_CV);
 

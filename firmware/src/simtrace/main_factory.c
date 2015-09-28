@@ -72,7 +72,7 @@ int _main_dbgu(char key)
 		break;
 	case 'P':
 		{
-		u_int32_t version;
+		uint32_t version;
 		int rc = prod_info_get(&version, NULL);
 		if (rc >= 0)
 			DEBUGPCR("Version: 0x%08x\n", version);

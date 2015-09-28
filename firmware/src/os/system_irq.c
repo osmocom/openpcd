@@ -31,9 +31,9 @@
 
 static sysirq_hdlr *sysirq_hdlrs[AT91SAM7_SYSIRQ_COUNT];
 
-void sys_irq(u_int32_t previous_pc)
+void sys_irq(uint32_t previous_pc)
 {
-	u_int32_t sr;
+	uint32_t sr;
 
 	/* Somehow Atmel decided to do really stupid interrupt sharing
 	 * for commonly-used interrupts such as the timer irq */

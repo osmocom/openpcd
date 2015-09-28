@@ -25,7 +25,7 @@
 
 static const AT91PS_SPI spi = AT91C_BASE_SPI;
 
-void poti_comp_carr(u_int8_t position)
+void poti_comp_carr(uint8_t position)
 {
 	volatile int i;
 

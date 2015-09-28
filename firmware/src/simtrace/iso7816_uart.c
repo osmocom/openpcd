@@ -85,22 +85,22 @@ enum pts_state {
 struct iso7816_3_handle {
 	enum iso7816_3_state state;
 
-	u_int8_t fi;
-	u_int8_t di;
-	u_int8_t wi;
-	u_int32_t waiting_time;
+	uint8_t fi;
+	uint8_t di;
+	uint8_t wi;
+	uint32_t waiting_time;
 
 	enum atr_state atr_state;
-	u_int8_t atr_idx;
-	u_int8_t atr_hist_len;
-	u_int8_t atr_last_td;
-	u_int8_t atr[64];
+	uint8_t atr_idx;
+	uint8_t atr_hist_len;
+	uint8_t atr_last_td;
+	uint8_t atr[64];
 
-	u_int16_t prot_t_supported;
+	uint16_t prot_t_supported;
 
 	enum pts_state pts_state;
-	u_int8_t pts_req[6];
-	u_int8_t pts_resp[6];
+	uint8_t pts_req[6];
+	uint8_t pts_resp[6];
 
 	struct simtrace_hdr sh;
 
@@ -114,13 +114,13 @@ struct iso7816_3_handle isoh;
 
 
 /* Table 6 from ISO 7816-3 */
-static const u_int16_t fi_table[] = {
+static const uint16_t fi_table[] = {
 	372, 372, 558, 744, 1116, 1488, 1860, 0,
 	0, 512, 768, 1024, 1536, 2048, 0, 0
 };
 
 /* Table 7 from ISO 7816-3 */
-static const u_int8_t di_table[] = {
+static const uint8_t di_table[] = {
 	0, 1, 2, 4, 8, 16, 32, 64,
 	12, 20, 2, 4, 8, 16, 32, 64,
 };
@@ -154,9 +154,9 @@ struct simtrace_stats *iso_uart_stats_get(void)
 }
 
 /* compute the F/D ratio based on Fi and Di values */
-static int compute_fidi_ratio(u_int8_t fi, u_int8_t di)
+static int compute_fidi_ratio(uint8_t fi, uint8_t di)
 {
-	u_int16_t f, d;
+	uint16_t f, d;
 	int ret;
 
 	if (fi >= ARRAY_SIZE(fi_table) ||
@@ -314,7 +314,7 @@ transition_to_tck(struct iso7816_3_handle *ih)
 }
 
 /* determine the next ATR state based on received interface byte */
-static enum atr_state next_intb_state(struct iso7816_3_handle *ih, u_int8_t ch)
+static enum atr_state next_intb_state(struct iso7816_3_handle *ih, uint8_t ch)
 {
 	switch (ih->atr_state) {
 	case ATR_S_WAIT_TD:
@@ -359,7 +359,7 @@ from_tc:
 
 /* process an incomng ATR byte */
 static enum iso7816_3_state
-process_byte_atr(struct iso7816_3_handle *ih, u_int8_t byte)
+process_byte_atr(struct iso7816_3_handle *ih, uint8_t byte)
 {
 	/* add byte to ATR buffer */
 	ih->atr[ih->atr_idx] = byte;
@@ -412,9 +412,9 @@ static void set_pts_state(struct iso7816_3_handle *ih, enum pts_state new_ptss)
 /* Determine the next PTS state */
 static enum pts_state next_pts_state(struct iso7816_3_handle *ih)
 {
-	u_int8_t is_resp = ih->pts_state & 0x10;
-	u_int8_t sstate = ih->pts_state & 0x0f;
-	u_int8_t *pts_ptr;
+	uint8_t is_resp = ih->pts_state & 0x10;
+	uint8_t sstate = ih->pts_state & 0x0f;
+	uint8_t *pts_ptr;
 
 	if (!is_resp)
 		pts_ptr = ih->pts_req;
@@ -453,7 +453,7 @@ from_pts3:
 }
 
 static enum iso7816_3_state
-process_byte_pts(struct iso7816_3_handle *ih, u_int8_t byte)
+process_byte_pts(struct iso7816_3_handle *ih, uint8_t byte)
 {
 	switch (ih->pts_state) {
 	case PTS_S_WAIT_REQ_PTSS:
@@ -510,7 +510,7 @@ process_byte_pts(struct iso7816_3_handle *ih, u_int8_t byte)
 	return ISO7816_S_IN_PTS;
 }
 
-static void process_byte(struct iso7816_3_handle *ih, u_int8_t byte)
+static void process_byte(struct iso7816_3_handle *ih, uint8_t byte)
 {
 	int new_state = -1;
 	struct req_ctx *rctx;
@@ -589,7 +589,7 @@ void iso_uart_flush(void)
 void iso_uart_idleflush(void)
 {
 	static struct req_ctx *last_req = NULL;
-	static u_int16_t last_len = 0;
+	static uint16_t last_len = 0;
 
 	if (last_req == isoh.rctx &&
 	    last_len == isoh.rctx->tot_len &&
@@ -603,8 +603,8 @@ void iso_uart_idleflush(void)
 
 static __ramfunc void usart_irq(void)
 {
-	u_int32_t csr = usart->US_CSR;
-	u_int8_t octet;
+	uint32_t csr = usart->US_CSR;
+	uint8_t octet;
 
 	//DEBUGP("USART IRQ, CSR=0x%08x\n", csr);
 
@@ -620,7 +620,7 @@ static __ramfunc void usart_irq(void)
 	}
 
 	if (csr & (AT91C_US_PARE|AT91C_US_FRAME|AT91C_US_OVRE)) {
-		u_int8_t nb_err = usart->US_NER;
+		uint8_t nb_err = usart->US_NER;
 		/* FIXME: some error has occurrerd */
 		//DEBUGP("NER=%02x ", nb_err);
 		/* clear the status */
@@ -641,7 +641,7 @@ static __ramfunc void usart_irq(void)
 }
 
 /* handler for the RST input pin state change */
-static void reset_pin_irq(u_int32_t pio)
+static void reset_pin_irq(uint32_t pio)
 {
 	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, pio)) {
 		/* make sure to flush pending req_ctx */
@@ -659,7 +659,7 @@ static void reset_pin_irq(u_int32_t pio)
 
 void iso_uart_dump(void)
 {
-	u_int32_t csr = usart->US_CSR;
+	uint32_t csr = usart->US_CSR;
 
 	DEBUGPCR("USART CSR=0x%08x", csr);
 }

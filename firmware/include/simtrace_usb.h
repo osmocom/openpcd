@@ -5,10 +5,10 @@
 
 /* this is kept compatible with OpenPCD protocol */
 struct simtrace_hdr {
-	u_int8_t cmd;
-	u_int8_t flags;
-	u_int8_t res[2];
-	u_int8_t data[0];
+	uint8_t cmd;
+	uint8_t flags;
+	uint8_t res[2];
+	uint8_t data[0];
 } __attribute__ ((packed));
 
 enum simtrace_usb_msgt {
@@ -24,14 +24,14 @@ enum simtrace_usb_msgt {
 #define SIMTRACE_FLAG_PPS_FIDI		0x08	/* Fi/Di values in res[2] */
 
 struct simtrace_stats {
-	u_int32_t no_rctx;
-	u_int32_t rctx_sent;
-	u_int32_t rst;
-	u_int32_t pps;
-	u_int32_t bytes;
-	u_int32_t parity_err;
-	u_int32_t frame_err;
-	u_int32_t overrun;
+	uint32_t no_rctx;
+	uint32_t rctx_sent;
+	uint32_t rst;
+	uint32_t pps;
+	uint32_t bytes;
+	uint32_t parity_err;
+	uint32_t frame_err;
+	uint32_t overrun;
 } stats;
 
 #endif /* SIMTRACE_USB_H */

@@ -103,7 +103,7 @@ void timer_add(struct timer_list *tl)
 	local_irq_restore(flags);
 }
 
-static void pit_irq(u_int32_t sr)
+static void pit_irq(uint32_t sr)
 {
 	struct timer_list *tl, *next;
 
@@ -125,21 +125,21 @@ static void pit_irq(u_int32_t sr)
 	}
 }
 
-void pit_mdelay(u_int32_t ms)
+void pit_mdelay(uint32_t ms)
 {
-	u_int32_t end;
+	uint32_t end;
 
 	end = (AT91F_PITGetPIIR(AT91C_BASE_PITC) + ms) % 20;
 
 	while (end < AT91F_PITGetPIIR(AT91C_BASE_PITC)) { }
 }
 
-void mdelay(u_int32_t ms)
+void mdelay(uint32_t ms)
 {
 	return pit_mdelay(ms);
 }
 
-void usleep(u_int32_t us)
+void usleep(uint32_t us)
 {
 	return;
 	return pit_mdelay(us/1000);

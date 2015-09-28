@@ -25,10 +25,10 @@
 
 static struct decoder_algo *decoder_algo[DECODER_NUM_ALGOS];
 
-static int get_next_data(struct decoder_state *st, u_int8_t *data)
+static int get_next_data(struct decoder_state *st, uint8_t *data)
 {
-	u_int8_t parity_sample;
-	u_int32_t bytesample;
+	uint8_t parity_sample;
+	uint32_t bytesample;
 
 	bytesample = st->algo->get_next_bytesample(st, &parity_sample);
 
@@ -36,7 +36,7 @@ static int get_next_data(struct decoder_state *st, u_int8_t *data)
 }
 
 /* iterate over sample buffer (size N bytes) and decode data */
-int decoder_decode(u_int8_t algo, const char *sample_buf,
+int decoder_decode(uint8_t algo, const char *sample_buf,
 	  	   int sample_buf_size, char *data_buf)
 {
 	int i, ret;
@@ -46,7 +46,7 @@ int decoder_decode(u_int8_t algo, const char *sample_buf,
 		return -EINVAL;
 
 	st.buf = sample_buf;
-	st.buf32 = (u_int32_t *) st.buf;
+	st.buf32 = (uint32_t *) st.buf;
 	st.bit_ofs = 0;
 	st.algo = decoder_algo[algo];
 

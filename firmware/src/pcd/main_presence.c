@@ -37,7 +37,7 @@
 
 #define RAH NULL
 
-u_int32_t delay_scan,delay_blink,last_uid,last_polled_uid;
+uint32_t delay_scan,delay_blink,last_uid,last_polled_uid;
 static struct rfid_reader_handle *rh;
 static struct rfid_layer2_handle *l2h;
 
@@ -54,10 +54,10 @@ static int usb_presence_rx(struct req_ctx *rctx)
 		if(last_polled_uid)
 		{
             	    rctx->tot_len += 4;
-		    poh->data[0]=(u_int8_t)(last_polled_uid>>24);
-		    poh->data[1]=(u_int8_t)(last_polled_uid>>16);
-		    poh->data[2]=(u_int8_t)(last_polled_uid>> 8);
-		    poh->data[3]=(u_int8_t)(last_polled_uid    );
+		    poh->data[0]=(uint8_t)(last_polled_uid>>24);
+		    poh->data[1]=(uint8_t)(last_polled_uid>>16);
+		    poh->data[2]=(uint8_t)(last_polled_uid>> 8);
+		    poh->data[3]=(uint8_t)(last_polled_uid    );
 		    last_polled_uid=0;
 		}
                 break;
@@ -124,16 +124,16 @@ int _main_dbgu(char key)
 
 void _main_func(void)
 {
-	u_int32_t uid;
+	uint32_t uid;
 	int status;
 	
 	status = rfid_layer2_open(l2h);
         if (status >= 0  && l2h->uid_len==4)
 	{
-	    uid=((u_int32_t)l2h->uid[0])    |
-		((u_int32_t)l2h->uid[1])<< 8|
-		((u_int32_t)l2h->uid[2])<<16|
-		((u_int32_t)l2h->uid[3])<<24;
+	    uid=((uint32_t)l2h->uid[0])    |
+		((uint32_t)l2h->uid[1])<< 8|
+		((uint32_t)l2h->uid[2])<<16|
+		((uint32_t)l2h->uid[3])<<24;
 			
 	    delay_scan=100;
 		

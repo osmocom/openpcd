@@ -49,10 +49,10 @@ struct rfid_asic rc632;
 
 static int 
 rc632_set_bit_mask(struct rfid_asic_handle *handle, 
-		   u_int8_t reg, u_int8_t mask, u_int8_t val)
+		   uint8_t reg, uint8_t mask, uint8_t val)
 {
 	int ret;
-	u_int8_t tmp;
+	uint8_t tmp;
 
 	ret = opcd_rc632_reg_read(handle, reg, &tmp);
 	if (ret < 0)
@@ -98,10 +98,10 @@ rc632_power_down(struct rfid_asic_handle *handle)
 
 int
 rc632_write_eeprom(struct rfid_asic_handle *handle, 
-		   u_int16_t addr, u_int8_t len, u_int8_t *data)
+		   uint16_t addr, uint8_t len, uint8_t *data)
 {
-	u_int8_t sndbuf[MAX_WRITE_LEN + 2];
-	u_int8_t reg;
+	uint8_t sndbuf[MAX_WRITE_LEN + 2];
+	uint8_t reg;
 	int ret;
 
 	if (len > MAX_WRITE_LEN)
@@ -146,11 +146,11 @@ rc632_write_eeprom(struct rfid_asic_handle *handle,
 }
 
 int
-rc632_read_eeprom(struct rfid_asic_handle *handle, u_int16_t addr, u_int8_t len,
-		  u_int8_t *recvbuf)
+rc632_read_eeprom(struct rfid_asic_handle *handle, uint16_t addr, uint8_t len,
+		  uint8_t *recvbuf)
 {
-	u_int8_t sndbuf[3];
-	u_int8_t err;
+	uint8_t sndbuf[3];
+	uint8_t err;
 	int ret;
 
 	sndbuf[0] = (addr & 0xff);
@@ -187,8 +187,8 @@ rc632_read_eeprom(struct rfid_asic_handle *handle, u_int16_t addr, u_int8_t len,
 #define RC632_E2_RS_MAX_P	14
 
 int rc632_get_serial(struct rfid_asic_handle *handle,
-		     u_int32_t *serial)
+		     uint32_t *serial)
 {
 	return rc632_read_eeprom(handle, RC632_E2_PRODUCT_SERIAL, 
-				 4, (u_int8_t *)serial);
+				 4, (uint8_t *)serial);
 }

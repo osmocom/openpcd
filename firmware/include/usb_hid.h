@@ -214,16 +214,16 @@
 #define HID_FEATURE_REPORT	2
 
 struct usb_hid_class_descriptor {
-	u_int8_t  bDescriptorType;
-	u_int16_t wDescriptorLength;
+	uint8_t  bDescriptorType;
+	uint16_t wDescriptorLength;
 } __attribute__ ((packed));
 
 struct usb_hid_descriptor {
-	u_int8_t  bLength;
-	u_int8_t  bDescriptorType;
-	u_int16_t bcdHID;
-	u_int8_t  bCountryCode;
-	u_int8_t  bNumDescriptors;
+	uint8_t  bLength;
+	uint8_t  bDescriptorType;
+	uint16_t bcdHID;
+	uint8_t  bCountryCode;
+	uint8_t  bNumDescriptors;
 
 	struct hid_class_descriptor desc[1];
 } __attribute__ ((packed));

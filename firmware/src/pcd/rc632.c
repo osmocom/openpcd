@@ -72,7 +72,7 @@ static const AT91PS_SPI pSPI = AT91C_BASE_SPI;
 /* SPI irq handler */
 static void spi_irq(void)
 {
-	u_int32_t status = pSPI->SPI_SR;
+	uint32_t status = pSPI->SPI_SR;
 
 	DEBUGPSPIIRQ("spi_irq: 0x%08x ", status);
 
@@ -95,8 +95,8 @@ static void spi_irq(void)
 }
 
 #ifdef SPI_USES_DMA
-static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
-			  u_int8_t *rx_data, u_int16_t *rx_len)
+static int spi_transceive(const uint8_t *tx_data, uint16_t tx_len, 
+			  uint8_t *rx_data, uint16_t *rx_len)
 {
 	DEBUGPSPI("DMA Xfer tx=%s\r\n", hexdump(tx_data, tx_len));
 	if (*rx_len < tx_len) {
@@ -129,12 +129,12 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 }
 #else
 /* stupid polling transceiver routine */
-static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len, 
-		   u_int8_t *rx_data, u_int16_t *rx_len)
+static int spi_transceive(const uint8_t *tx_data, uint16_t tx_len, 
+		   uint8_t *rx_data, uint16_t *rx_len)
 {
-	u_int16_t tx_cur = 0;
-	u_int16_t rx_len_max = 0;
-	u_int16_t rx_cnt = 0;
+	uint16_t tx_cur = 0;
+	uint16_t rx_len_max = 0;
+	uint16_t rx_cnt = 0;
 
 	/* disable RC632 interrupt because it wants to do SPI transactions */
 	AT91F_AIC_DisableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
@@ -148,8 +148,8 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 
 	//AT91F_SPI_Enable(pSPI);
 	while (1) { 
-		u_int32_t sr = pSPI->SPI_SR;
-		u_int8_t tmp;
+		uint32_t sr = pSPI->SPI_SR;
+		uint8_t tmp;
 		if (sr & AT91C_SPI_RDRF) {
 			tmp = pSPI->SPI_RDR;
 			rx_cnt++;
@@ -181,8 +181,8 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 /* static buffers used by RC632 access primitives below. 
  * Since we only have one */
 
-static u_int8_t spi_outbuf[SPI_MAX_XFER_LEN];
-static u_int8_t spi_inbuf[SPI_MAX_XFER_LEN];
+static uint8_t spi_outbuf[SPI_MAX_XFER_LEN];
+static uint8_t spi_inbuf[SPI_MAX_XFER_LEN];
 
 #define FIFO_ADDR (RC632_REG_FIFO_DATA << 1)
 
@@ -191,9 +191,9 @@ static u_int8_t spi_inbuf[SPI_MAX_XFER_LEN];
 /* RC632 access primitives */
 
 int opcd_rc632_reg_write(struct rfid_asic_handle *hdl,
-			 u_int8_t addr, u_int8_t data)
+			 uint8_t addr, uint8_t data)
 {
-	u_int16_t rx_len = 2;
+	uint16_t rx_len = 2;
 
 	DEBUG632("[0x%02x] <= 0x%02x", addr, data);
 
@@ -208,13 +208,13 @@ int opcd_rc632_reg_write(struct rfid_asic_handle *hdl,
 #define RC632_REGSET_START	0x10
 #define RC632_REGSET_END	0x3f
 #define RC632_REGSET_MAXSIZE	(RC632_REGSET_END-RC632_REGSET_START)
-static u_int8_t regset_buf[RC632_REGSET_MAXSIZE * 2];
+static uint8_t regset_buf[RC632_REGSET_MAXSIZE * 2];
 
 int opcd_rc632_reg_write_set(struct rfid_asic_handle *hdl,
-			     u_int8_t *regs, int len)
+			     uint8_t *regs, int len)
 {
-	u_int8_t i, j = 0;
-	u_int16_t rx_len;
+	uint8_t i, j = 0;
+	uint16_t rx_len;
 
 	if (len > RC632_REGSET_MAXSIZE)
 		return -E2BIG;
@@ -232,9 +232,9 @@ int opcd_rc632_reg_write_set(struct rfid_asic_handle *hdl,
 }
 
 int opcd_rc632_fifo_write(struct rfid_asic_handle *hdl,
-			  u_int8_t len, u_int8_t *data, u_int8_t flags)
+			  uint8_t len, uint8_t *data, uint8_t flags)
 {
-	u_int16_t rx_len = sizeof(spi_inbuf);
+	uint16_t rx_len = sizeof(spi_inbuf);
 	if (len > sizeof(spi_outbuf)-1)
 		len = sizeof(spi_outbuf)-1;
 
@@ -247,9 +247,9 @@ int opcd_rc632_fifo_write(struct rfid_asic_handle *hdl,
 }
 
 int opcd_rc632_reg_read(struct rfid_asic_handle *hdl, 
-			u_int8_t addr, u_int8_t *val)
+			uint8_t addr, uint8_t *val)
 {
-	u_int16_t rx_len = 2;
+	uint16_t rx_len = 2;
 
 	addr = (addr << 1) & 0x7e;
 
@@ -265,12 +265,12 @@ int opcd_rc632_reg_read(struct rfid_asic_handle *hdl,
 }
 
 int opcd_rc632_fifo_read(struct rfid_asic_handle *hdl,
-			 u_int8_t max_len, u_int8_t *data)
+			 uint8_t max_len, uint8_t *data)
 {
 	int ret;
-	u_int8_t fifo_length;
-	u_int8_t i;
-	u_int16_t rx_len;
+	uint8_t fifo_length;
+	uint8_t i;
+	uint16_t rx_len;
 
  	ret = opcd_rc632_reg_read(hdl, RC632_REG_FIFO_LENGTH, &fifo_length);
 	if (ret < 0)
@@ -296,9 +296,9 @@ int opcd_rc632_fifo_read(struct rfid_asic_handle *hdl,
 }
 
 int opcd_rc632_set_bits(struct rfid_asic_handle *hdl,
-		   u_int8_t reg, u_int8_t bits)
+		   uint8_t reg, uint8_t bits)
 {
-	u_int8_t val;
+	uint8_t val;
 	int ret;
 	
 	ret = opcd_rc632_reg_read(hdl, reg, &val);
@@ -311,9 +311,9 @@ int opcd_rc632_set_bits(struct rfid_asic_handle *hdl,
 }
 
 int opcd_rc632_clear_bits(struct rfid_asic_handle *hdl,
-		     u_int8_t reg, u_int8_t bits)
+		     uint8_t reg, uint8_t bits)
 {
-	u_int8_t val;
+	uint8_t val;
 	int ret;
 	
 	ret = opcd_rc632_reg_read(hdl, reg, &val);
@@ -331,7 +331,7 @@ static void rc632_irq(void)
 {
 	struct req_ctx *irq_rctx;
 	struct openpcd_hdr *irq_opcdh;
-	u_int8_t cause;
+	uint8_t cause;
 
 	/* CL RC632 has interrupted us */
 	opcd_rc632_reg_read(NULL, RC632_REG_INTERRUPT_RQ, &cause);
@@ -392,7 +392,7 @@ void rc632_unthrottle(void)
 	AT91F_AIC_EnableIt(AT91C_BASE_AIC, OPENPCD_IRQ_RC632);
 }
 
-void rc632_power(u_int8_t up)
+void rc632_power(uint8_t up)
 {
         DEBUGPCRF("powering %s RC632", up ? "up" : "down");
 	if (up)
@@ -414,7 +414,7 @@ void rc632_reset(void)
 
 	/* wait for startup phase to finish */
 	while (1) {
-		u_int8_t val;
+		uint8_t val;
 		opcd_rc632_reg_read(NULL, RC632_REG_COMMAND, &val);
 		if (val == 0x00)
 			break;
@@ -427,7 +427,7 @@ void rc632_reset(void)
 static int rc632_usb_in(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
-	u_int16_t len = rctx->tot_len-sizeof(*poh);
+	uint16_t len = rctx->tot_len-sizeof(*poh);
 
 	/* initialize transmit length to header length */
 	rctx->tot_len = sizeof(*poh);
@@ -443,7 +443,7 @@ static int rc632_usb_in(struct req_ctx *rctx)
 		/* FIFO read always has to provoke a response */
 		poh->flags &= OPENPCD_FLAG_RESPOND;
 		{
-		u_int16_t req_len = poh->val, remain_len = req_len, pih_len;
+		uint16_t req_len = poh->val, remain_len = req_len, pih_len;
 #if 0
 		if (req_len > MAX_PAYLOAD_LEN) {
 			pih_len = MAX_PAYLOAD_LEN;
@@ -598,9 +598,9 @@ void rc632_exit(void)
 
 #ifdef DEBUG
 static int rc632_reg_write_verify(struct rfid_asic_handle *hdl,
-				  u_int8_t reg, u_int8_t val)
+				  uint8_t reg, uint8_t val)
 {
-	u_int8_t tmp;
+	uint8_t tmp;
 
 	opcd_rc632_reg_write(hdl, reg, val);
 	opcd_rc632_reg_read(hdl, reg, &tmp);
@@ -612,11 +612,11 @@ static int rc632_reg_write_verify(struct rfid_asic_handle *hdl,
 
 int rc632_dump(void)
 {
-	u_int8_t i;
-	u_int16_t rx_len = sizeof(spi_inbuf);
+	uint8_t i;
+	uint16_t rx_len = sizeof(spi_inbuf);
 
 	for (i = 0; i <= 0x3f; i++) {
-		u_int8_t reg = i;
+		uint8_t reg = i;
 		if (reg == RC632_REG_FIFO_DATA)
 			reg = 0x3e;
 			

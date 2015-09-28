@@ -57,7 +57,7 @@ static struct adc_state adc_state;
 
 static void adc_irq(void)
 {
-	u_int32_t sr = adc->ADC_SR;
+	uint32_t sr = adc->ADC_SR;
 	struct req_ctx *rctx = adc_state.rctx;
 
 	DEBUGADC("adc_irq(SR=0x%08x, IMR=0x%08x, state=%u): ",
@@ -102,12 +102,12 @@ static void adc_irq(void)
 }
 
 #if 0
-u_int16_t adc_read_fieldstr(void)
+uint16_t adc_read_fieldstr(void)
 {
 	return adc->ADC_CDR4;
 }
 
-u_int16_T adc_read_pll_dem(void)
+uint16_T adc_read_pll_dem(void)
 {
 	return adc
 }

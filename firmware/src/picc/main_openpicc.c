@@ -35,15 +35,15 @@
 #include <picc/ssc_picc.h>
 #include <picc/load_modulation.h>
 
-static const u_int16_t cdivs[] = { 8192, 2048, 1024, 512, 128, 64, 32, 16 };
-static u_int8_t cdiv_idx = 6;
+static const uint16_t cdivs[] = { 8192, 2048, 1024, 512, 128, 64, 32, 16 };
+static uint8_t cdiv_idx = 6;
 
-static u_int16_t duty_percent = 22;
+static uint16_t duty_percent = 22;
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-static u_int32_t pwm_freq[] = { 105937, 211875, 423750, 847500 };
-static u_int8_t pwm_freq_idx = 0;
+static uint32_t pwm_freq[] = { 105937, 211875, 423750, 847500 };
+static uint8_t pwm_freq_idx = 0;
 
-static u_int8_t load_mod = 0;
+static uint8_t load_mod = 0;
 
 #define DA_BASELINE 192
 
@@ -88,10 +88,10 @@ static void help(void)
 
 int _main_dbgu(char key)
 {
-	static u_int8_t poti = DA_BASELINE;
-	static u_int8_t pll_inh = 1;
-	static u_int8_t ssc_mode = 1;
-	static u_int8_t sync_enabled = 0;
+	static uint8_t poti = DA_BASELINE;
+	static uint8_t pll_inh = 1;
+	static uint8_t ssc_mode = 1;
+	static uint8_t sync_enabled = 0;
 
 	DEBUGPCRF("main_dbgu");
 

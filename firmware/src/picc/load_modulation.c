@@ -23,7 +23,7 @@
 
 #include "../openpcd.h"
 
-void load_mod_level(u_int8_t level)
+void load_mod_level(uint8_t level)
 {
 	if (level > 3)
 		level = 3;

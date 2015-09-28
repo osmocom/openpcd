@@ -55,7 +55,7 @@
 #define SEQ_Z	0x1
 
 /* decode a single sampled bit */
-static u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)
+static uint8_t miller_decode_sampled_bit(uint32_t sampled_bit)
 {
 	switch (sampled_bit) {
 	case SEQ_X:
@@ -73,13 +73,13 @@ static u_int8_t miller_decode_sampled_bit(u_int32_t sampled_bit)
 }
 
 /* decode a single 32bit data sample of an 8bit miller encoded word */
-static int miller_decode_sample(u_int32_t sample, u_int8_t *data)
+static int miller_decode_sample(uint32_t sample, uint8_t *data)
 {
-	u_int8_t ret = 0;
+	uint8_t ret = 0;
 	unsigned int i;
 
 	for (i = 0; i < sizeof(sample)/OVERSAMPLING_RATE; i++) {
-		u_int8_t bit = miller_decode_sampled_bit(sample & 0xf);
+		uint8_t bit = miller_decode_sampled_bit(sample & 0xf);
 
 		if (bit == 1)
 			ret |= 1;
@@ -98,10 +98,10 @@ static int miller_decode_sample(u_int32_t sample, u_int8_t *data)
 	return ret;
 }
 
-static u_int32_t get_next_bytesample(struct decoder_state *ms,
-				     u_int8_t *parity_sample)
+static uint32_t get_next_bytesample(struct decoder_state *ms,
+				     uint8_t *parity_sample)
 {
-	u_int32_t ret = 0;
+	uint32_t ret = 0;
 
 	/* get remaining bits from the current word */
 	ret = *(ms->buf32) >> ms->bit_ofs;

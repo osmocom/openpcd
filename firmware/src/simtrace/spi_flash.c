@@ -88,15 +88,15 @@ void spiflash_write_protect(int on)
 
 static __ramfunc void spi_irq(void)
 {
-	u_int32_t status = pSPI->SPI_SR;
+	uint32_t status = pSPI->SPI_SR;
 
 	AT91F_AIC_ClearIt(AT91C_BASE_AIC, AT91C_ID_SPI);
 }
 
-static const u_int8_t chipid_s25fl032p[3] = { 0x01, 0x02, 0x15 };
+static const uint8_t chipid_s25fl032p[3] = { 0x01, 0x02, 0x15 };
 
-static u_int8_t chip_id[3];
-static u_int32_t otp_supported;
+static uint8_t chip_id[3];
+static uint32_t otp_supported;
 
 void spiflash_init(void)
 {
@@ -141,13 +141,13 @@ void spiflash_init(void)
 		otp_supported = 1;
 }
 
-static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
-		   u_int8_t *rx_data, u_int16_t *rx_len, u_int16_t rx_skip)
+static int spi_transceive(const uint8_t *tx_data, uint16_t tx_len,
+		   uint8_t *rx_data, uint16_t *rx_len, uint16_t rx_skip)
 {
-	u_int16_t tx_cur = 0;
-	u_int16_t rx_len_max = 0;
-	u_int16_t rx_cnt = 0;
-	u_int8_t tmp;
+	uint16_t tx_cur = 0;
+	uint16_t rx_len_max = 0;
+	uint16_t rx_cnt = 0;
+	uint8_t tmp;
 
 	DEBUGPSPI("spi_transceive: enter(tx_len=%u) ", tx_len);
 
@@ -161,7 +161,7 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 
 	//AT91F_SPI_Enable(pSPI);
 	while (1) {
-		u_int32_t sr = pSPI->SPI_SR;
+		uint32_t sr = pSPI->SPI_SR;
 		if (sr & AT91C_SPI_RDRF) {
 			tmp = pSPI->SPI_RDR;
 			rx_cnt++;
@@ -199,11 +199,11 @@ static int spi_transceive(const u_int8_t *tx_data, u_int16_t tx_len,
 	return 0;
 }
 
-void spiflash_get_id(u_int8_t *id)
+void spiflash_get_id(uint8_t *id)
 {
-	const u_int8_t tx_data[] = { SPIF_CMD_RDID, 0, 0, 0 };
-	u_int8_t rx_data[] = { 0,0,0,0 };
-	u_int16_t rx_len = sizeof(rx_data);
+	const uint8_t tx_data[] = { SPIF_CMD_RDID, 0, 0, 0 };
+	uint8_t rx_data[] = { 0,0,0,0 };
+	uint16_t rx_len = sizeof(rx_data);
 
 	spi_transceive(tx_data, sizeof(tx_data), rx_data, &rx_len, 1);
 	DEBUGPSPI("SPI ID: %02x %02x %02x\r\n",
@@ -213,9 +213,9 @@ void spiflash_get_id(u_int8_t *id)
 
 int spiflash_read_status(void)
 {
-	const u_int8_t tx_data[] = { SPIF_CMD_RDSR, 0 };
-	u_int8_t rx_data[1];
-	u_int16_t rx_len = sizeof(rx_data);
+	const uint8_t tx_data[] = { SPIF_CMD_RDSR, 0 };
+	uint8_t rx_data[1];
+	uint16_t rx_len = sizeof(rx_data);
 
 	spi_transceive(tx_data, sizeof(tx_data), rx_data, &rx_len, 1);
 
@@ -226,14 +226,14 @@ int spiflash_read_status(void)
 
 void spiflash_clear_status(void)
 {
-	const u_int8_t tx_data[] = { SPIF_CMD_CLSR };
+	const uint8_t tx_data[] = { SPIF_CMD_CLSR };
 
 	spi_transceive(tx_data, sizeof(tx_data), NULL, 0, 0);
 }
 
 int spiflash_write_enable(int enable)
 {
-	u_int8_t tx_data[1];
+	uint8_t tx_data[1];
 
 	if (enable)
 		tx_data[0] = SPIF_CMD_WREN;
@@ -245,9 +245,9 @@ int spiflash_write_enable(int enable)
 	return 0;
 }
 
-int spiflash_otp_read(u_int32_t otp_addr, u_int8_t *out, u_int16_t rx_len)
+int spiflash_otp_read(uint32_t otp_addr, uint8_t *out, uint16_t rx_len)
 {
-	u_int8_t tx_data[] = { SPIF_CMD_OTPR, 0, 0, 0, 0 };
+	uint8_t tx_data[] = { SPIF_CMD_OTPR, 0, 0, 0, 0 };
 
 	if (!otp_supported) {
 		DEBUGP("OTP not supported!\r\n");
@@ -269,9 +269,9 @@ int spiflash_otp_read(u_int32_t otp_addr, u_int8_t *out, u_int16_t rx_len)
 	return rx_len;
 }
 
-int spiflash_otp_write(u_int32_t otp_addr, u_int8_t data)
+int spiflash_otp_write(uint32_t otp_addr, uint8_t data)
 {
-	u_int8_t tx_data[] = { SPIF_CMD_OTPP, 0, 0, 0, 0 };
+	uint8_t tx_data[] = { SPIF_CMD_OTPP, 0, 0, 0, 0 };
 
 	if (!otp_supported) {
 		DEBUGP("OTP not supported!\r\n");
@@ -293,7 +293,7 @@ int spiflash_otp_write(u_int32_t otp_addr, u_int8_t data)
 	return 0;
 }
 
-static int otp_region2addr(u_int8_t region)
+static int otp_region2addr(uint8_t region)
 {
 	/* see Figure 10.1 of S25FL032P data sheet */
 	if (region > 31 || region < 1)
@@ -308,7 +308,7 @@ static int otp_region2addr(u_int8_t region)
 		return 0x112;
 }
 
-static int otp_region2bit(u_int8_t region)
+static int otp_region2bit(uint8_t region)
 {
 	/* see Figure 10.1 of S25FL032P data sheet */
 	if (region > 31 || region < 1)
@@ -323,10 +323,10 @@ static int otp_region2bit(u_int8_t region)
 		return region - 1;
 }
 
-int spiflash_otp_get_lock(u_int8_t region)
+int spiflash_otp_get_lock(uint8_t region)
 {
-	u_int32_t addr;
-	u_int8_t bit, data;
+	uint32_t addr;
+	uint8_t bit, data;
 
 	if (region > 31 || region < 1)
 		return -1;
@@ -342,10 +342,10 @@ int spiflash_otp_get_lock(u_int8_t region)
 		return 0;
 }
 
-int spiflash_otp_set_lock(u_int8_t region)
+int spiflash_otp_set_lock(uint8_t region)
 {
-	u_int32_t addr;
-	u_int8_t bit;
+	uint32_t addr;
+	uint8_t bit;
 
 	if (region > 31 || region < 1)
 		return -1;

@@ -11,9 +11,9 @@ int
 rc632_turn_off_rf(struct rfid_asic_handle *handle);
 
 int
-rc632_read_eeprom(struct rfid_asic_handle *handle, u_int16_t addr, u_int8_t len,
-		  u_int8_t *recvbuf);
+rc632_read_eeprom(struct rfid_asic_handle *handle, uint16_t addr, uint8_t len,
+		  uint8_t *recvbuf);
 
 int rc632_get_serial(struct rfid_asic_handle *handle,
-		     u_int32_t *serial);
+		     uint32_t *serial);
 #endif /* _RC632_HIGHLEVEL_H */

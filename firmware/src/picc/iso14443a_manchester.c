@@ -46,7 +46,7 @@
 #define MANCHESTER_SEQ_E	0x5500
 #define MANCHESTER_SEQ_F	0x5555
 
-static u_int32_t manchester_sample_size(u_int8_t frame_bytelen)
+static uint32_t manchester_sample_size(uint8_t frame_bytelen)
 {
 	/* 16 bits (2 bytes) per bit => 16 bytes samples per data byte,
 	 * plus 16bit (2 bytes) parity per data byte
@@ -60,13 +60,13 @@ static u_int32_t manchester_sample_size(u_int8_t frame_bytelen)
 struct manch_enc_state {
 	const char *data;
 	char *samples;
-	u_int16_t *samples16;
+	uint16_t *samples16;
 };
 
-static void manchester_enc_byte(struct manch_enc_state *mencs, u_int8_t data)
+static void manchester_enc_byte(struct manch_enc_state *mencs, uint8_t data)
 {
 	int i;
-	u_int8_t sum_1 = 0;
+	uint8_t sum_1 = 0;
 
 	/* append 8 sample blobs, one for each bit */
 	for (i = 0; i < 8; i++) {
@@ -86,8 +86,8 @@ static void manchester_enc_byte(struct manch_enc_state *mencs, u_int8_t data)
 	mencs->samples16++
 }
  
-int manchester_encode(char *sample_buf, u_int16_t sample_buf_len, 
-		      const char *data, u_int8_t data_len)
+int manchester_encode(char *sample_buf, uint16_t sample_buf_len, 
+		      const char *data, uint8_t data_len)
 {
 	int i, enc_size;
 	struct manch_enc_state mencs
@@ -112,10 +112,10 @@ int manchester_encode(char *sample_buf, u_int16_t sample_buf_len,
 #define BPSK_SPEED_212	
 
 
-static u_int32_t bpsk_sample_size(u_int8_t frame_bytelen)
+static uint32_t bpsk_sample_size(uint8_t frame_bytelen)
 
-int bpsk_encode(char *sample_buf, u_int16_t sample_buf_len,
-		const char *data, u_int8_t data_len)
+int bpsk_encode(char *sample_buf, uint16_t sample_buf_len,
+		const char *data, uint8_t data_len)
 {
 	/* burst of 32 sub carrier cycles */	
 	memset(sample_buf, 0x55, 8);

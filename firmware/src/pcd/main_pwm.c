@@ -39,14 +39,14 @@
 
 #define RAH NULL
 
-static u_int8_t force_100ask = 1;
-static u_int8_t mod_conductance = 0x3f;
-static u_int8_t cw_conductance = 0x3f;
-static u_int16_t duty_percent = 22;
+static uint8_t force_100ask = 1;
+static uint8_t mod_conductance = 0x3f;
+static uint8_t cw_conductance = 0x3f;
+static uint16_t duty_percent = 22;
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-static u_int32_t pwm_freq[] = { 105937, 211875, 423750, 847500 };
-static u_int8_t pwm_freq_idx = 0;
+static uint32_t pwm_freq[] = { 105937, 211875, 423750, 847500 };
+static uint8_t pwm_freq_idx = 0;
 
 static void rc632_modulate_mfin()
 {
@@ -61,11 +61,11 @@ static void rc632_modulate_mfin()
 #define COND_MANT(x)	(x & 0x0f)
 #define COND_EXP(x)	((x & 0x30) >> 4)
 
-static const u_int16_t rsrel_expfact[] = { 1000, 1925, 3706, 7133 };
+static const uint16_t rsrel_expfact[] = { 1000, 1925, 3706, 7133 };
 
-static u_int32_t calc_conduct_rel(u_int8_t inp)
+static uint32_t calc_conduct_rel(uint8_t inp)
 {
-	u_int32_t cond_rel;
+	uint32_t cond_rel;
 
 	cond_rel = COND_MANT(inp) * rsrel_expfact[COND_EXP(inp)];
 	cond_rel = cond_rel / 1000;
@@ -73,14 +73,14 @@ static u_int32_t calc_conduct_rel(u_int8_t inp)
 	return cond_rel;
 }
 
-static const u_int8_t rsrel_table[] = {
+static const uint8_t rsrel_table[] = {
 	0, 16, 32, 48, 1, 17, 2, 3, 33, 18, 4, 5, 19, 6, 7, 49, 34, 20,
 	8, 9, 21, 10, 11, 35, 22, 12, 13, 23, 14, 50, 36, 15, 24, 25,
 	37, 26, 27, 51, 38, 28, 29, 39, 30, 52, 31, 40, 41, 53, 42, 43,
 	54, 44, 45, 55, 46, 47, 56, 57, 58, 59, 60, 61, 62, 63 };
 
 
-static const u_int16_t cdivs[] = { 128, 64, 32, 16 };
+static const uint16_t cdivs[] = { 128, 64, 32, 16 };
 static int cdiv_idx = 0;
 
 static void help(void)

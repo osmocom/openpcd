@@ -26,14 +26,14 @@
 static AT91PS_TCB tcb;
 static AT91PS_TC tcetu = AT91C_BASE_TC0;
 
-static u_int16_t waiting_time = 9600;
-static u_int16_t clocks_per_etu = 372;
-static u_int16_t wait_events;
+static uint16_t waiting_time = 9600;
+static uint16_t clocks_per_etu = 372;
+static uint16_t wait_events;
 
 static __ramfunc void tc_etu_irq(void)
 {
-	u_int32_t sr = tcetu->TC_SR;
-	static u_int16_t nr_events;
+	uint32_t sr = tcetu->TC_SR;
+	static uint16_t nr_events;
 
 	if (sr & AT91C_TC_ETRGS) {
 		/* external trigger, i.e. we have seen a bit on I/O */
@@ -73,14 +73,14 @@ static void recalc_nr_events(void)
 	tcetu->TC_RC = clocks_per_etu * 12;
 }
 
-void tc_etu_set_wtime(u_int16_t wtime)
+void tc_etu_set_wtime(uint16_t wtime)
 {
 	waiting_time = wtime;
 	recalc_nr_events();
 	//DEBUGPCR("wtime=%u, actually waiting %u", wtime, wait_events * 12);
 }
 
-void tc_etu_set_etu(u_int16_t etu)
+void tc_etu_set_etu(uint16_t etu)
 {
 	clocks_per_etu = etu;
 	recalc_nr_events();

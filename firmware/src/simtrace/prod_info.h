@@ -6,7 +6,7 @@
 				 ((c & 0xff) << 0))
 
 
-int prod_info_write(u_int32_t ts, u_int32_t version, u_int32_t reworks);
-int prod_info_get(u_int32_t *ver, u_int32_t *reworks);
+int prod_info_write(uint32_t ts, uint32_t version, uint32_t reworks);
+int prod_info_get(uint32_t *ver, uint32_t *reworks);
 
 #endif

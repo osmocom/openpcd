@@ -15,16 +15,16 @@
 #define USB_DT_DFU			0x21
 
 struct usb_dfu_func_descriptor {
-	u_int8_t		bLength;
-	u_int8_t		bDescriptorType;
-	u_int8_t		bmAttributes;
+	uint8_t		bLength;
+	uint8_t		bDescriptorType;
+	uint8_t		bmAttributes;
 #define USB_DFU_CAN_DOWNLOAD	(1 << 0)
 #define USB_DFU_CAN_UPLOAD	(1 << 1)
 #define USB_DFU_MANIFEST_TOL	(1 << 2)
 #define USB_DFU_WILL_DETACH	(1 << 3)
-	u_int16_t		wDetachTimeOut;
-	u_int16_t		wTransferSize;
-	u_int16_t		bcdDFUVersion;
+	uint16_t		wDetachTimeOut;
+	uint16_t		wTransferSize;
+	uint16_t		bcdDFUVersion;
 } __attribute__ ((packed));
 
 #define USB_DT_DFU_SIZE			9
@@ -41,10 +41,10 @@ struct usb_dfu_func_descriptor {
 #define USB_REQ_DFU_ABORT	0x06
 
 struct dfu_status {
-	u_int8_t bStatus;
-	u_int8_t bwPollTimeout[3];
-	u_int8_t bState;
-	u_int8_t iString;
+	uint8_t bStatus;
+	uint8_t bwPollTimeout[3];
+	uint8_t bState;
+	uint8_t iString;
 } __attribute__((packed));
 
 #define DFU_STATUS_OK			0x00

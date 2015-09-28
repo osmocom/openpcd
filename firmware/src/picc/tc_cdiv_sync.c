@@ -7,9 +7,9 @@
 
 //#define USE_IRQ
 
-static u_int8_t enabled;
+static uint8_t enabled;
 
-static void pio_data_change(u_int32_t pio)
+static void pio_data_change(uint32_t pio)
 {
 	DEBUGP("PIO_FRAME_IRQ: ");
 	/* we get one interrupt for each change. If now, after the
@@ -46,7 +46,7 @@ static void __ramfunc cdsync_cb(void)
 void tc_cdiv_sync_reset(void)
 {
 	if (enabled) {
-		u_int32_t tmp = *AT91C_PIOA_ISR;
+		uint32_t tmp = *AT91C_PIOA_ISR;
 		volatile int i;
 		DEBUGPCRF("CDIV_SYNC_FLOP");
 

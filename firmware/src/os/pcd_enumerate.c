@@ -94,8 +94,8 @@ static const struct dfuapi *dfu = DFU_API_LOCATION;
 static struct udp_pcd upcd;
 
 struct epstate {
-	u_int32_t state_busy;
-	u_int32_t state_pending;
+	uint32_t state_busy;
+	uint32_t state_pending;
 };
 
 static const struct epstate epstate[] = {
@@ -140,7 +140,7 @@ void udp_unthrottle(void)
 
 int udp_refill_ep(int ep)
 {
-	u_int16_t i;
+	uint16_t i;
 	AT91PS_UDP pUDP = upcd.pUdp;
 	struct req_ctx *rctx;
 	unsigned int start, end;
@@ -231,7 +231,7 @@ int udp_refill_ep(int ep)
 
 static void udp_irq(void)
 {
-	u_int32_t csr;
+	uint32_t csr;
 	AT91PS_UDP pUDP = upcd.pUdp;
 	AT91_REG isr = pUDP->UDP_ISR;
 
@@ -270,8 +270,8 @@ static void udp_irq(void)
 		udp_ep0_handler();
 	}
 	if (isr & AT91C_UDP_EPINT1) {
-		u_int32_t cur_rcv_bank = upcd.cur_rcv_bank;
-		u_int16_t i, pkt_size;
+		uint32_t cur_rcv_bank = upcd.cur_rcv_bank;
+		uint16_t i, pkt_size;
 		struct req_ctx *rctx;
 
 		csr = pUDP->UDP_CSR[1];
@@ -471,9 +471,9 @@ void udp_reset(void)
 static void udp_ep0_handler(void)
 {
 	AT91PS_UDP pUDP = upcd.pUdp;
-	u_int8_t bmRequestType, bRequest;
-	u_int16_t wValue, wIndex, wLength, wStatus;
-	u_int32_t csr = pUDP->UDP_CSR[0];
+	uint8_t bmRequestType, bRequest;
+	uint16_t wValue, wIndex, wLength, wStatus;
+	uint32_t csr = pUDP->UDP_CSR[0];
 
 	DEBUGE("CSR=0x%04x ", csr);
 
@@ -521,7 +521,7 @@ static void udp_ep0_handler(void)
 	/* Handle supported standard device request Cf Table 9-3 in USB
 	 * speciication Rev 1.1 */
 	switch ((bRequest << 8) | bmRequestType) {
-		u_int8_t desc_type, desc_index;
+		uint8_t desc_type, desc_index;
 	case STD_GET_DESCRIPTOR:
 		DEBUGE("GET_DESCRIPTOR(wValue=0x%04x, wIndex=0x%04x) ",
 			wValue, wIndex);

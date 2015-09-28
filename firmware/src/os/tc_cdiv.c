@@ -31,7 +31,7 @@
 static AT91PS_TCB tcb = AT91C_BASE_TCB;
 
 /* set carrier divider to a specific */
-void tc_cdiv_set_divider(u_int16_t div)
+void tc_cdiv_set_divider(uint16_t div)
 {
 	tcb->TCB_TC0.TC_RC = div;
 

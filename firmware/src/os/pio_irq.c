@@ -27,17 +27,17 @@
 
 struct pioirq_state {
 	irq_handler_t *handlers[NR_PIO];
-	u_int32_t usbmask;
-	u_int32_t usb_throttled; /* atomic? */
+	uint32_t usbmask;
+	uint32_t usb_throttled; /* atomic? */
 };
 
 static struct pioirq_state pirqs;
 
 /* low-level handler, used by Cstartup_app.S PIOA fast forcing and
  * by regular interrupt handler below */
-void __ramfunc __pio_irq_demux(u_int32_t pio)
+void __ramfunc __pio_irq_demux(uint32_t pio)
 {
-	u_int8_t send_usb = 0;
+	uint8_t send_usb = 0;
 	int i;
 
 	//DEBUGPCRF("PIO_ISR_STATUS = 0x%08x", pio);
@@ -59,15 +59,15 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 			pirqs.usb_throttled = 1;
 		} else {
 			struct openpcd_hdr *opcdh;
-			u_int32_t *regmask;
+			uint32_t *regmask;
 			opcdh = (struct openpcd_hdr *) irq_rctx->data;
-			regmask = (u_int32_t *) (irq_rctx->data + sizeof(*opcdh));
+			regmask = (uint32_t *) (irq_rctx->data + sizeof(*opcdh));
 			opcdh->cmd = OPENPCD_CMD_PIO_IRQ;
 			opcdh->reg = 0x00;
 			opcdh->flags = 0x00;
 			opcdh->val = 0x00;
 
-			irq_rctx->tot_len = sizeof(*opcdh) + sizeof(u_int32_t);
+			irq_rctx->tot_len = sizeof(*opcdh) + sizeof(uint32_t);
 			req_ctx_set_state(irq_rctx, RCTX_STATE_UDP_EP3_PENDING);
 		}
 	}
@@ -78,23 +78,23 @@ void __ramfunc __pio_irq_demux(u_int32_t pio)
 /* regular interrupt handler, in case fast forcing for PIOA disabled */
 static void pio_irq_demux(void)
 {
-	u_int32_t pio = AT91F_PIO_GetInterruptStatus(AT91C_BASE_PIOA);
+	uint32_t pio = AT91F_PIO_GetInterruptStatus(AT91C_BASE_PIOA);
 	__pio_irq_demux(pio);
 }
 
-void pio_irq_enable(u_int32_t pio)
+void pio_irq_enable(uint32_t pio)
 {
 	AT91F_PIO_InterruptEnable(AT91C_BASE_PIOA, pio);
 }
 
-void pio_irq_disable(u_int32_t pio)
+void pio_irq_disable(uint32_t pio)
 {
 	AT91F_PIO_InterruptDisable(AT91C_BASE_PIOA, pio);
 }
 
-int pio_irq_register(u_int32_t pio, irq_handler_t *handler)
+int pio_irq_register(uint32_t pio, irq_handler_t *handler)
 {
-	u_int8_t num = ffs(pio);
+	uint8_t num = ffs(pio);
 
 	if (num == 0)
 		return -EINVAL;
@@ -111,9 +111,9 @@ int pio_irq_register(u_int32_t pio, irq_handler_t *handler)
 	return 0;
 }
 
-void pio_irq_unregister(u_int32_t pio)
+void pio_irq_unregister(uint32_t pio)
 {
-	u_int8_t num = ffs(pio);
+	uint8_t num = ffs(pio);
 
 	if (num == 0)
 		return;

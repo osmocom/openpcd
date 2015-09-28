@@ -13,11 +13,11 @@
 #include <lib_AT91SAM7.h>
 
 struct req_ctx {
-	volatile u_int32_t state;
+	volatile uint32_t state;
 	volatile struct req_ctx *prev, *next;
-	u_int16_t size;
-	u_int16_t tot_len;
-	u_int8_t *data;
+	uint16_t size;
+	uint16_t tot_len;
+	uint8_t *data;
 };
 
 #define RCTX_STATE_FREE                 0
@@ -45,7 +45,7 @@ extern struct req_ctx __ramfunc *req_ctx_find_get(int large, unsigned long old_s
 extern struct req_ctx *req_ctx_find_busy(void);
 extern void req_ctx_set_state(struct req_ctx *ctx, unsigned long new_state);
 extern void req_ctx_put(struct req_ctx *ctx);
-extern u_int8_t req_ctx_num(struct req_ctx *ctx);
+extern uint8_t req_ctx_num(struct req_ctx *ctx);
 unsigned int req_ctx_count(unsigned long state);
 
 #endif /* _REQ_CTX_H */

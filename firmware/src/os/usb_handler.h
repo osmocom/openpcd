@@ -18,8 +18,8 @@ enum usbapi_err {
 
 typedef int usb_cmd_fn(struct req_ctx *rctx);
 
-extern int usb_hdlr_register(usb_cmd_fn *hdlr, u_int8_t class);
-extern void usb_hdlr_unregister(u_int8_t class);
+extern int usb_hdlr_register(usb_cmd_fn *hdlr, uint8_t class);
+extern void usb_hdlr_unregister(uint8_t class);
 
 extern void usb_in_process(void);
 extern void usb_out_process(void);

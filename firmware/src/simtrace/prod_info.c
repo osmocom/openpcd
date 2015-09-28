@@ -38,17 +38,17 @@
 struct simtrace_prod_info
 {
 	/* magic value */
-	u_int32_t magic;
+	uint32_t magic;
 	/* unix timestamp of production date (0=unknown) */
-	u_int32_t production_ts;
+	uint32_t production_ts;
 	/* hardware version */
-	u_int32_t version;
+	uint32_t version;
 	/* re-works applied */
-	u_int32_t reworks;
+	uint32_t reworks;
 } __attribute__((packed));
 
 
-int prod_info_write(u_int32_t ts, u_int32_t version, u_int32_t reworks)
+int prod_info_write(uint32_t ts, uint32_t version, uint32_t reworks)
 {
 	struct simtrace_prod_info pi = {
 		.magic = PRODINFO_MAGIC,
@@ -56,8 +56,8 @@ int prod_info_write(u_int32_t ts, u_int32_t version, u_int32_t reworks)
 		.version = version,
 		.reworks = reworks,
 	};
-	u_int8_t *pi8 = (u_int8_t *) &pi;
-	u_int32_t addr = OTP_ADDR(OTP_REGION_PRODINFO);
+	uint8_t *pi8 = (uint8_t *) &pi;
+	uint32_t addr = OTP_ADDR(OTP_REGION_PRODINFO);
 	unsigned int rc;
 	int i;
 
@@ -80,12 +80,12 @@ int prod_info_write(u_int32_t ts, u_int32_t version, u_int32_t reworks)
 	return rc;
 }
 
-int prod_info_get(u_int32_t *ver, u_int32_t *reworks)
+int prod_info_get(uint32_t *ver, uint32_t *reworks)
 {
 	struct simtrace_prod_info pi;
-	u_int32_t addr = OTP_ADDR(OTP_REGION_PRODINFO);
+	uint32_t addr = OTP_ADDR(OTP_REGION_PRODINFO);
 
-	spiflash_otp_read(addr, (u_int8_t *) &pi, sizeof(pi));
+	spiflash_otp_read(addr, (uint8_t *) &pi, sizeof(pi));
 
 	if (pi.magic != PRODINFO_MAGIC)
 		return -1;

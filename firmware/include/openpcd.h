@@ -6,12 +6,12 @@
 #include <sys/types.h>
 
 struct openpcd_hdr {
-	u_int8_t cmd;		/* command. high nibble: class,
+	uint8_t cmd;		/* command. high nibble: class,
 				 *	     low nibble: cmd */
-	u_int8_t flags;
-	u_int8_t reg;		/* register */
-	u_int8_t val;		/* value (in case of write *) */
-	u_int8_t data[0];
+	uint8_t flags;
+	uint8_t reg;		/* register */
+	uint8_t val;		/* value (in case of write *) */
+	uint8_t data[0];
 } __attribute__ ((packed));
 
 #define OPCD_REV_LEN	16

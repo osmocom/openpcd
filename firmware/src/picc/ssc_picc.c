@@ -62,7 +62,7 @@ struct ssc_state {
 };
 static struct ssc_state ssc_state;
 
-static const u_int16_t ssc_dmasize[] = {
+static const uint16_t ssc_dmasize[] = {
 	[SSC_MODE_NONE]			= 16,
 	[SSC_MODE_14443A_SHORT]		= 16,	/* 64 bytes */
 	[SSC_MODE_14443A_STANDARD]	= 16,	/* 64 bytes */
@@ -91,8 +91,8 @@ static const u_int16_t ssc_dmasize[] = {
 
 void ssc_rx_mode_set(enum ssc_mode ssc_mode)
 {
-	u_int8_t data_len, num_data, sync_len;
-	u_int32_t start_cond;
+	uint8_t data_len, num_data, sync_len;
+	uint32_t start_cond;
 
 	/* disable Rx and all Rx interrupt sources */
 	AT91F_SSC_DisableRx(AT91C_BASE_SSC);
@@ -151,8 +151,8 @@ out_set_mode:
 
 static void ssc_tx_mode_set(enum ssc_mode ssc_mode)
 {
-	u_int8_t data_len, num_data, sync_len;
-	u_int32_t start_cond;
+	uint8_t data_len, num_data, sync_len;
+	uint32_t start_cond;
 
 	/* disable Tx */
 	AT91F_SSC_DisableTx(AT91C_BASE_SSC);
@@ -308,7 +308,7 @@ static int8_t ssc_rx_refill(void)
 
 static void __ramfunc ssc_irq(void)
 {
-	u_int32_t ssc_sr = ssc->SSC_SR;
+	uint32_t ssc_sr = ssc->SSC_SR;
 	int i, *tmp, emptyframe = 0;
 	DEBUGP("ssc_sr=0x%08x, mode=%u: ", ssc_sr, ssc_state.mode);
 
@@ -327,7 +327,7 @@ static void __ramfunc ssc_irq(void)
 /* Experimental start SSC on frame, stop on FFFFFFFF */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
 			//ssc->SSC_RCMR = (ssc->SSC_RCMR & ~AT91C_SSC_START) | AT91C_SSC_START_CONTINOUS;
-			tmp = (u_int32_t*)ssc_state.rx_ctx[0]->data;
+			tmp = (uint32_t*)ssc_state.rx_ctx[0]->data;
 			for(i = ssc_state.rx_ctx[0]->size / 4; i >= 0 ; i--) {
 				if( *tmp++ == 0xFFFFFFFF ) {
 					*(tmp-1) = 0xAAAAAAAA; // debug marker
@@ -345,7 +345,7 @@ static void __ramfunc ssc_irq(void)
 #endif
 		/* Ignore empty frames */
 		if (ssc_state.mode == SSC_MODE_CONTINUOUS) {
-			tmp = (u_int32_t*)ssc_state.rx_ctx[0]->data + MAX_HDRSIZE;
+			tmp = (uint32_t*)ssc_state.rx_ctx[0]->data + MAX_HDRSIZE;
 			emptyframe = 1;
 			for(i = (ssc_state.rx_ctx[0]->size-MAX_HDRSIZE) / 4 - 8/*WTF?*/; i > 0; i--) {
 				if( *tmp++ != 0xFFFFFFFF ) {
@@ -417,7 +417,7 @@ static void __ramfunc ssc_irq(void)
 		if (ssc_sr & AT91C_SSC_RXSYN)
 			DEBUGP("RXSYN ");
 		if (ssc_sr & AT91C_SSC_RXRDY) {
-			u_int32_t sample = ssc->SSC_RHR;	
+			uint32_t sample = ssc->SSC_RHR;	
 			DEBUGP("RXRDY=0x%08x ", sample);
 			/* Try to set FDT compare register ASAP */
 			if (sample == REQA) {

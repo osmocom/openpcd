@@ -38,8 +38,8 @@
 
 #define NUM_REQ_CTX	(NUM_RCTX_SMALL+NUM_RCTX_LARGE)
 
-static u_int8_t rctx_data[NUM_RCTX_SMALL][RCTX_SIZE_SMALL];
-static u_int8_t rctx_data_large[NUM_RCTX_LARGE][RCTX_SIZE_LARGE];
+static uint8_t rctx_data[NUM_RCTX_SMALL][RCTX_SIZE_SMALL];
+static uint8_t rctx_data_large[NUM_RCTX_LARGE][RCTX_SIZE_LARGE];
 
 static struct req_ctx req_ctx[NUM_REQ_CTX];
 
@@ -79,7 +79,7 @@ struct req_ctx __ramfunc *req_ctx_find_get(int large,
 	return toReturn;
 }
 
-u_int8_t req_ctx_num(struct req_ctx *ctx)
+uint8_t req_ctx_num(struct req_ctx *ctx)
 {
 	return ctx - req_ctx;
 }

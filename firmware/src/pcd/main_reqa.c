@@ -83,25 +83,25 @@ static const char frame_14443a[] = {
 	0x00, 0xff, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
 };
 
-static void reg_inc(u_int8_t reg)
+static void reg_inc(uint8_t reg)
 {
-	u_int8_t val;
+	uint8_t val;
 	opcd_rc632_reg_read(RAH, reg, &val);
 	opcd_rc632_reg_write(RAH, reg, val++);
 	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
 }
 
-static void reg_dec(u_int8_t reg)
+static void reg_dec(uint8_t reg)
 {
-	u_int8_t val;
+	uint8_t val;
 	opcd_rc632_reg_read(RAH, reg, &val);
 	opcd_rc632_reg_write(RAH, reg, val--);
 	DEBUGPCRF("reg 0x%02x = 0x%02x", reg, val);
 }
 
-static u_int8_t ana_out_sel;
-static u_int8_t mfout_sel;
-static u_int8_t speed_idx;
+static uint8_t ana_out_sel;
+static uint8_t mfout_sel;
+static uint8_t speed_idx;
 
 static void help(void)
 {
@@ -114,7 +114,7 @@ static void help(void)
 		 "{: dev cdiv     }: inc cdiv");
 }
 
-static u_int16_t cdivs[] = { 128, 64, 32, 16 };
+static uint16_t cdivs[] = { 128, 64, 32, 16 };
 
 int _main_dbgu(char key)
 {

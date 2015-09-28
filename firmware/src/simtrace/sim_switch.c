@@ -48,7 +48,7 @@ void sim_switch_mode(int connect_io, int connect_misc)
 		AT91F_PIO_SetOutput(AT91C_BASE_PIOA, SIMTRACE_PIO_SC_SW);
 }
 
-static void sw_sim_irq(u_int32_t pio)
+static void sw_sim_irq(uint32_t pio)
 {
 
 	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, SIMTRACE_PIO_SW_SIM))
@@ -57,7 +57,7 @@ static void sw_sim_irq(u_int32_t pio)
 		DEBUGPCR("SIM card removed");
 }
 
-static void vcc_phone_irq(u_int32_t pio)
+static void vcc_phone_irq(uint32_t pio)
 {
 	if (!AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, SIMTRACE_PIO_VCC_PHONE)) {
 		DEBUGPCR("VCC_PHONE off");

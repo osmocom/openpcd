@@ -78,7 +78,7 @@ static void Send_reset(void)
 //* Object              : C handler interrupt function called by the sysirq
 //*                       demultiplexer
 //*----------------------------------------------------------------------------
-static void DBGU_irq_handler(u_int32_t sr)
+static void DBGU_irq_handler(uint32_t sr)
 {
 	static char value;
 

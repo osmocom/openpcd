@@ -14,7 +14,7 @@ enum sysirqs {
 	AT91SAM7_SYSIRQ_COUNT
 };
 
-typedef void sysirq_hdlr(u_int32_t sr);
+typedef void sysirq_hdlr(uint32_t sr);
 
 extern void sysirq_register(enum sysirqs irq, sysirq_hdlr *hdlr);
 extern void sysirq_init(void);

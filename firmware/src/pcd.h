@@ -7,9 +7,9 @@
 #include <sys/types.h>
 
 struct opcd_cmd_hdr {
-	u_int8_t cmd;
-	u_int8_t arg1;
-	u_int16_t arg2;
+	uint8_t cmd;
+	uint8_t arg1;
+	uint16_t arg2;
 } __attribute__ ((packed));
 
 enum opcd_cmd {
@@ -28,8 +28,8 @@ enum opcd_cmd {
 };
 
 struct opcd_status_hdr {
-	u_int8_t cause,		/* interrupt cause register RC632 */
-	u_int8_t prim_status,	/* primary status register RC632 */ 
+	uint8_t cause,		/* interrupt cause register RC632 */
+	uint8_t prim_status,	/* primary status register RC632 */ 
 } __attribute__ ((packed));
 
 #endif /* _OPENPCD_H */

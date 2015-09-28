@@ -33,13 +33,13 @@
 
 static usb_cmd_fn *cmd_hdlrs[16];
 
-int usb_hdlr_register(usb_cmd_fn *hdlr, u_int8_t class)
+int usb_hdlr_register(usb_cmd_fn *hdlr, uint8_t class)
 {
 	cmd_hdlrs[class] = hdlr;
 	return 0;
 }
 
-void usb_hdlr_unregister(u_int8_t class)
+void usb_hdlr_unregister(uint8_t class)
 {
 	cmd_hdlrs[class] = NULL;
 }

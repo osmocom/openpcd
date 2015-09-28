@@ -58,7 +58,7 @@ void fifo_check_raise_int(struct fifo *fifo)
 }
 
 
-u_int16_t fifo_data_put(struct fifo *fifo, u_int16_t len, u_int8_t *data)
+uint16_t fifo_data_put(struct fifo *fifo, uint16_t len, uint8_t *data)
 {
 	if (len > fifo_available(fifo)) {
 		len = fifo_available(fifo);
@@ -71,7 +71,7 @@ u_int16_t fifo_data_put(struct fifo *fifo, u_int16_t len, u_int8_t *data)
 		fifo->producer += len;
 	} else {
 		/* difficult: wrap around */
-		u_int16_t chunk_len;
+		uint16_t chunk_len;
 
 		chunk_len = fifo->size - fifo->producer;
 		memcpy(&fifo->data[fifo->producer], data, chunk_len);
@@ -86,9 +86,9 @@ u_int16_t fifo_data_put(struct fifo *fifo, u_int16_t len, u_int8_t *data)
 }
 
 
-u_int16_t fifo_data_get(struct fifo *fifo, u_int16_t len, u_int8_t *data)
+uint16_t fifo_data_get(struct fifo *fifo, uint16_t len, uint8_t *data)
 {
-	u_int16_t avail = fifo_available(fifo);
+	uint16_t avail = fifo_available(fifo);
 
 	if (avail < len)
 		len = avail;
@@ -98,7 +98,7 @@ u_int16_t fifo_data_get(struct fifo *fifo, u_int16_t len, u_int8_t *data)
 		memcpy(data, &fifo->data[fifo->consumer], len);
 	} else {
 		/* difficult case: wrap */
-		u_int16_t chunk_len = fifo->size - fifo->consumer;
+		uint16_t chunk_len = fifo->size - fifo->consumer;
 		memcpy(data, &fifo->data[fifo->consumer], chunk_len);
 		memcpy(data+chunk_len, &fifo->data[0], len - chunk_len);
 	}
@@ -108,8 +108,8 @@ u_int16_t fifo_data_get(struct fifo *fifo, u_int16_t len, u_int8_t *data)
 	return len;
 }
 
-int fifo_init(struct fifo *fifo, u_int16_t size, 
-	      void (*cb)(struct fifo *fifo, u_int8_t event, void *data), void *cb_data)
+int fifo_init(struct fifo *fifo, uint16_t size, 
+	      void (*cb)(struct fifo *fifo, uint8_t event, void *data), void *cb_data)
 {
 	if (size > sizeof(fifo->data))
 		return -EINVAL;

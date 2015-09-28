@@ -42,7 +42,7 @@
 static AT91PS_PWMC pwm = AT91C_BASE_PWMC;
 
 /* find highest bit set. returns bit (32..1) or 0 in case no bit set  */
-static int fhs(u_int32_t val)
+static int fhs(uint32_t val)
 {
 	int i;
 
@@ -55,16 +55,16 @@ static int fhs(u_int32_t val)
 }
 
 /* set frequency of PWM signal to freq */
-int pwm_freq_set(int channel, u_int32_t freq)
+int pwm_freq_set(int channel, uint32_t freq)
 {
 	/* in order to get maximum resolution, the pre-scaler must be set to
 	 * something like freq << 16.  However, the mimimum pre-scaled frequency
 	 * we can get is MCLK (48MHz), the minimum is MCLK/(1024*255) =
 	 * 48MHz/261120 = 183Hz */
-	u_int32_t overall_div;
-	u_int32_t presc_total;
-	u_int8_t cpre = 0;
-	u_int16_t cprd;
+	uint32_t overall_div;
+	uint32_t presc_total;
+	uint8_t cpre = 0;
+	uint16_t cprd;
 
 	if (freq > MCLK)
 		return -ERANGE;
@@ -104,9 +104,9 @@ void pwm_stop(int channel)
 	AT91F_PWMC_StopChannel(AT91C_BASE_PWMC, (1 << channel));
 }
 
-void pwm_duty_set_percent(int channel, u_int16_t duty)
+void pwm_duty_set_percent(int channel, uint16_t duty)
 {
-	u_int32_t tmp = pwm->PWMC_CH[channel].PWMC_CPRDR & 0xffff;
+	uint32_t tmp = pwm->PWMC_CH[channel].PWMC_CPRDR & 0xffff;
 	
 	tmp = tmp << 16;	/* extend value by 2^16 */
 	tmp = tmp / 100;	/* tmp = 1 % of extended cprd */
@@ -120,7 +120,7 @@ void pwm_duty_set_percent(int channel, u_int16_t duty)
 static int pwm_usb_in(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
-	u_int32_t *freq;
+	uint32_t *freq;
 
 	switch (poh->cmd) {
 	case OPENPCD_CMD_PWM_ENABLE:
@@ -138,7 +138,7 @@ static int pwm_usb_in(struct req_ctx *rctx)
 	case OPENPCD_CMD_PWM_FREQ_SET:
 		if (rctx->tot_len < sizeof(*poh)+4)
 			break;
-		freq = (u_int32_t *) ((unsigned char *) poh) + sizeof(*poh);
+		freq = (uint32_t *) ((unsigned char *) poh) + sizeof(*poh);
 		pwm_freq_set(0, *freq);
 		break;
 	case OPENPCD_CMD_PWM_FREQ_GET:

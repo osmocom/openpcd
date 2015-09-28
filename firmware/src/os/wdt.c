@@ -30,7 +30,7 @@
 #undef  WDT_DEBUG
 #endif/*WDT_DEBUG*/
 
-static void wdt_irq(u_int32_t sr)
+static void wdt_irq(uint32_t sr)
 {
 	if (sr & 1)
 		AT91F_DBGU_Frame("================> WATCHDOG EXPIRED !!!!!\n\r");

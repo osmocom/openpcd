@@ -28,7 +28,7 @@ struct blinker {
 	enum blinkcode_state state;
 	int num;
 	int cur;
-	u_int8_t led;
+	uint8_t led;
 };
 
 static struct blinker blink_state[NUM_LEDS];

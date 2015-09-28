@@ -72,9 +72,9 @@
 
 static int past_manifest = 0;
 static int switch_to_ram = 0; /* IRQ handler requests main to jump to RAM */
-static u_int16_t usb_if_nr = 0;	/* last SET_INTERFACE */
-static u_int16_t usb_if_alt_nr = 0; /* last SET_INTERFACE AltSetting */
-static u_int16_t usb_if_alt_nr_dnload = 0; /* AltSetting during last dnload */
+static uint16_t usb_if_nr = 0;	/* last SET_INTERFACE */
+static uint16_t usb_if_alt_nr = 0; /* last SET_INTERFACE AltSetting */
+static uint16_t usb_if_alt_nr_dnload = 0; /* AltSetting during last dnload */
 
 static void __dfufunc udp_init(void)
 {
@@ -96,11 +96,11 @@ static void __dfufunc udp_init(void)
 static void __dfufunc udp_ep0_send_zlp(void);
 
 /* Send Data through the control endpoint */
-static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length,
-					u_int32_t window_length)
+static void __dfufunc udp_ep0_send_data(const char *pData, uint32_t length,
+					uint32_t window_length)
 {
 	AT91PS_UDP pUdp = AT91C_BASE_UDP;
-	u_int32_t cpt = 0, len_remain;
+	uint32_t cpt = 0, len_remain;
 	AT91_REG csr;
 
 	len_remain = MIN(length, window_length);
@@ -147,12 +147,12 @@ static void __dfufunc udp_ep0_send_data(const char *pData, u_int32_t length,
 }
 
 /* receive data from EP0 */
-static int __dfufunc udp_ep0_recv_data(u_int8_t *data, u_int16_t len)
+static int __dfufunc udp_ep0_recv_data(uint8_t *data, uint16_t len)
 {
 	AT91PS_UDP pUdp = AT91C_BASE_UDP;
 	AT91_REG csr;
-	u_int16_t i, num_rcv;
-	u_int32_t num_rcv_total = 0;
+	uint16_t i, num_rcv;
+	uint32_t num_rcv_total = 0;
 
 	do {
 		/* FIXME: do we need to check whether we've been interrupted
@@ -206,10 +206,10 @@ static void __dfufunc udp_ep0_send_stall(void)
 
 
 static int first_download = 1;
-static u_int8_t *ptr, *ptr_max;
-static __dfudata u_int8_t dfu_status;
-__dfudata u_int32_t dfu_state = DFU_STATE_appIDLE;
-static u_int32_t pagebuf32[AT91C_IFLASH_PAGE_SIZE/4];
+static uint8_t *ptr, *ptr_max;
+static __dfudata uint8_t dfu_status;
+__dfudata uint32_t dfu_state = DFU_STATE_appIDLE;
+static uint32_t pagebuf32[AT91C_IFLASH_PAGE_SIZE/4];
 
 static void chk_first_dnload_set_ptr(void)
 {
@@ -218,25 +218,25 @@ static void chk_first_dnload_set_ptr(void)
 
 	switch (usb_if_alt_nr) {
 	case 0:
-		ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
+		ptr = (uint8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 		ptr_max = AT91C_IFLASH + AT91C_IFLASH_SIZE - ENVIRONMENT_SIZE;
 		break;
 	case 1:
-		ptr = (u_int8_t *) AT91C_IFLASH;
+		ptr = (uint8_t *) AT91C_IFLASH;
 		ptr_max = AT91C_IFLASH + SAM7DFU_SIZE;
 		break;
 	case 2:
-		ptr = (u_int8_t *) AT91C_ISRAM + SAM7DFU_RAM_SIZE;
+		ptr = (uint8_t *) AT91C_ISRAM + SAM7DFU_RAM_SIZE;
 		ptr_max = AT91C_ISRAM + AT91C_ISRAM_SIZE;
 		break;
 	}
 	first_download = 0;
 }
 
-static int __dfufunc handle_dnload_flash(u_int16_t __unused val, u_int16_t len)
+static int __dfufunc handle_dnload_flash(uint16_t __unused val, uint16_t len)
 {
-	volatile u_int32_t *p;
-	u_int8_t *pagebuf = (u_int8_t *) pagebuf32;
+	volatile uint32_t *p;
+	uint8_t *pagebuf = (uint8_t *) pagebuf32;
 	int i;
 
 	DEBUGE("download ");
@@ -257,7 +257,7 @@ static int __dfufunc handle_dnload_flash(u_int16_t __unused val, u_int16_t len)
 		return RET_STALL;
 	}
 	chk_first_dnload_set_ptr();
-	p = (volatile u_int32_t *)ptr;
+	p = (volatile uint32_t *)ptr;
 
 	if (len == 0) {
 		DEBUGP("zero-size write -> MANIFEST_SYNC ");
@@ -293,13 +293,13 @@ static int __dfufunc handle_dnload_flash(u_int16_t __unused val, u_int16_t len)
 			flash_page(p-1);
 		}
 	}
-	ptr = (u_int8_t *) p;
+	ptr = (uint8_t *) p;
 #endif
 
 	return RET_ZLP;
 }
 
-static int __dfufunc handle_dnload_ram(u_int16_t __unused val, u_int16_t len)
+static int __dfufunc handle_dnload_ram(uint16_t __unused val, uint16_t len)
 {
 	DEBUGE("download ");
 
@@ -339,7 +339,7 @@ static int __dfufunc handle_dnload_ram(u_int16_t __unused val, u_int16_t len)
 	return RET_ZLP;
 }
 
-static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
+static int __dfufunc handle_dnload(uint16_t val, uint16_t len)
 {
 	usb_if_alt_nr_dnload = usb_if_alt_nr;
 	switch (usb_if_alt_nr) {
@@ -350,8 +350,8 @@ static int __dfufunc handle_dnload(u_int16_t val, u_int16_t len)
 	}
 }
 
-#define AT91C_IFLASH_END ((u_int8_t *)AT91C_IFLASH + AT91C_IFLASH_SIZE)
-static __dfufunc int handle_upload(u_int16_t __unused val, u_int16_t len)
+#define AT91C_IFLASH_END ((uint8_t *)AT91C_IFLASH + AT91C_IFLASH_SIZE)
+static __dfufunc int handle_upload(uint16_t __unused val, uint16_t len)
 {
 	DEBUGE("upload ");
 	if (len > AT91C_IFLASH_PAGE_SIZE) {
@@ -364,7 +364,7 @@ static __dfufunc int handle_upload(u_int16_t __unused val, u_int16_t len)
 	chk_first_dnload_set_ptr();
 
 	if (ptr + len > AT91C_IFLASH_END) {
-		len = AT91C_IFLASH_END - (u_int8_t *)ptr;
+		len = AT91C_IFLASH_END - (uint8_t *)ptr;
 		first_download = 1;
 	}
 
@@ -377,7 +377,7 @@ static __dfufunc int handle_upload(u_int16_t __unused val, u_int16_t len)
 static __dfufunc void handle_getstatus(void)
 {
 	struct dfu_status dstat;
-	u_int32_t fsr = AT91F_MC_EFC_GetStatus(AT91C_BASE_MC);
+	uint32_t fsr = AT91F_MC_EFC_GetStatus(AT91C_BASE_MC);
 
 	DEBUGE("getstatus(fsr=0x%08x) ", fsr);
 
@@ -416,15 +416,15 @@ static __dfufunc void handle_getstatus(void)
 
 static void __dfufunc handle_getstate(void)
 {
-	u_int8_t u8 = dfu_state;
+	uint8_t u8 = dfu_state;
 	DEBUGE("getstate ");
 
 	udp_ep0_send_data((char *)&u8, sizeof(u8), sizeof(u8));
 }
 
 /* callback function for DFU requests */
-int __dfufunc dfu_ep0_handler(u_int8_t __unused req_type, u_int8_t req,
-		    u_int16_t val, u_int16_t len)
+int __dfufunc dfu_ep0_handler(uint8_t __unused req_type, uint8_t req,
+		    uint16_t val, uint16_t len)
 {
 	int rc, ret = RET_NOTHING;
 
@@ -473,11 +473,11 @@ int __dfufunc dfu_ep0_handler(u_int8_t __unused req_type, u_int8_t req,
 				goto out;
 			}
 			dfu_state = DFU_STATE_dfuDNLOAD_SYNC;
-			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
+			ptr = (uint8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 			ret = handle_dnload(val, len);
 			break;
 		case USB_REQ_DFU_UPLOAD:
-			ptr = (u_int8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
+			ptr = (uint8_t *) AT91C_IFLASH + SAM7DFU_SIZE;
 			dfu_state = DFU_STATE_dfuUPLOAD_IDLE;
 			handle_upload(val, len);
 			break;
@@ -652,7 +652,7 @@ out:
 	return 0;
 }
 
-static u_int8_t cur_config;
+static uint8_t cur_config;
 
 /* USB DFU Device descriptor in DFU mode */
 __dfustruct const struct usb_device_descriptor dfu_dev_descriptor = {
@@ -749,9 +749,9 @@ __dfustruct const struct _dfu_desc dfu_cfg_descriptor = {
 static __dfufunc void dfu_udp_ep0_handler(void)
 {
 	AT91PS_UDP pUDP = AT91C_BASE_UDP;
-	u_int8_t bmRequestType, bRequest;
-	u_int16_t wValue, wIndex, wLength, wStatus;
-	u_int32_t csr = pUDP->UDP_CSR[0];
+	uint8_t bmRequestType, bRequest;
+	uint16_t wValue, wIndex, wLength, wStatus;
+	uint32_t csr = pUDP->UDP_CSR[0];
 
 	DEBUGE("CSR=0x%04x ", csr);
 
@@ -798,7 +798,7 @@ static __dfufunc void dfu_udp_ep0_handler(void)
 	/* Handle supported standard device request Cf Table 9-3 in USB
 	 * speciication Rev 1.1 */
 	switch ((bRequest << 8) | bmRequestType) {
-		u_int8_t desc_type, desc_index;
+		uint8_t desc_type, desc_index;
 	case STD_GET_DESCRIPTOR:
 		DEBUGE("GET_DESCRIPTOR ");
 		desc_type = wValue >> 8;

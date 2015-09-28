@@ -60,12 +60,12 @@
 /* currently this code will only work with oversampling_rate == 1 */
 #define OVERSAMPLING_RATE 1
 
-static u_int32_t get_next_bytesample(struct decoder_state *st,
-				     u_int8_t *parity_sample)
+static uint32_t get_next_bytesample(struct decoder_state *st,
+				     uint8_t *parity_sample)
 {
-	u_int32_t ret = 0;
-	u_int8_t bits_per_sampled_char = st->algo->bits_per_sampled_char;
-	u_int8_t bytesample_mask = st->algo->bytesample_mask;
+	uint32_t ret = 0;
+	uint8_t bits_per_sampled_char = st->algo->bits_per_sampled_char;
+	uint8_t bytesample_mask = st->algo->bytesample_mask;
 
 	/* FIXME: shift start and stop bit into parity_sample and just
 	 * return plain 8-bit data word */
@@ -83,7 +83,7 @@ static u_int32_t get_next_bytesample(struct decoder_state *st,
 	return ret & bytesample_mask;
 }
 
-static int nrzl_decode_sample(const u_int32_t sample, u_int8_t *data)
+static int nrzl_decode_sample(const uint32_t sample, uint8_t *data)
 {
 	*data = (sample >> 1) & 0xff;
 

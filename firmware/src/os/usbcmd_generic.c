@@ -18,14 +18,14 @@
 
 #define OPENPCD_API_VERSION (0x01)
 #define CONFIG_AREA_ADDR ((void*)(AT91C_IFLASH + AT91C_IFLASH_SIZE - ENVIRONMENT_SIZE))
-#define CONFIG_AREA_WORDS ( AT91C_IFLASH_PAGE_SIZE/sizeof(u_int32_t) )
+#define CONFIG_AREA_WORDS ( AT91C_IFLASH_PAGE_SIZE/sizeof(uint32_t) )
 
-volatile u_int32_t config_stack[ CONFIG_AREA_WORDS ];
+volatile uint32_t config_stack[ CONFIG_AREA_WORDS ];
 
 static int gen_setenv(const void* buffer,int len)
 {
     volatile unsigned int i;
-    u_int32_t *dst;
+    uint32_t *dst;
 
     if( len >= sizeof(config_stack) )
 	len=sizeof(config_stack);
@@ -35,7 +35,7 @@ static int gen_setenv(const void* buffer,int len)
     /* retrieve current content to allow partial flashing */    
     
     /* flash changes */
-    dst=(u_int32_t*)CONFIG_AREA_ADDR;
+    dst=(uint32_t*)CONFIG_AREA_ADDR;
     for(i=0;i<CONFIG_AREA_WORDS;i++)
 	*dst++=config_stack[i];
 
@@ -59,7 +59,7 @@ static int gen_usb_rx(struct req_ctx *rctx)
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) rctx->data;
 	struct openpcd_compile_version *ver =
 	    (struct openpcd_compile_version *)poh->data; 
-	u_int32_t len = rctx->tot_len-sizeof(*poh);
+	uint32_t len = rctx->tot_len-sizeof(*poh);
 
         /* initialize transmit length to header length */
         rctx->tot_len = sizeof(*poh);
@@ -107,7 +107,7 @@ static int gen_usb_rx(struct req_ctx *rctx)
 		poh->flags |= OPENPCD_FLAG_RESPOND;
 #ifdef PCD
 		rctx->tot_len += 4;
-		if (rc632_get_serial(NULL, (u_int32_t *)poh->data) < 0) {
+		if (rc632_get_serial(NULL, (uint32_t *)poh->data) < 0) {
 			DEBUGP("ERROR) ");
 			return USB_ERR(USB_ERR_CMD_NOT_IMPL);
 		}

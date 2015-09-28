@@ -124,13 +124,13 @@ struct _dfu_desc {
 
 struct dfuapi {
 	void (*udp_init)(void);
-	void (*ep0_send_data)(const char *data, u_int32_t len, u_int32_t wlen);
+	void (*ep0_send_data)(const char *data, uint32_t len, uint32_t wlen);
 	void (*ep0_send_zlp)(void);
 	void (*ep0_send_stall)(void);
-	int  (*dfu_ep0_handler)(u_int8_t req_type, u_int8_t req,
-				     u_int16_t val, u_int16_t len);
+	int  (*dfu_ep0_handler)(uint8_t req_type, uint8_t req,
+				     uint16_t val, uint16_t len);
 	void (*dfu_switch)(void);
-	u_int32_t *dfu_state;
+	uint32_t *dfu_state;
 	const struct usb_device_descriptor *dfu_dev_descriptor;
 	const struct _dfu_desc *dfu_cfg_descriptor;
 };

@@ -59,30 +59,30 @@ int _main_dbgu(char key)
 }
 
 struct openpcd_l2_connectinfo {
-	u_int32_t proto_supported;	
+	uint32_t proto_supported;	
 
-	u_int8_t speed_rx;
-	u_int8_t speed_tx;
+	uint8_t speed_rx;
+	uint8_t speed_tx;
 
-	u_int8_t uid_len;
-	u_int8_t uid[10];
+	uint8_t uid_len;
+	uint8_t uid[10];
 } __attribute__ ((packed));
 
 struct openpcd_proto_connectinfo {
 } __attribute__ ((packed));
 
 struct openpcd_proto_tcl_connectinfo {
-	u_int8_t fsc;
-	u_int8_t fsd;
-	u_int8_t ta;
-	u_int8_t sfgt;
+	uint8_t fsc;
+	uint8_t fsd;
+	uint8_t ta;
+	uint8_t sfgt;
 
-	u_int8_t flags;
-	u_int8_t cid;
-	u_int8_t nad;
+	uint8_t flags;
+	uint8_t cid;
+	uint8_t nad;
 
-	u_int8_t ats_tot_len;
-	u_int8_t ats_snippet[0];
+	uint8_t ats_tot_len;
+	uint8_t ats_snippet[0];
 } __attribute__ ((packed));
 
 static int init_proto(void)

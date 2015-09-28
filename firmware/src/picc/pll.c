@@ -38,7 +38,7 @@ int pll_is_locked(void)
 	return AT91F_PIO_IsInputSet(AT91C_BASE_PIOA, OPENPICC_PIO_PLL_LOCK);
 }
 
-static void pll_lock_change_cb(u_int32_t pio)
+static void pll_lock_change_cb(uint32_t pio)
 {
 	DEBUGPCRF("PLL LOCK: %d", pll_is_locked());
 #if 1

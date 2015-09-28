@@ -28,27 +28,28 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-static int utf8_to_utf16le(const char *s, u_int16_t *cp, unsigned len)
+static int utf8_to_utf16le(const char *s, uint16_t *cp, unsigned len)
 {
 	int	count = 0;
-	u_int8_t	c;
-	u_int16_t	uchar;
+	uint8_t	c;
+	uint16_t	uchar;
 
 	/* this insists on correct encodings, though not minimal ones.
 	 * BUT it currently rejects legit 4-byte UTF-8 code points,
 	 * which need surrogate pairs.  (Unicode 3.1 can use them.)
 	 */
-	while (len != 0 && (c = (u_int8_t) *s++) != 0) {
+	while (len != 0 && (c = (uint8_t) *s++) != 0) {
 		if (c & 0x80) {
 			// 2-byte sequence:
 			// 00000yyyyyxxxxxx = 110yyyyy 10xxxxxx
 			if ((c & 0xe0) == 0xc0) {
 				uchar = (c & 0x1f) << 6;
 
-				c = (u_int8_t) *s++;
+				c = (uint8_t) *s++;
 				if ((c & 0xc0) != 0xc0)
 					goto fail;
 				c &= 0x3f;
@@ -59,13 +60,13 @@ static int utf8_to_utf16le(const char *s, u_int16_t *cp, unsigned len)
 			} else if ((c & 0xf0) == 0xe0) {
 				uchar = (c & 0x0f) << 12;
 
-				c = (u_int8_t) *s++;
+				c = (uint8_t) *s++;
 				if ((c & 0xc0) != 0xc0)
 					goto fail;
 				c &= 0x3f;
 				uchar |= c << 6;
 
-				c = (u_int8_t) *s++;
+				c = (uint8_t) *s++;
 				if ((c & 0xc0) != 0xc0)
 					goto fail;
 				c &= 0x3f;
@@ -96,7 +97,7 @@ fail:
 }
 
 #define COLUMNS		6
-static int print_array16(u_int16_t *buf, int len)
+static int print_array16(uint16_t *buf, int len)
 {
 	int i;
 	for (i = 0; i < len; i++) {
@@ -130,10 +131,10 @@ static void print_structhdr(int i, int size)
 {
 	printf( "static const struct {\n"
 		"\tstruct usb_descriptor_header hdr;\n"
-		"\tu_int16_t wData[];\n"
+		"\tuint16_t wData[];\n"
 		"} __attribute__((packed)) string%d = {\n"
 		"\t.hdr = {\n"
-		"\t\t.bLength = sizeof(struct usb_descriptor_header) + %u * sizeof(u_int16_t),\n"
+		"\t\t.bLength = sizeof(struct usb_descriptor_header) + %u * sizeof(uint16_t),\n"
 		"\t\t.bDescriptorType = USB_DT_STRING,\n"
 		"\t},\n"
 		"\t.wData = {", i, size);
@@ -146,7 +147,7 @@ static void print_structftr(void)
 int main(int argc, char **argv)
 {
 	char asciibuf[512+1];
-	u_int16_t utf16buf[1024+1];
+	uint16_t utf16buf[1024+1];
 	int len;
 	int j, i = 1;
 
@@ -160,7 +161,7 @@ int main(int argc, char **argv)
 	print_structftr();
 #if 0	
 	printf("static const struct usb_string_descriptor string0 = {\n"
-	       "\t.bLength = sizeof(string0) + 1 * sizeof(u_int16_t),\n"
+	       "\t.bLength = sizeof(string0) + 1 * sizeof(uint16_t),\n"
 	       "\t.bDescriptorType = USB_DT_STRING,\n"
 	       "\t.wData[0] = 0x0409, /* English */\n"
 	       "};\n\n");
@@ -176,7 +177,7 @@ int main(int argc, char **argv)
 		print_structhdr(i, len);
 #if 0
 		printf("static const struct usb_string_descriptor string%d = {\n"
-		       "\t.bLength = sizeof(string%d) + %d * sizeof(u_int16_t),\n"
+		       "\t.bLength = sizeof(string%d) + %d * sizeof(uint16_t),\n"
 		       "\t.bDescriptorType = USB_DT_STRING,\n"
 		       "\t.wData = {", i, i, len);
 #endif

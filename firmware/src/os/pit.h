@@ -20,6 +20,6 @@ extern void timer_add(struct timer_list *timer);
 extern int timer_del(struct timer_list *timer);
 
 extern void pit_init(void);
-extern void pit_mdelay(u_int32_t ms);
+extern void pit_mdelay(uint32_t ms);
 
 #endif

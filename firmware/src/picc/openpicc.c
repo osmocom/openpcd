@@ -16,7 +16,7 @@
 
 #ifdef DEBUG
 /* Our registers, including their power-up default values */
-static u_int16_t opicc_regs[_OPICC_NUM_REGS] = {
+static uint16_t opicc_regs[_OPICC_NUM_REGS] = {
 	[OPICC_REG_14443A_UIDLEN]	= 4,
 	[OPICC_REG_14443A_FDT0]		= 1236,
 	[OPICC_REG_14443A_FDT1]		= 1172,
@@ -30,14 +30,14 @@ static u_int16_t opicc_regs[_OPICC_NUM_REGS] = {
 	[OPICC_REG_RX_COMP_LEVEL]	= 0,
 };
 
-u_int16_t opicc_reg_read(enum opicc_reg reg)
+uint16_t opicc_reg_read(enum opicc_reg reg)
 {
 	if (reg < _OPICC_NUM_REGS)
 		return opicc_regs[reg];
 	return 0;
 }
 
-void opicc_reg_write(enum opicc_reg reg, u_int16_t val)
+void opicc_reg_write(enum opicc_reg reg, uint16_t val)
 {
 	if (reg < _OPICC_NUM_REGS)
 		opicc_regs[reg] = val;
@@ -52,7 +52,7 @@ void opicc_reg_write(enum opicc_reg reg, u_int16_t val)
 static int opicc_reg_usb_in(struct req_ctx *rctx)
 {
 	struct openpcd_hdr *poh = (struct openpcd_hdr *) &rctx->data[0];
-	u_int16_t *val16 = (u_int16_t *) poh->data;
+	uint16_t *val16 = (uint16_t *) poh->data;
 	
 	poh->val = 0;
 	rctx->tot_len = sizeof(*poh);
@@ -60,11 +60,11 @@ static int opicc_reg_usb_in(struct req_ctx *rctx)
 	switch (poh->cmd) {
 	case OPENPCD_CMD_PICC_REG_READ:
 		*val16 = opicc_reg_read(poh->reg);
-		rctx->tot_len += sizeof(u_int16_t);
+		rctx->tot_len += sizeof(uint16_t);
 		poh->flags |= OPENPCD_FLAG_RESPOND;
 		break;
 	case OPENPCD_CMD_PICC_REG_WRITE:
-		if (rctx->tot_len < sizeof(*poh) + sizeof(u_int16_t)) {
+		if (rctx->tot_len < sizeof(*poh) + sizeof(uint16_t)) {
 			/* we only have an 8bit write */
 			opicc_reg_write(poh->reg, poh->val);
 		} else
