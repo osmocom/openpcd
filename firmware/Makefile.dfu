@@ -303,12 +303,13 @@ LPC21ISP_CONTROL = -control
 
 # Define programs and commands.
 SHELL = sh
-CC = arm-elf-gcc
-CPP = arm-elf-g++
-OBJCOPY = arm-elf-objcopy
-OBJDUMP = arm-elf-objdump
-SIZE = arm-elf-size
-NM = arm-elf-nm
+CROSS_COMPILE ?= arm-elf-
+CC = $(CROSS_COMPILE)gcc
+CPP = $(CROSS_COMPILE)g++
+OBJCOPY = $(CROSS_COMPILE)objcopy
+OBJDUMP = $(CROSS_COMPILE)objdump
+SIZE = $(CROSS_COMPILE)size
+NM = $(CROSS_COMPILE)nm
 REMOVE = rm -f
 COPY = cp
 
